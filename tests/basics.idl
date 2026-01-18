@@ -32,7 +32,7 @@ basic_oscillator(f, amp) = sin(freq) * amp
 /*
     Complex function (update) & private scope 
 */
-funkypulse(t) = pulse(t1), pulse(t2), pulse(t3)
+funkypulse(t) = pulse(t1) :: pulse(t2) :: pulse(t3)
     ~> {
         t1 = t * osc(f1);
         t2 = t * osc(f2);

@@ -3,6 +3,7 @@
 #include "ast.hpp"
 using namespace idyl::parser;
 #include<string.h>
+#include<string>
 #include<memory>
 int yycolumn;
 #define RETURN(tok) do { yycolumn += yyleng; /*fprintf(stderr, "token : %d \n", tok);*/ return tok; } while(0)
@@ -26,6 +27,7 @@ int yycolumn;
     yylval = rt;
     RETURN( SPLIT ); 
 }
+"::"             { RETURN( PARALLEL ); }       // connection operator
 ":"             { RETURN( COLON ); }       // connection operator
 "->"            { RETURN( ARROW ); }
 "~>"            { RETURN( UPDATE_ARROW ); } // recurrence update
@@ -49,32 +51,32 @@ int yycolumn;
 };
 
 "$"      { RETURN(DOLLAR); }
-"+"      { yylval = std::make_shared<binop>("+"); return PLUS; }
-"-"      { yylval = std::make_shared<binop>("-"); return MINUS; }
-"*"      { yylval = std::make_shared<binop>("*"); return MUL; }
-"/"      { yylval = std::make_shared<binop>("/"); return DIV; }
-"%"      { yylval = std::make_shared<binop>("%"); return MOD; }
-"^"      { yylval = std::make_shared<binop>("^"); return POW; }
+"+"      { yylval = std::make_shared<binop>("+"); RETURN(PLUS); }
+"-"      { yylval = std::make_shared<binop>("-"); RETURN(MINUS); }
+"*"      { yylval = std::make_shared<binop>("*"); RETURN(MUL); }
+"/"      { yylval = std::make_shared<binop>("/"); RETURN(DIV); }
+"%"      { yylval = std::make_shared<binop>("%"); RETURN(MOD); }
+"^"      { yylval = std::make_shared<binop>("^"); RETURN(POW); }
 
-"=="     { yylval = std::make_shared<binop>("=="); return EQ; }
-"!="     { yylval = std::make_shared<binop>("!="); return NEQ; }
-"<"      { yylval = std::make_shared<binop>("<"); return LT; }
-">"      { yylval = std::make_shared<binop>(">"); return GT; }
-"<="     { yylval = std::make_shared<binop>("<="); return LE; }
-">="     { yylval = std::make_shared<binop>(">="); return GE; }
+"=="     { yylval = std::make_shared<binop>("=="); RETURN(EQ); }
+"!="     { yylval = std::make_shared<binop>("!="); RETURN(NEQ); }
+"<"      { yylval = std::make_shared<binop>("<"); RETURN(LT); }
+">"      { yylval = std::make_shared<binop>(">"); RETURN(GT); }
+"<="     { yylval = std::make_shared<binop>("<="); RETURN(LE); }
+">="     { yylval = std::make_shared<binop>(">="); RETURN(GE); }
 
-"&&"     { yylval = std::make_shared<binop>("&&"); return AND; }
-"||"     { yylval = std::make_shared<binop>("||"); return OR; }
-
+"&&"     { yylval = std::make_shared<binop>("&&"); RETURN(AND); }
+"||"     { yylval = std::make_shared<binop>("||"); RETURN(OR); }
 
 "?"             { RETURN( QUESTION ); }
 "@"             { RETURN( AT ); }
 
-"&&"            { RETURN( AND ); }
-"||"            { RETURN( OR ); }
-
 ";"             { RETURN( SEMI ); }
-","             { RETURN( COMMA ); }
+","             { 
+    
+    std::cerr << "LEX: COMA value='" << yytext << "'\n"; /* debug */
+    RETURN( COMMA ); 
+    }
 
 "("             { RETURN( LPAREN ); }
 ")"             { RETURN( RPAREN ); }
@@ -90,6 +92,7 @@ int yycolumn;
     auto t = std::make_shared<time_prim>(); 
     t->value = yytext;
     yylval = t; 
+    std::cerr << "LEX: TIME val='" << yytext << "'\n"; /* debug */
     RETURN( TIME );
 }
 
@@ -105,16 +108,57 @@ int yycolumn;
     auto num = std::make_shared<number>();
     num->value = yytext;
     yylval = num; 
+    std::cerr << "LEX: NUMBER value='" << yytext << "'\n"; /* debug */
     RETURN( NUMBER );
 }
 
-[A-Za-z_][A-Za-z0-9_]* {
-    //printf("IDENT(%s)\n", yytext);
-    auto id = std::make_shared<identifier>();
-    id->name = yytext;
-    yylval = id;
-    RETURN( IDENT );
+([A-Za-z_][A-Za-z0-9_]*)([ \t\r\n]*)=  {
+    /* Check if next char is '=' (which would make it ==) */
+    int c = yyinput();
+    if (c == '=') {
+        /* It's ==, not an assignment. Put both chars back and match as IDENT */
+        unput('=');
+        unput('=');
+        /* Extract just the identifier part */
+        std::string matched(yytext);
+        size_t i = 0;
+        while (i < matched.size() && !isspace((unsigned char)matched[i]) && matched[i] != '=') ++i;
+        std::string name = matched.substr(0, i);
+        
+        auto ptr = std::make_shared<identifier>();
+        ptr->name = name;
+        yylval = ptr;
+        yycolumn += i;
+        return IDENT;
+    }
+    
+    /* Not ==, it's a real assignment */
+    unput(c);  /* Put back the char we peeked at */
+    
+    std::string matched(yytext);
+    size_t i = 0;
+    while (i < matched.size() && !isspace((unsigned char)matched[i]) && matched[i] != '=') ++i;
+    std::string name = matched.substr(0, i);
+
+    auto ptr = std::make_shared<identifier>();
+    ptr->name = name;
+    yylval = ptr;
+    std::cerr << "LEX: IDENT ASSIGN name='" << name << "'\n";
+    yycolumn += yyleng;
+    return IDENT_ASSIGN;
 }
+
+[A-Za-z_][A-Za-z0-9_]*  {
+    /* push back the char we consumed (if not EOF) */
+    auto ptr = std::make_shared<identifier>();
+    std::string name(yytext);
+    ptr->name = name;
+    yylval = ptr;
+    /* inside the IDENT rule, before return */
+    std::cerr << "LEX: IDENT name='" << name << "'\n";
+    RETURN(IDENT);
+}
+
 
 [A-Za-z_][A-Za-z0-9_]*"!" {
     //printf("EMIT(%s)\n", yytext);

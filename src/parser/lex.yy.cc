@@ -380,20 +380,20 @@ struct yy_trans_info
 	flex_int32_t yy_verify;
 	flex_int32_t yy_nxt;
 	};
-static const flex_int16_t yy_accept[106] =
+static const flex_int16_t yy_accept[109] =
     {   0,
-        0,    0,   54,   52,   49,    1,   52,   42,   14,   19,
-       52,   41,   35,   36,   17,   15,   34,   16,   48,   18,
-       45,    5,   33,   23,    2,   24,   29,   30,   46,   39,
-       40,   20,   46,   46,   46,   46,   46,   37,   52,   38,
-        8,   49,   22,   27,    6,    0,   50,    0,   45,    0,
-       43,   43,   43,   43,   44,    3,    4,   25,   21,   26,
-       47,   46,   46,   46,   46,   46,   46,   28,    7,    0,
-        0,   50,   45,   43,    0,    0,    0,    0,    0,   46,
-       10,   46,   46,   46,    0,   51,    0,    0,    0,    0,
-        0,   46,   46,   11,   46,    0,    0,    0,   44,   12,
+        0,    0,   54,   52,   49,    1,   52,   41,   15,   20,
+       52,   40,   34,   35,   18,   16,   33,   17,   48,   19,
+       44,    6,   32,   24,    2,   25,   30,   31,   46,   38,
+       39,   21,   46,   46,   46,   46,   46,   36,   52,   37,
+        9,   49,   23,   28,    7,    0,   50,    0,   44,    0,
+       42,   42,   42,   42,   43,    5,    3,    4,   26,   22,
+       27,    0,   47,   46,   45,   46,   46,   46,   46,   46,
+       29,    8,    0,    0,   50,   44,   42,    0,    0,    0,
+        0,    0,   46,   11,   46,   46,   46,    0,   51,    0,
+        0,    0,    0,    0,   46,   46,   12,   46,    0,    0,
 
-       46,    9,    0,   13,    0
+        0,   43,   13,   46,   10,    0,   14,    0
     } ;
 
 static const YY_CHAR yy_ec[256] =
@@ -430,47 +430,49 @@ static const YY_CHAR yy_ec[256] =
 
 static const YY_CHAR yy_meta[55] =
     {   0,
-        1,    1,    2,    3,    1,    1,    1,    1,    1,    1,
-        1,    1,    1,    1,    1,    1,    1,    3,    1,    1,
-        1,    1,    1,    1,    1,    3,    3,    1,    1,    1,
-        3,    3,    3,    3,    3,    3,    3,    3,    3,    3,
-        3,    3,    3,    3,    3,    3,    3,    3,    3,    3,
+        1,    2,    3,    2,    1,    1,    1,    1,    1,    1,
+        1,    1,    1,    1,    1,    1,    1,    2,    1,    1,
+        1,    2,    1,    1,    1,    2,    2,    1,    1,    1,
+        2,    2,    2,    2,    2,    2,    2,    2,    2,    2,
+        2,    2,    2,    2,    2,    2,    2,    2,    2,    2,
         1,    1,    1,    1
     } ;
 
-static const flex_int16_t yy_base[109] =
+static const flex_int16_t yy_base[112] =
     {   0,
-        0,    0,  175,  176,   53,   55,  152,  176,  176,  176,
-      165,  176,  176,  176,  176,  176,  176,  149,  176,   47,
-       44,  148,  176,   44,  148,  147,  176,  176,  164,  176,
-      176,  176,   57,   61,   63,   64,   65,  176,  115,  176,
-      143,   70,  176,  176,  176,  153,    0,  146,   78,  113,
-      127,   27,   35,  126,  115,  176,  176,  176,  176,  176,
-      176,  155,   71,   76,   74,   79,   80,  176,  176,  146,
-       75,    0,   94,  176,  126,  108,   46,  122,  115,   93,
-      149,   75,   85,   91,   87,  176,  105,  106,  110,  101,
-      111,   94,   97,  142,   96,   92,   95,   83,  176,  123,
+        0,    0,  187,  299,   53,   55,  162,  299,  299,  299,
+      175,  299,  299,  299,  299,  299,  299,  152,  299,   47,
+       44,   42,  299,   44,  152,  151,  299,  299,   65,  299,
+      299,  299,   70,   75,   91,   96,   99,  299,  119,  299,
+      147,   78,  299,  299,  299,  156,    0,  149,   92,  115,
+      126,   46,   65,  124,  110,  299,  299,  299,  299,  299,
+      299,  113,  299,  123,  299,  138,  144,  147,  150,  154,
+      299,  299,  132,   58,    0,  159,  299,  105,   84,   44,
+       98,   90,  160,  176,  199,  205,  208,   71,  299,   81,
+       77,   80,   69,   77,  211,  214,  220,  235,   66,   70,
 
-       98,  113,   68,  109,  176,  104,  141,  144
+       60,  299,  241,  256,  262,   59,  265,  299,  290,  293,
+      296
     } ;
 
-static const flex_int16_t yy_def[109] =
+static const flex_int16_t yy_def[112] =
     {   0,
-      105,    1,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  106,  105,
-      105,  105,  106,  106,  106,  106,  106,  105,  105,  105,
-      105,  105,  105,  105,  105,  107,  108,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  106,  106,  106,  106,  106,  106,  105,  105,  107,
-      107,  108,  105,  105,  105,  105,  105,  105,  105,  106,
-      106,  106,  106,  106,  107,  105,  105,  105,  105,  105,
-      105,  106,  106,  106,  106,  105,  105,  105,  105,  106,
+      108,    1,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  109,  108,
+      108,  108,  109,  109,  109,  109,  109,  108,  108,  108,
+      108,  108,  108,  108,  108,  110,  111,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  109,  108,  109,  109,  109,  109,  109,
+      108,  108,  110,  110,  111,  108,  108,  108,  108,  108,
+      108,  108,  109,  109,  109,  109,  109,  110,  108,  108,
+      108,  108,  108,  108,  109,  109,  109,  109,  108,  108,
 
-      106,  106,  105,  106,    0,  105,  105,  105
+      108,  108,  109,  109,  109,  108,  109,    0,  108,  108,
+      108
     } ;
 
-static const flex_int16_t yy_nxt[231] =
+static const flex_int16_t yy_nxt[354] =
     {   0,
         4,    5,    6,    7,    8,    9,   10,   11,   12,   13,
        14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
@@ -478,28 +480,42 @@ static const flex_int16_t yy_nxt[231] =
        33,   29,   29,   34,   29,   29,   29,   29,   29,   29,
        35,   29,   29,   29,   29,   36,   29,   29,   37,   29,
        38,   39,   40,   41,   42,   42,   42,   42,   46,   48,
-       61,   49,   57,   47,   61,   58,   61,   61,   61,   76,
-       50,   42,   42,   77,   61,   51,   74,   61,   61,   61,
-       74,   52,   61,   61,   53,   89,   85,   90,   61,   54,
-       55,   86,   63,   48,   61,   49,   61,   61,   85,   61,
+       56,   49,   58,   47,   57,   59,   62,   62,   63,   88,
+       50,   62,   62,   63,   89,   51,   62,   62,   63,   42,
+       42,   52,   88,   92,   53,   93,   65,  108,   79,   54,
+       55,   65,   62,   62,   63,   77,   65,   62,   62,   63,
 
-       61,   61,   67,  105,   50,   65,   62,   82,   64,   51,
-       66,   73,   61,   74,   84,   52,   61,   80,   53,   81,
-       50,   83,   93,   54,   55,   51,   61,   92,   94,   74,
-      102,   52,  104,  103,   53,   95,  101,   74,  100,   54,
-       55,   70,   70,   70,   72,   61,   72,   99,   98,   97,
-       74,   96,   61,   91,   74,   88,   87,   71,   61,   79,
-       78,   75,   74,   73,   71,   69,   68,   61,   60,   59,
-       56,   45,   44,   43,  105,    3,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
+       62,   62,   63,   80,   77,   66,   77,   48,  106,   49,
+       77,   77,   65,  102,   62,   62,  101,   65,   50,  100,
+       65,   77,   67,   51,   62,   62,   63,   99,   94,   52,
+       77,   91,   53,   68,   65,   90,   70,   54,   55,   62,
+       62,   63,   69,   74,   65,   62,   62,   63,   62,   62,
+       63,   62,   62,   63,   82,   62,   62,   63,   81,   65,
+       78,   62,   62,   63,   77,   65,   76,   74,   65,   72,
+       71,   65,   61,   60,   45,   65,   76,   62,   62,   63,
+       85,   65,   44,   43,   83,   50,  108,   84,   87,  108,
+       51,  108,   86,  108,   95,  108,   52,   65,  108,   53,
 
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105
+       62,   62,   63,  108,   54,   55,   62,   62,   63,   62,
+       62,   63,   62,   62,   63,   62,   62,   63,  108,  108,
+       65,   62,   62,   63,  108,  108,   65,  108,  108,   65,
+      108,  108,   65,  108,  108,   65,   62,   62,   63,  108,
+      108,   65,   62,   62,   63,  108,   96,  108,   97,  108,
+      108,  108,   98,  104,  108,  103,   65,   62,   62,   63,
+      108,  108,   65,   62,   62,   63,   62,   62,   63,  105,
+      108,  108,  108,  108,  108,  108,  108,   65,  108,  108,
+      108,  108,  108,   65,  108,  108,   65,  108,  108,  108,
+      107,   64,   64,   73,   73,   73,   75,   75,    3,  108,
+
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108
     } ;
 
-static const flex_int16_t yy_chk[231] =
+static const flex_int16_t yy_chk[354] =
     {   0,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
@@ -507,25 +523,39 @@ static const flex_int16_t yy_chk[231] =
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    5,    5,    6,    6,   20,   21,
-       33,   21,   24,   20,   34,   24,   35,   36,   37,   52,
-       21,   42,   42,   53,   63,   21,   52,   65,   82,   64,
-       53,   21,   66,   67,   21,   77,   71,   77,   83,   21,
-       21,   71,   33,   49,   84,   49,   80,   92,   85,   95,
+       22,   21,   24,   20,   22,   24,   29,   29,   29,   74,
+       21,   33,   33,   33,   74,   21,   34,   34,   34,   42,
+       42,   21,   88,   80,   21,   80,   29,   88,   52,   21,
+       21,   33,   35,   35,   35,   52,   34,   36,   36,   36,
 
-       93,  101,   37,   85,   49,   35,  106,   65,   34,   49,
-       36,   73,  104,  103,   67,   49,  102,   63,   49,   64,
-       73,   66,   82,   49,   49,   73,  100,   80,   83,   98,
-       95,   73,  101,   97,   73,   84,   93,   96,   92,   73,
-       73,  107,  107,  107,  108,   94,  108,   91,   90,   89,
-       88,   87,   81,   79,   78,   76,   75,   70,   62,   55,
-       54,   51,   50,   48,   46,   41,   39,   29,   26,   25,
-       22,   18,   11,    7,    3,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
+       37,   37,   37,   53,  106,   33,  101,   49,  100,   49,
+       53,   99,   35,   94,   62,   62,   93,   36,   49,   92,
+       37,   91,   34,   49,   64,   64,   64,   90,   82,   49,
+       81,   79,   49,   35,   62,   78,   37,   49,   49,   66,
+       66,   66,   36,   73,   64,   67,   67,   67,   68,   68,
+       68,   69,   69,   69,   55,   70,   70,   70,   54,   66,
+       51,   83,   83,   83,   50,   67,   48,   46,   68,   41,
+       39,   69,   26,   25,   18,   70,   76,   84,   84,   84,
+       68,   83,   11,    7,   66,   76,    3,   67,   70,    0,
+       76,    0,   69,    0,   83,    0,   76,   84,    0,   76,
 
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105,
-      105,  105,  105,  105,  105,  105,  105,  105,  105,  105
+       85,   85,   85,    0,   76,   76,   86,   86,   86,   87,
+       87,   87,   95,   95,   95,   96,   96,   96,    0,    0,
+       85,   97,   97,   97,    0,    0,   86,    0,    0,   87,
+        0,    0,   95,    0,    0,   96,   98,   98,   98,    0,
+        0,   97,  103,  103,  103,    0,   85,    0,   86,    0,
+        0,    0,   87,   96,    0,   95,   98,  104,  104,  104,
+        0,    0,  103,  105,  105,  105,  107,  107,  107,   98,
+        0,    0,    0,    0,    0,    0,    0,  104,    0,    0,
+        0,    0,    0,  105,    0,    0,  107,    0,    0,    0,
+      104,  109,  109,  110,  110,  110,  111,  111,  108,  108,
+
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108,  108,  108,  108,  108,  108,  108,  108,
+      108,  108,  108
     } ;
 
 /* Table of booleans, true if rule could match eol. */
@@ -533,7 +563,7 @@ static const flex_int32_t yy_rule_can_match_eol[54] =
     {   0,
 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0,     };
+    0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0,     };
 
 static yy_state_type yy_last_accepting_state;
 static char *yy_last_accepting_cpos;
@@ -555,11 +585,12 @@ char *yytext;
 #include "ast.hpp"
 using namespace idyl::parser;
 #include<string.h>
+#include<string>
 #include<memory>
 int yycolumn;
 #define RETURN(tok) do { yycolumn += yyleng; /*fprintf(stderr, "token : %d \n", tok);*/ return tok; } while(0)
-#line 562 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
-#line 563 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 593 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 594 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 #define INITIAL 0
 
@@ -776,10 +807,10 @@ YY_DECL
 		}
 
 	{
-#line 13 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 14 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 
 
-#line 783 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 814 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -806,13 +837,13 @@ yy_match:
 			while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 				{
 				yy_current_state = (int) yy_def[yy_current_state];
-				if ( yy_current_state >= 106 )
+				if ( yy_current_state >= 109 )
 					yy_c = yy_meta[yy_c];
 				}
 			yy_current_state = yy_nxt[yy_base[yy_current_state] + yy_c];
 			++yy_cp;
 			}
-		while ( yy_base[yy_current_state] != 176 );
+		while ( yy_base[yy_current_state] != 299 );
 
 yy_find_action:
 		yy_act = yy_accept[yy_current_state];
@@ -849,17 +880,17 @@ do_action:	/* This label is used only to access EOF actions. */
 case 1:
 /* rule 1 can match eol */
 YY_RULE_SETUP
-#line 15 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 16 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yylineno++; yycolumn = 1; }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 16 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 17 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { RETURN( ASSIGN ); }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 17 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 18 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { 
     auto rt = std::make_shared<route_op>();
     rt->op = yytext;
@@ -869,7 +900,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 23 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 24 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { 
     auto rt = std::make_shared<route_op>();
     rt->op = yytext;
@@ -879,37 +910,42 @@ YY_RULE_SETUP
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 29 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( COLON ); }       // connection operator
+#line 30 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( PARALLEL ); }       // connection operator
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 30 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( ARROW ); }
+#line 31 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( COLON ); }       // connection operator
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 31 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( UPDATE_ARROW ); } // recurrence update
+#line 32 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( ARROW ); }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 32 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( TILDE ); }       // feedback marker
+#line 33 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( UPDATE_ARROW ); } // recurrence update
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 33 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( WHERE ); }
+#line 34 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( TILDE ); }       // feedback marker
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 34 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( DUP ); }
+#line 35 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( WHERE ); }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 35 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 36 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( DUP ); }
+	YY_BREAK
+case 12:
+YY_RULE_SETUP
+#line 37 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { 
     auto ptr = std::make_shared<identifier>();
     ptr->name = yytext;
@@ -917,9 +953,9 @@ YY_RULE_SETUP
     RETURN( STOP ); 
 }
 	YY_BREAK
-case 12:
+case 13:
 YY_RULE_SETUP
-#line 41 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 43 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { 
     auto ptr = std::make_shared<identifier>();
     ptr->name = yytext;
@@ -927,172 +963,167 @@ YY_RULE_SETUP
     RETURN( AFTER ); 
 }
 	YY_BREAK
-case 13:
+case 14:
 YY_RULE_SETUP
-#line 47 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 49 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     RETURN (MODULE);
 };
 	YY_BREAK
-case 14:
-YY_RULE_SETUP
-#line 51 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN(DOLLAR); }
-	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 52 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("+"); return PLUS; }
+#line 53 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN(DOLLAR); }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 53 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("-"); return MINUS; }
+#line 54 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("+"); RETURN(PLUS); }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 54 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("*"); return MUL; }
+#line 55 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("-"); RETURN(MINUS); }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 55 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("/"); return DIV; }
+#line 56 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("*"); RETURN(MUL); }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 56 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("%"); return MOD; }
+#line 57 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("/"); RETURN(DIV); }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 57 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("^"); return POW; }
+#line 58 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("%"); RETURN(MOD); }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
 #line 59 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("=="); return EQ; }
+{ yylval = std::make_shared<binop>("^"); RETURN(POW); }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 60 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("!="); return NEQ; }
+#line 61 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("=="); RETURN(EQ); }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 61 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("<"); return LT; }
+#line 62 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("!="); RETURN(NEQ); }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 62 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>(">"); return GT; }
+#line 63 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("<"); RETURN(LT); }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 63 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("<="); return LE; }
+#line 64 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>(">"); RETURN(GT); }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 64 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>(">="); return GE; }
+#line 65 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("<="); RETURN(LE); }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
 #line 66 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("&&"); return AND; }
+{ yylval = std::make_shared<binop>(">="); RETURN(GE); }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 67 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval = std::make_shared<binop>("||"); return OR; }
+#line 68 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("&&"); RETURN(AND); }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 70 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( QUESTION ); }
+#line 69 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval = std::make_shared<binop>("||"); RETURN(OR); }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
 #line 71 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( AT ); }
+{ RETURN( QUESTION ); }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 73 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( AND ); }
+#line 72 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( AT ); }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
 #line 74 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( OR ); }
+{ RETURN( SEMI ); }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 76 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( SEMI ); }
+#line 75 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ 
+    
+    std::cerr << "LEX: COMA value='" << yytext << "'\n"; /* debug */
+    RETURN( COMMA ); 
+    }
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 77 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( COMMA ); }
+#line 81 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( LPAREN ); }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 79 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( LPAREN ); }
+#line 82 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( RPAREN ); }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 80 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( RPAREN ); }
+#line 83 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( LBRACE ); }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 81 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( LBRACE ); }
+#line 84 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( RBRACE ); }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 82 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( RBRACE ); }
+#line 85 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( LBRACKET ); }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 83 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( LBRACKET ); }
+#line 86 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( RBRACKET ); }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 84 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( RBRACKET ); }
+#line 87 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN (QUOTE); }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 85 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN (QUOTE); }
+#line 88 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ RETURN( DOUBLEQUOTE ); }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 86 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ RETURN( DOUBLEQUOTE ); }
-	YY_BREAK
-case 43:
-YY_RULE_SETUP
-#line 88 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 90 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     //printf("TIME(%s)\n", yytext);
     auto t = std::make_shared<time_prim>(); 
     t->value = yytext;
     yylval = t; 
+    std::cerr << "LEX: TIME val='" << yytext << "'\n"; /* debug */
     RETURN( TIME );
 }
 	YY_BREAK
-case 44:
+case 43:
 YY_RULE_SETUP
-#line 96 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 99 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     auto t = std::make_shared<trigger_prim>();
     t->value = yytext;
@@ -1100,31 +1131,75 @@ YY_RULE_SETUP
     return(TRIGGER);
 }
 	YY_BREAK
-case 45:
+case 44:
 YY_RULE_SETUP
-#line 103 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 106 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     //printf("NUMBER(%s)\n", yytext);
     auto num = std::make_shared<number>();
     num->value = yytext;
     yylval = num; 
+    std::cerr << "LEX: NUMBER value='" << yytext << "'\n"; /* debug */
     RETURN( NUMBER );
+}
+	YY_BREAK
+case 45:
+/* rule 45 can match eol */
+YY_RULE_SETUP
+#line 115 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{
+    /* Check if next char is '=' (which would make it ==) */
+    int c = yyinput();
+    if (c == '=') {
+        /* It's ==, not an assignment. Put both chars back and match as IDENT */
+        unput('=');
+        unput('=');
+        /* Extract just the identifier part */
+        std::string matched(yytext);
+        size_t i = 0;
+        while (i < matched.size() && !isspace((unsigned char)matched[i]) && matched[i] != '=') ++i;
+        std::string name = matched.substr(0, i);
+        
+        auto ptr = std::make_shared<identifier>();
+        ptr->name = name;
+        yylval = ptr;
+        yycolumn += i;
+        return IDENT;
+    }
+    
+    /* Not ==, it's a real assignment */
+    unput(c);  /* Put back the char we peeked at */
+    
+    std::string matched(yytext);
+    size_t i = 0;
+    while (i < matched.size() && !isspace((unsigned char)matched[i]) && matched[i] != '=') ++i;
+    std::string name = matched.substr(0, i);
+
+    auto ptr = std::make_shared<identifier>();
+    ptr->name = name;
+    yylval = ptr;
+    std::cerr << "LEX: IDENT ASSIGN name='" << name << "'\n";
+    yycolumn += yyleng;
+    return IDENT_ASSIGN;
 }
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 111 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 151 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
-    //printf("IDENT(%s)\n", yytext);
-    auto id = std::make_shared<identifier>();
-    id->name = yytext;
-    yylval = id;
-    RETURN( IDENT );
+    /* push back the char we consumed (if not EOF) */
+    auto ptr = std::make_shared<identifier>();
+    std::string name(yytext);
+    ptr->name = name;
+    yylval = ptr;
+    /* inside the IDENT rule, before return */
+    std::cerr << "LEX: IDENT name='" << name << "'\n";
+    RETURN(IDENT);
 }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 119 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 163 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     //printf("EMIT(%s)\n", yytext);
     auto em = std::make_shared<emit>();
@@ -1135,7 +1210,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 127 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 171 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     RETURN(DOT);
 }
@@ -1143,31 +1218,31 @@ YY_RULE_SETUP
 case 49:
 /* rule 49 can match eol */
 YY_RULE_SETUP
-#line 131 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 175 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { /* skip */ }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 132 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 176 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { /* skip line comment */ }
 	YY_BREAK
 case 51:
 /* rule 51 can match eol */
 YY_RULE_SETUP
-#line 133 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 177 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { /* skip block comment */ }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 135 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 179 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yycolumn++; return *yytext; }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 137 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 181 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 ECHO;
 	YY_BREAK
-#line 1171 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 1246 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1464,7 +1539,7 @@ static int yy_get_next_buffer (void)
 		while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 			{
 			yy_current_state = (int) yy_def[yy_current_state];
-			if ( yy_current_state >= 106 )
+			if ( yy_current_state >= 109 )
 				yy_c = yy_meta[yy_c];
 			}
 		yy_current_state = yy_nxt[yy_base[yy_current_state] + yy_c];
@@ -1492,11 +1567,11 @@ static int yy_get_next_buffer (void)
 	while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 		{
 		yy_current_state = (int) yy_def[yy_current_state];
-		if ( yy_current_state >= 106 )
+		if ( yy_current_state >= 109 )
 			yy_c = yy_meta[yy_c];
 		}
 	yy_current_state = yy_nxt[yy_base[yy_current_state] + yy_c];
-	yy_is_jam = (yy_current_state == 105);
+	yy_is_jam = (yy_current_state == 108);
 
 		return yy_is_jam ? 0 : yy_current_state;
 }
@@ -2184,7 +2259,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 137 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 181 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 
 
 int yywrap(void) { return 1; }

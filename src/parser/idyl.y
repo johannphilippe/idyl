@@ -24,8 +24,8 @@ node_ptr root;
 
 
 
-%token IDENT NUMBER TIME TRIGGER STRING MODULE
-%token ASSIGN COLON ARROW UPDATE_ARROW WHERE DUP
+%token IDENT IDENT_ASSIGN NUMBER TIME TRIGGER MODULE
+%token ASSIGN COLON PARALLEL ARROW UPDATE_ARROW WHERE DUP
 %token STOP AFTER
 %token DOUBLEQUOTE QUOTE
 %token PLUS MINUS MUL DIV MOD POW
@@ -38,20 +38,23 @@ node_ptr root;
 %token SPLIT MERGE
 %token DOLLAR
 
-%left PLUS MINUS
-%left MUL DIV MOD
-%right POW
-%left EQ NEQ LT GT LE GE
-%left AND OR
-%left COLON
-%left TILDE UPDATE_ARROW
-%right QUESTION AT
-%left SPLIT MERGE
+%left COLON              // ← MOVE TO TOP - highest precedence for pipelines
+%left PARALLEL           // :: for parallel composition
+%left SPLIT MERGE        // routing operators
+%left OR                 // logical or
+%left AND                // logical and
+%left EQ NEQ             // equality
+%left LT GT LE GE        // comparison
+%left PLUS MINUS         // addition/subtraction
+%left MUL DIV MOD        // multiplication/division
+%right POW               // exponentiation (right-associative)
+%left TILDE UPDATE_ARROW // feedback and state update
+%right QUESTION AT       // ternary
 
 %type program statement expr expr_opt funcdef base_expr param stateupdate stateupdate_opt 
-%type where_opt lifecycle  operation block block_opt lambdaexpr lbdparam 
-%type  pipeline parallel feedback typeparams_opt updatestmt emitstmt string ident_assign
-%type ternary_op route funcall binop bracketupdate_opt kvpair stmt module module_call
+%type where_opt lifecycle  operation block block_opt lambdaexpr ident_or_primary 
+%type   parallel feedback typeparams_opt updatestmt emitstmt string 
+%type ternary_op route binop bracketupdate_opt kvpair stmt module lambda_head ident_assign
 %type IDENT NUMBER TIME
 %type statements paramlist paramlist_opt arglist arglist_opt stmtlist paramnames kvlist arg
 
@@ -96,8 +99,27 @@ statement
     }
     ;
 
+ident_assign 
+    : IDENT_ASSIGN expr {
+        std::cerr << "DEBUG: ident_assign, expr is actually type: ";
+        if (auto p = std::dynamic_pointer_cast<pipeline>($2)) {
+            std::cerr << "PIPELINE!" << std::endl;
+        } else if (auto e = std::dynamic_pointer_cast<expr>($2)) {
+            std::cerr << "EXPR" << std::endl;
+        } else {
+            std::cerr << "OTHER: " << typeid(*$2).name() << std::endl;
+        }
+        auto ptr = std::make_shared<assignment>(); 
+        ptr->identifier = $1; 
+        ptr->expr = $2;
+        $$ = ptr;
+    }
+    ;
+
+
 funcdef
     : IDENT LPAREN paramlist_opt RPAREN ASSIGN expr stateupdate_opt where_opt  {
+        std::cerr << "DEBUG: funcdef rule 1 (with params)" << std::endl;
         auto ptr = std::make_shared<function_def>();
         ptr->name = $1;
         ptr->paramlist_opt = $3; 
@@ -106,51 +128,30 @@ funcdef
         ptr->where_opt = $8;
         $$ = ptr;
     }
-    | IDENT ASSIGN expr stateupdate_opt where_opt /* zero args function or alias */ 
+    | ident_assign stateupdate_opt where_opt /* zero args function or alias */ 
     {
+        std::cerr << "DEBUG: funcdef rule 2 (ident_assign)" << std::endl;
         auto ptr = std::make_shared<function_def>(); 
+        auto assign = std::static_pointer_cast<assignment>($1);
         ptr->name = $1;
-        ptr->expr = $3; 
-        ptr->stateupdate_opt = $4; 
-        ptr->where_opt = $5;
+        ptr->expr = assign->expr; 
+        ptr->stateupdate_opt = $2; 
+        ptr->where_opt = $3;
         $$ = ptr;
     }
     ;
 
-ident_assign 
-    : IDENT ASSIGN expr  {
-        auto ptr = std::make_shared<assignment>();
-        ptr->identifier = $1;
-        ptr->expr = $3; 
-        $$ = ptr;
-    }
-    ;
 
-// Feedback loop must follow a connection expression
-pipeline
-    : expr COLON lambdaexpr {
-        auto ptr = std::make_shared<pipeline>();
-        ptr->expr1 = $1;
-        ptr->lambdaexpr = $3;
-        ptr->expr2 = nullptr;
-        $$ = ptr;
-    }
-    | expr COLON expr {
-        auto ptr = std::make_shared<pipeline>();
-        ptr->expr1 = $1;
-        ptr->expr2 = $3;
-        ptr->lambdaexpr = nullptr;
-    }
-    ;
+
 
 parallel 
-    : expr COMMA expr  {
+    : expr PARALLEL expr  {
         auto ptr = std::make_shared<parallel>();
         ptr->exprs.push_back($1);
         ptr->exprs.push_back($3);
         $$ = ptr;
     }
-    | parallel COMMA expr {
+    | parallel PARALLEL expr {
         std::static_pointer_cast<parallel>($1)->exprs.push_back($3);
         $$ = $1;
     }
@@ -198,10 +199,8 @@ typeparams
 
 typeparams_opt
     : /* empty */ { $$ = std::shared_ptr<typeparams>(nullptr);}
-    | LT IDENT GT {
-        auto ptr = std::make_shared<typeparams>();
-        ptr->identifier = $2;
-        $$ = ptr;
+    | typeparams {
+        $$ = $1;
     }
     ;
 
@@ -231,9 +230,8 @@ param
         $$ = ptr;
     }
     | ident_assign {
-        auto ptr = std::make_shared<param>();
-        auto assign = std::static_pointer_cast<assignment>($1);
-        ptr->expr = assign;
+        auto ptr = std::make_shared<param>(); 
+        ptr->expr = $1; 
         $$ = ptr;
     }
     ;
@@ -281,17 +279,16 @@ stmtlist
 stmt 
     : updatestmt {$$ = std::make_shared<stmt>($1);}
     | emitstmt {$$ = std::make_shared<stmt>($1);}
-    | funcall SEMI {$$ = std::make_shared<stmt>($1);}
+    | ident_assign SEMI {$$ = std::make_shared<stmt>($1);}
+    | expr SEMI {$$ = std::make_shared<stmt>($1);}
     | lifecycle SEMI {$$ = std::make_shared<stmt>($1);}
-    | pipeline SEMI {$$ = std::make_shared<stmt>($1);}
     ;
 
 updatestmt
-    : ident_assign SEMI {
+    : ident_assign expr SEMI {
         auto ptr = std::make_shared<updatestmt>();
-        auto assign = std::static_pointer_cast<assignment>($1);
-        ptr->name = assign->identifier; 
-        ptr->expr = assign->expr;
+        ptr->name = $1; 
+        ptr->expr = $2;
         $$ = ptr;
     }
     ;
@@ -307,31 +304,32 @@ emitstmt
     }
     ;
 
+lambda_head
+    : LPAREN paramnames RPAREN ARROW {$$ = $2;}
+   ;
+
 lambdaexpr
-    : LPAREN paramnames RPAREN ARROW expr_opt block_opt {
+    : lambda_head expr_opt block_opt {
         auto ptr = std::make_shared<lambdaexpr>();
-        ptr->paramnames = $2;
-        ptr->expr = $5;
-        ptr->block_opt = $6;
+        ptr->paramnames = $1;
+        ptr->expr = $2;
+        ptr->block_opt = $3;
         $$ = ptr;
     }
     ;
 
 paramnames
-    : lbdparam {
+    : IDENT {
         auto ptr = std::make_shared<paramnames>();
         ptr->list.push_back($1);
         $$ = ptr;
     }
-    | paramnames COMMA lbdparam {
+    | paramnames COMMA IDENT {
         std::static_pointer_cast<paramnames>($1)->list.push_back($3);
         $$ = $1;
     }
     ;
 
-lbdparam
-    : IDENT {$$ = $1;}
-    ;
 
 ternary_op 
     : parallel QUESTION expr  {
@@ -364,7 +362,7 @@ expr
         ptr->kvlist = $3; 
         $$ = ptr;
     }
-    | DUP expr LBRACKET kvlist RBRACKET
+    | DUP expr LBRACKET kvlist RBRACKET /* duplicate */
     {
         auto ptr = std::make_shared<expr>();
         ptr->dup = true;
@@ -379,37 +377,76 @@ expr
         ptr->dup = false;
         ptr->block = $3; 
         $$ = ptr;
+    } 
+    | expr COLON expr { // Pipeline
+        std::cerr << "DEBUG: Creating pipeline" << std::endl;
+        auto ptr = std::make_shared<pipeline>();
+        ptr->expr1 = $1;
+        ptr->expr2 = $3;
+        ptr->lambdaexpr = nullptr;
+        $$ = ptr;
     }
     ;
 
 base_expr
-    : IDENT {$$ = $1;}
+    : ident_or_primary {$$ = $1;}
     | string {$$ = $1;}
-    | cast {$$ = $1;}
     | NUMBER {$$ = $1;}
     | TIME {$$ = $1;}
     | TRIGGER {$$ = $1;}
-    | funcall {$$ = $1;}
-    | module_call {$$ = $1;}
     | feedback {$$ = $1;}
     | operation { $$ = $1; }
     | LPAREN expr RPAREN { $$ = $2; }
     | ternary_op {$$ = $1;}
     | lambdaexpr {$$ = $1;}
-    | pipeline {$$ = $1;}
     | parallel {$$ = $1;}
     | route  {$$ = $1;}
     | lifecycle  {$$ = $1;}/* primitive instructions for time like stop and after */
+    | module {$$ = $1; }
     ;
 
-cast 
-    : IDENT typeparams {
-        auto ptr = std::make_shared<cast>(); 
-        ptr->identifier = $1; 
-        ptr->typeparams = $2;
-        $$ = ptr;
+/* Primary expressions: single entry for IDENT-starting forms */
+ident_or_primary
+    : IDENT {
+        /* start with an identifier node */
+        $$ = $1;
+    }
+    /* function-call suffix: primary ( typeparams_opt? ) ( arglist_opt ) bracketupdate_opt */
+    | ident_or_primary typeparams_opt LPAREN arglist_opt RPAREN bracketupdate_opt {
+        /* $1 is the callee (node_ptr), $2 typeparams_opt, $4 arglist_opt, $6 bracketupdate_opt */
+        auto call = std::make_shared<function_call>();
+        call->callee = $1;
+        call->typeparams_opt = $2;
+        call->args_opt = $4;
+        call->bracketupdate_opt = $6;
+        $$ = call;
+    }
+    /* member access: primary . IDENT  (turns previous primary into module instance or member access) */
+    | ident_or_primary DOT IDENT {
+        /* build a module_call-like node where $1 is instance and $3 is method identifier */
+        auto mc = std::make_shared<module_call>();
+        mc->instance_name = $1;
+        /* create a placeholder function_call for the method; actual call suffix may follow */
+        auto method_call = std::make_shared<function_call>();
+        method_call->callee = $3; /* method identifier node */
+        method_call->typeparams_opt = std::shared_ptr<typeparams>(nullptr);
+        method_call->args_opt = std::make_shared<arglist>();
+        method_call->bracketupdate_opt = std::shared_ptr<bracketupdate>(nullptr);
+        mc->method_call = method_call;
+        $$ = mc;
+    }
+    /* cast suffix: primary typeparams  -> treat as cast if desired */
+    | ident_or_primary typeparams {
+        /* If $1 is an identifier and $2 is typeparams, create a cast node.
+           If you prefer cast only when starting with IDENT, you can keep original cast rule.
+           Here we allow chaining like IDENT<...> then call suffix. */
+        auto c = std::make_shared<cast>();
+        c->identifier = $1;
+        c->typeparams = $2;
+        $$ = c;
     }
     ;
+
 
 operation
     : expr binop expr  {
@@ -438,35 +475,15 @@ route
     }
     ;
 
-funcall
-    : IDENT typeparams_opt LPAREN arglist_opt RPAREN bracketupdate_opt  {
-        auto ptr = std::make_shared<function_call>();
-        ptr->callee = $1;
-        ptr->typeparams_opt = $2;
-        ptr->args_opt = $4; 
-        ptr->bracketupdate_opt = $6;
-        std::cout << "funcall " << std::static_pointer_cast<identifier>($1)->name << std::endl;
-        $$ = ptr; 
-    }
-    ;
-
 module 
-    : IDENT ASSIGN MODULE LPAREN string RPAREN  {
+    : MODULE LPAREN string RPAREN  {
         auto ptr = std::make_shared<module_instance>();
         ptr->identifier = $1;
-        ptr->module_name = $5;
+        ptr->module_name = $4;
         $$ = ptr;
     }
     ;
 
-module_call 
-    : IDENT DOT funcall {
-        auto ptr = std::make_shared<module_call>();
-        ptr->instance_name = $1; 
-        ptr->method_call = $3; 
-        $$ = ptr;
-    }
-    ; 
 
 arglist_opt
     : /* empty */ {$$ = std::make_shared<arglist>();}
@@ -480,7 +497,7 @@ arglist
         std::cout << "add arg to arglist" << std::endl;
         $$ = ptr;
     }
-    | arg COMMA arg {
+    | arglist COMMA arg {
         std::static_pointer_cast<arglist>($1)->list.push_back($3);
         std::cout << "push arg to arglist" << std::endl;
         $$ = $1;
@@ -488,17 +505,16 @@ arglist
     ;
 
 arg 
-    : base_expr {
+    : ident_assign {
+        std::cout << "arg : assign" << std::endl;
+        auto ptr = std::make_shared<arg>(); 
+        ptr->expr = $1; 
+        $$ = ptr;
+    }
+    | expr {
         std::cout << "arg: expr" << std::endl; 
         auto ptr = std::make_shared<arg>();
         ptr->expr = $1;
-        $$ = ptr;
-    }
-    | ident_assign { 
-        std::cout << "arg assignment" << std::endl; 
-        auto ptr = std::make_shared<arg>(); 
-        auto assign = std::static_pointer_cast<assignment>($1);
-        ptr->expr = assign;
         $$ = ptr;
     }
     ;

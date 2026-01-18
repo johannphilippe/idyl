@@ -2,9 +2,9 @@
     One ternary operation in the  form : 
     1rst_case, 2nd_case ? (condition)
 */
-f1(x) = osc(10), osc(20) ? (x == 1)
+f1(x) = osc(10) :: osc(20) ? (x == 1)
 
 /*
     Combined ternary operations 
 */
-f2(x, y) = osc(10), ( osc(20), osc(30) ? (x == 1) ) ? (y == 1) 
+f2(x, y) = osc(10) :: ( osc(20) :: osc(30) ? (x == 1) ) ? (y == 1) 
