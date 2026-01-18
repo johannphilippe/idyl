@@ -1,0 +1,22 @@
+// Rebinding parameters dynamically
+p1[period = oscillate(0.1, 0.5, 1.0s)]
+
+// Using hypercurve mapped by a phasor
+p2 = pulse(my_curve(phasor(0.1s))) :  (t, crv) -> osc(220){ cutoff(800*crv); amp(0.2 + 0.1*sin(t)); }
+
+// Lifecycle controls
+stop p1
+p3 = dup p2[freq = 330]
+
+// Countdown driving a visual parameter
+v1 = countdown(100ms) : (c) -> visual(){brightness(c/100.0); }
+
+// Oscillator with where clause for dt // And optional named parameter
+lfo = oscillate<beats>(0.2, 0.8, 1.0b, 0)
+      where { resolution = 256; dt = period/resolution ; }
+
+after 3s : stop p2
+
+v1 = countdown(100ms) : (c) -> visual(){brightness(c/100.0); }
+p3 = dup p2[freq = 330]
+

@@ -1,0 +1,4 @@
+countdown(d, c = 100) =
+    trigger0 + ((trigger : delay(d)) ~)
+    ~> { c = c - 1; c!; }
+    where { done = (c <= 0); }
