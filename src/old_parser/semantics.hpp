@@ -2,11 +2,9 @@
 
 /*
     Semantics checking 
-    - Type mismatch (cannot cast time to trigger, 
-        cannot accept trigger if expects time etc)
+    - Type mismatch (cannot cast time to trigger, or type conversion rule )
     - Undeclared function 
     - Reserved identifier misuse 
-
 
     First Class Types : 
         - number (double by default)

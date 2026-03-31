@@ -45,7 +45,7 @@ funkypulse(t) = pulse(t1) :: pulse(t2) :: pulse(t3)
     }
 
 /* 
-    Emission tests
+    Emission tests with ! operator 
 */
 emit_test(smtg) = hello(updated) ~> {updated = smtg * dt; updated!;}
 /*
