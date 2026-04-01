@@ -1,0 +1,394 @@
+/*
+================================================================================
+  IDYL LANGUAGE - COMPREHENSIVE SYNTAX TEST
+  
+  This file progressively demonstrates all core features of the Idyl language,
+  from the simplest to more complex examples. Each section builds on previous
+  knowledge, making this suitable as a language tutorial reference.
+  
+  Status: Pre-Alpha (designed for initial parser validation)
+================================================================================
+*/
+
+// ============================================================================
+// SECTION 1: COMMENTS
+// ============================================================================
+
+// This is a single-line comment - extends to the end of the line
+
+/* This is a multi-line comment.
+   It can span multiple lines and contain any text.
+   The parser completely ignores all comments. */
+
+
+// ============================================================================
+// SECTION 2: CONSTANTS AND BASIC FUNCTIONS
+// ============================================================================
+
+// Zero - canonical silence/no event
+silence = 0
+
+// Simple numeric constants
+one = 1
+pi_approx = 3.14159
+ratio = 0.5
+
+// Musical/temporal constants
+concert_pitch = 440hz          // 440 Hertz
+short_delay = 100ms            // 100 milliseconds
+long_duration = 2.5s           // 2.5 seconds
+beat_timing = 4.0b             // 4 beats (at current tempo)
+
+
+// ============================================================================
+// SECTION 3: SIMPLE SINGLE-PARAMETER FUNCTIONS
+// ============================================================================
+
+// Basic mathematical operations
+square(x) = x * x
+cube(x) = x * x * x
+double(x) = x * 2
+half(x) = x / 2
+
+// Frequency conversions
+midi_to_freq(midi_note) = 440 * (2.0 ^ ((midi_note - 69) / 12.0))
+
+// Utility: Is this number positive?
+is_positive(x) = 0; 1 ? (x > 0)
+
+// Utility: Is this number in range?
+in_range(x) = 0; 1 ? ((x >= 0) & (x <= 1))
+
+
+// ============================================================================
+// SECTION 4: MULTI-PARAMETER FUNCTIONS
+// ============================================================================
+
+// Basic arithmetic operations
+add(a, b) = a + b
+subtract(a, b) = a - b
+multiply(a, b) = a * b
+divide(a, b) = a / b
+
+// Scale and offset
+scale_and_offset(input, scale, offset) = (input * scale) + offset
+
+// Linear blend/interpolation between two signals
+blend(sig_a, sig_b, blend_factor) = 
+    sig_a * (1 - blend_factor) + sig_b * blend_factor
+
+// Normalize a value to 0..1 range
+normalize(value, min_val, max_val) = 
+    (value - min_val) / (max_val - min_val)
+
+
+// ============================================================================
+// SECTION 5: OPERATOR PRECEDENCE AND GROUPING
+// ============================================================================
+
+// Explicit grouping for clarity
+add_then_multiply_a(x, y, z) = (x + y) * z
+
+// Multiplication before addition (natural precedence)
+add_then_multiply_b(x, y, z) = x + y * z
+
+// Nested operations
+complex_expr(a, b, c, d) = ((a + b) * c) / (d + 1)
+
+
+// ============================================================================
+// SECTION 6: TIME LITERALS AND TEMPORAL ARITHMETIC
+// ============================================================================
+
+// Time values are first-class citizens
+quick_pulse = 50ms
+steady_pulse = 200ms
+song_bar = 2s
+long_sustain = 5s
+
+// Time arithmetic
+sustain_with_tail = long_sustain + 500ms
+double_duration = steady_pulse * 2
+half_duration = song_bar / 2
+
+// Time unit conversions
+ms_value = 1000ms           // 1000 milliseconds
+s_value = 1.0s              // 1 second (= 1000ms)
+hz_value = 10hz             // 10 Hz = 100ms period
+beat_value = 8.0b           // 8 beats (tempo-dependent)
+
+
+// ============================================================================
+// SECTION 7: PRIMITIVE LITERALS - TRIGGERS AND REST
+// ============================================================================
+
+// Trigger: an instantaneous event/pulse
+pulse = !
+
+// Rest: no event / silence
+no_event = .
+
+// Combinations
+pulse_and_rest = pulse + no_event    // Just the pulse
+rest_and_pulse = no_event + pulse    // Just the pulse
+
+
+// ============================================================================
+// SECTION 8: CONDITIONAL EXPRESSIONS (TERNARY)
+// ============================================================================
+
+// Two-way selection: (false_option; true_option ? condition)
+abs_value(x) = (0 - x); x ? (x >= 0)
+
+// Safe division - return 0 if dividing by zero
+safe_divide(a, b) = 0; (a / b) ? (b != 0)
+
+// Select between two waveforms
+waveform_select(is_sine, freq) = 
+    sin(freq); cos(freq) ? is_sine
+
+// Multi-way selection (wraps around)
+note_from_degree(degree) = 
+    c; d; e; f; g ? (degree % 5)
+
+// State machine: select output based on state
+state_output(state) = 
+    idle_output; attack_output; sustain_output ? state
+
+
+// ============================================================================
+// SECTION 9: BITWISE OPERATIONS
+// ============================================================================
+
+// Convert floats to integers for bitwise operations
+int_a(x) = int(x)
+
+// Bitwise AND
+bitwise_and(x, y) = int_a(x) & int_a(y)
+
+// Bitwise OR
+bitwise_or(x, y) = int_a(x) | int_a(y)
+
+// Bitwise XOR
+bitwise_xor(x, y) = int_a(x) ^ int_a(y)
+
+// Left shift (multiply by power of 2)
+shift_left(x, bits) = int_a(x) << int_a(bits)
+
+// Right shift (divide by power of 2)
+shift_right(x, bits) = int_a(x) >> int_a(bits)
+
+// Bitwise NOT
+bitwise_not(x) = ~int_a(x)
+
+
+// ============================================================================
+// SECTION 10: FLOWS - SEQUENCES AND COLLECTIONS
+// ============================================================================
+
+// Simple flow: a list of values
+simple_sequence = [1 2 3 4 5]
+
+// Flow with arithmetic sequence
+numbers_0_to_9 = [i = 0..9 : i]
+
+// Flow with scaling
+doubled_values = [i = 0..9 : i * 2]
+
+// Flow with function application
+squared_values = [i = 1..5 : square(i)]
+
+// Flow with range and expression
+harmonics(fundamental_freq) = 
+    [harmonic = 1..8 : fundamental_freq * harmonic]
+
+// Sine table for wavetable synthesis
+sine_table(table_size) = 
+    [i = 0..table_size - 1 : sin(i / table_size * 2 * pi)]
+
+// Musical scale degrees (12-tone equal temperament)
+chromatic_scale(root_freq) = 
+    [semitone = 0..11 : root_freq * (2.0 ^ (semitone / 12.0))]
+
+
+// ============================================================================
+// SECTION 11: MULTI-MEMBER FLOWS
+// ============================================================================
+
+// A flow with multiple named members
+flow envelope_data(attack_time, decay_time, sustain_level, release_time) = {
+    attack: [i = 0..100 : i / 100]
+    decay: [i = 0..50 : sustain_level + (1 - sustain_level) * (1 - i / 50)]
+    sustain: [sustain_level]
+    release: [i = 0..100 : sustain_level * (1 - i / 100)]
+}
+
+// A flow representing musical intervals
+flow interval_set = {
+    unison: [1.0]
+    major_third: [1.25]
+    perfect_fifth: [1.5]
+    octave: [2.0]
+}
+
+
+// ============================================================================
+// SECTION 12: STATEFUL FUNCTIONS - LAMBDA BLOCKS (CLOCK-DRIVEN)
+// ============================================================================
+
+// Counter that increments on every clock tick (dt=10ms)
+clock_counter(dt=10ms) = counter_value |> {
+    init: { counter_value = 0 }
+    counter_value = counter_value + 1
+}
+
+// Sawtooth oscillator: phase increases linearly then wraps
+sawtooth_osc(frequency, dt=10ms) = phase |> {
+    init: { phase = 0 }
+    phase = fmod(phase + 1 / (frequency * (dt / 1000ms)), 1)
+}
+
+// Low-frequency oscillator (LFO) for modulation
+lfo(freq, amplitude, dt=10ms) = modulation |> {
+    init: { phase = 0 }
+    modulation = amplitude * sin(phase * 2 * pi)
+    phase = fmod(phase + 1 / (freq * (dt / 1000)), 1)
+}
+
+// Exponential smoother for control signals
+smooth_control(input, smoothing_factor, dt=10ms) = smoothed 
+|> {
+    init: { state = 0 }
+    smoothed = state
+    state = state + (input - state) * smoothing_factor
+}
+
+// Envelope follower - tracks input amplitude with release
+envelope_follower(input, attack_coeff, release_coeff, dt=10ms) = env_out |> {
+    init: { env = 0 }
+    env_out = env
+    env = (env * release_coeff); (input * attack_coeff + env * (1 - attack_coeff)) ? (input > env)
+}
+
+
+// ============================================================================
+// SECTION 13: STATEFUL FUNCTIONS - TRIGGER-DRIVEN
+// ============================================================================
+
+// Sample-and-hold: captures input when trigger fires
+sample_hold(input, capture!) = held_value |> {
+    init: { held_value = 0 }
+    held_value = input
+}
+
+// Counter increments on each trigger pulse
+trigger_counter(spike!) = count |> {
+    init: { count = 0 }
+    count = count + 1
+}
+
+// Seq selector: advances to next sequence element on trigger
+seq_selector(elements, advance!) = current_element |> {
+    init: { index = 0 }
+    current_element = elements
+    index = (index + 1)
+}
+
+
+// ============================================================================
+// SECTION 14: HYBRID FUNCTIONS - TRIGGER + CLOCK
+// ============================================================================
+
+// Smart decay: triggers set to maximum, then continuously decays over time
+decay_on_trigger(trigger!, decay_rate, dt=50ms) = level |> {
+    init: { level = 0 }
+    level = (0; 1 ? trigger) + level * (1 - decay_rate)
+}
+
+// Ducking envelope: responds to trigger with release over time
+ducker(trigger!, attack_ms, release_ms, dt=10ms) = gate_out |> {
+    init: { target = 0 current = 0 }
+    gate_out = current
+    target = (0; 1 ? trigger)
+    current = target; current; current * (1 - release_ms / 1000) ? (0;1 ? trigger)
+}
+
+
+// ============================================================================
+// SECTION 15: COMPOSITION AND HIGHER-ORDER PATTERNS
+// ============================================================================
+
+// Chain multiple transforms
+chain_effects(input, scale1, offset1, scale2, offset2) = 
+    scale_and_offset(scale_and_offset(input, scale1, offset1), scale2, offset2)
+
+// Apply function to flow elements
+apply_to_flow(flow_input, scale_factor) = 
+    [i = 0..length(flow_input) : flow_input[i] * scale_factor]
+
+// Combine two flows element-wise
+combine_flows(flow_a, flow_b) = 
+    [i = 0..length(flow_a) : blend(flow_a[i], flow_b[i], 0.5)]
+
+
+// ============================================================================
+// SECTION 16: PROCESS BLOCKS - EXECUTABLE CODE
+// ============================================================================
+
+// IMPORTANT: Process blocks are the only entry points - they execute on load
+
+// Process 1: Simple constant output
+process: {
+    output = 440hz
+}
+
+// Process 2: Stateful oscillator
+process: {
+    my_lfo = lfo(5hz, 1.0, dt=10ms)
+    modulated_freq = 440hz * (1 + my_lfo * 0.1)
+}
+
+// Process 3: Sample-and-hold with periodic trigger
+process: {
+    input_signal = sin(time * 2 * pi * 5hz)
+    sampling_trigger = (time % 100ms) < 10ms
+    sampled = sample_hold(input_signal, sampling_trigger)
+}
+
+// Process 4: Envelope generator responding to events
+process: {
+    // Simulate trigger events at specific times
+    gate_trigger = (time % 1s) < 10ms
+    envelope_out = envelope_follower(1; 0 ? gate_trigger, 0.1, 0.05, dt=10ms)
+}
+
+
+// ============================================================================
+// END OF SYNTAX DEMONSTRATION
+// ============================================================================
+
+/*
+This file demonstrates the core features of Idyl v0.1-pre-alpha:
+
+✓ Comments (single-line and multi-line)
+✓ Constants and literals (numbers, time, triggers)
+✓ Simple functions (single and multiple parameters)
+✓ Default parameters
+✓ Temporal values (ms, s, hz, b)
+✓ Conditional expressions (ternary)
+✓ Bitwise operations
+✓ Flows (sequences with generators)
+✓ Multi-member flows
+✓ Stateful functions with lambda blocks (clock-driven)
+✓ Trigger-driven stateful functions
+✓ Hybrid trigger+clock functions
+✓ Function composition and higher-order patterns
+✓ Process blocks (executable entry points)
+✓ Error handling with catch
+
+Next topics (not yet implemented):
+- Library imports (lib/import)
+- Namespace resolution (::)
+- Advanced pattern matching
+- Module system
+*/

@@ -10,8 +10,8 @@ find_package(FLEX REQUIRED)
 # Generate parser
 BISON_TARGET(IdylParser
     ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl.y
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl_parser.tab.cc
-    DEFINES_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl_parser.tab.hh)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl.tab.cc
+    DEFINES_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl.tab.hh)
 
 # Generate scanner
 FLEX_TARGET(IdylScanner
@@ -41,8 +41,8 @@ add_custom_target(parser
 add_custom_target(parser-clean
     COMMAND ${CMAKE_COMMAND} -E rm -f
         ${CMAKE_CURRENT_SOURCE_DIR}/lex.yy.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/idyl_parser.tab.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/idyl_parser.tab.hh
+        ${CMAKE_CURRENT_SOURCE_DIR}/idyl.tab.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/idyl.tab.hh
     COMMENT "Removing generated parser/scanner files"
 )
 
