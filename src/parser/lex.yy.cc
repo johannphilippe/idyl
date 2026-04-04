@@ -355,8 +355,8 @@ static void yynoreturn yy_fatal_error ( const char* msg  );
 	(yy_hold_char) = *yy_cp; \
 	*yy_cp = '\0'; \
 	(yy_c_buf_p) = yy_cp;
-#define YY_NUM_RULES 56
-#define YY_END_OF_BUFFER 57
+#define YY_NUM_RULES 58
+#define YY_END_OF_BUFFER 59
 /* This struct is not used in this scanner,
    but its presence is necessary. */
 struct yy_trans_info
@@ -364,19 +364,20 @@ struct yy_trans_info
 	flex_int32_t yy_verify;
 	flex_int32_t yy_nxt;
 	};
-static const flex_int16_t yy_accept[99] =
+static const flex_int16_t yy_accept[102] =
     {   0,
-        0,    0,   57,   55,    1,    2,   48,   55,   35,   38,
-       49,   50,   33,   31,   46,   32,   47,   34,   19,   44,
-       45,   36,   43,   37,   42,   30,   20,   51,   52,   40,
-       20,   20,   20,   20,   20,   20,   20,   53,   39,   54,
-       41,   25,    0,   18,    0,    4,    0,   19,   17,    0,
-        0,   15,   22,   28,   26,   24,   27,   29,   20,   20,
-       13,   20,   20,   20,   20,   20,   20,   20,   21,   23,
-        0,    0,    4,   19,   16,   14,   20,   20,   12,   20,
-       20,   20,    7,   20,    3,   20,   10,    5,   20,    9,
-       20,   11,   20,   20,    8,   20,    6,    0
+        0,    0,   59,   57,    1,    2,   50,   57,   37,   40,
+       51,   52,   35,   33,   48,   34,   49,   36,   19,   46,
+       47,   38,   45,   39,   44,   32,   21,   53,   54,   42,
+       20,   21,   21,   21,   21,   21,   21,   21,   21,   55,
+       41,   56,   43,   27,    0,   18,   25,    0,    4,    0,
+       19,   17,    0,    0,   15,   23,   30,   28,   26,   29,
+       31,   21,   21,   13,   21,   21,   21,   21,   21,   21,
+       21,   22,   24,    0,    0,    4,   19,   16,   14,   21,
+       21,   12,   21,   21,    7,   21,   21,    3,   21,   10,
+        5,    9,   21,   21,   11,   21,   21,    8,   21,    6,
 
+        0
     } ;
 
 static const YY_CHAR yy_ec[256] =
@@ -390,11 +391,11 @@ static const YY_CHAR yy_ec[256] =
        20,   21,   22,   23,   24,   24,   24,   24,   24,   24,
        24,   24,   24,   24,   24,   24,   24,   24,   24,   24,
        24,   24,   24,   24,   24,   24,   24,   24,   24,   24,
-       25,    1,   26,   27,   24,    1,   28,   29,   30,   31,
+       25,    1,   26,   27,   28,    1,   29,   30,   31,   32,
 
-       32,   33,   24,   34,   35,   24,   24,   36,   37,   38,
-       39,   40,   24,   41,   42,   43,   24,   24,   44,   24,
-       24,   45,   46,   47,   48,   49,    1,    1,    1,    1,
+       33,   34,   24,   35,   36,   24,   24,   37,   38,   39,
+       40,   41,   24,   42,   43,   44,   45,   24,   46,   24,
+       24,   47,   48,   49,   50,   51,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
@@ -411,91 +412,92 @@ static const YY_CHAR yy_ec[256] =
         1,    1,    1,    1,    1
     } ;
 
-static const YY_CHAR yy_meta[50] =
+static const YY_CHAR yy_meta[52] =
     {   0,
         1,    1,    2,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    3,    1,    1,    1,    1,
         1,    1,    1,    3,    1,    1,    1,    3,    3,    3,
         3,    3,    3,    3,    3,    3,    3,    3,    3,    3,
-        3,    3,    3,    3,    3,    1,    1,    1,    1
+        3,    3,    3,    3,    3,    3,    3,    1,    1,    1,
+        1
     } ;
 
-static const flex_int16_t yy_base[103] =
+static const flex_int16_t yy_base[106] =
     {   0,
-        0,    0,  124,  125,  125,  125,  103,  117,  125,  125,
-      125,  125,  125,  125,  125,  125,  125,   40,   37,  104,
-      125,   37,  100,   38,  125,  125,    0,  125,  125,  125,
-       91,   75,   23,   81,   25,   81,   74,  125,   31,  125,
-      125,  125,  109,  125,  103,    0,   96,   51,  125,   66,
-       68,  125,  125,  125,  125,  125,  125,  125,    0,   66,
-        0,   73,   76,   67,   65,   69,   73,   53,  125,  125,
-       81,   75,    0,   52,  125,  125,   57,   41,    0,   39,
-       43,   34,    0,   46,  125,   41,    0,    0,   32,    0,
-       40,    0,   27,   27,    0,   22,    0,  125,   94,   51,
+        0,    0,  127,  128,  128,  128,  106,  120,  128,  128,
+      128,  128,  128,  128,  128,  128,  110,   42,   39,  106,
+      128,   39,  102,   40,  128,  128,    0,  128,  128,  128,
+        0,   92,   76,   24,   82,   79,   81,   76,   73,  128,
+       35,  128,  128,  128,  109,  128,  128,  103,    0,   96,
+       50,  128,   64,   67,  128,  128,  128,  128,  128,  128,
+      128,    0,   65,    0,   72,   75,   66,   69,   74,   71,
+       61,  128,  128,   82,   76,    0,   38,  128,  128,   59,
+       45,    0,   41,   42,    0,   38,   48,  128,   43,    0,
+        0,    0,   38,   39,    0,   38,   27,    0,   24,    0,
 
-       97,  100
+      128,   93,   62,   96,   99
     } ;
 
-static const flex_int16_t yy_def[103] =
+static const flex_int16_t yy_def[106] =
     {   0,
-       98,    1,   98,   98,   98,   98,   98,   99,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,  100,   98,   98,   98,
-      100,  100,  100,  100,  100,  100,  100,   98,   98,   98,
-       98,   98,   99,   98,  101,  102,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,  100,  100,
-      100,  100,  100,  100,  100,  100,  100,  100,   98,   98,
-      101,  101,  102,   98,   98,   98,  100,  100,  100,  100,
-      100,  100,  100,  100,   98,  100,  100,  100,  100,  100,
-      100,  100,  100,  100,  100,  100,  100,    0,   98,   98,
+      101,    1,  101,  101,  101,  101,  101,  102,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  103,  101,  101,  101,
+      103,  103,  103,  103,  103,  103,  103,  103,  103,  101,
+      101,  101,  101,  101,  102,  101,  101,  104,  105,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  103,  103,  103,  103,  103,  103,  103,  103,  103,
+      103,  101,  101,  104,  104,  105,  101,  101,  101,  103,
+      103,  103,  103,  103,  103,  103,  103,  101,  103,  103,
+      103,  103,  103,  103,  103,  103,  103,  103,  103,  103,
 
-       98,   98
+        0,  101,  101,  101,  101
     } ;
 
-static const flex_int16_t yy_nxt[175] =
+static const flex_int16_t yy_nxt[180] =
     {   0,
         4,    5,    6,    7,    8,    9,   10,   11,   12,   13,
        14,   15,   16,   17,   18,   19,   20,   21,   22,   23,
-       24,   25,   26,   27,   28,   29,   30,   27,   27,   31,
-       32,   33,   34,   27,   35,   36,   27,   27,   27,   37,
-       27,   27,   27,   27,   27,   38,   39,   40,   41,   45,
-       47,   69,   48,   59,   46,   54,   55,   57,   58,   62,
-       63,   65,   66,   97,   47,   49,   48,   74,   96,   95,
-       50,   94,   93,   51,   92,   91,   90,   70,   52,   49,
-       49,   89,   88,   87,   50,   50,   86,   51,   51,   85,
-       72,   84,   52,   52,   43,   43,   43,   71,   71,   71,
+       24,   25,   26,   27,   28,   29,   30,   31,   27,   27,
+       32,   33,   34,   35,   27,   36,   37,   38,   27,   27,
+       39,   27,   27,   27,   27,   27,   27,   40,   41,   42,
+       43,   48,   50,   77,   51,   72,   49,   57,   58,   60,
+       61,   65,   66,   50,   62,   51,  100,   52,   52,   99,
+       98,   97,   53,   53,   96,   54,   54,   95,   94,   52,
+       55,   55,   93,   73,   53,   92,   91,   54,   90,   89,
+       88,   75,   55,   45,   45,   45,   74,   74,   74,   76,
 
-       73,   83,   73,   82,   81,   80,   79,   78,   77,   76,
-       75,   74,   72,   44,   68,   67,   64,   61,   60,   56,
-       53,   44,   42,   98,    3,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98
+       87,   76,   86,   85,   84,   83,   82,   81,   80,   79,
+       78,   77,   75,   46,   71,   70,   69,   68,   67,   64,
+       63,   59,   56,   47,   46,   44,  101,    3,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101
     } ;
 
-static const flex_int16_t yy_chk[175] =
+static const flex_int16_t yy_chk[180] =
     {   0,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
-        1,    1,    1,    1,    1,    1,    1,    1,    1,   18,
-       19,   39,   19,  100,   18,   22,   22,   24,   24,   33,
-       33,   35,   35,   96,   48,   19,   48,   74,   94,   93,
-       19,   91,   89,   19,   86,   84,   82,   39,   19,   48,
-       74,   81,   80,   78,   48,   74,   77,   48,   74,   72,
-       71,   68,   48,   74,   99,   99,   99,  101,  101,  101,
+        1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
+        1,   18,   19,   77,   19,   41,   18,   22,   22,   24,
+       24,   34,   34,   51,  103,   51,   99,   77,   19,   97,
+       96,   94,   77,   19,   93,   77,   19,   89,   87,   51,
+       77,   19,   86,   41,   51,   84,   83,   51,   81,   80,
+       75,   74,   51,  102,  102,  102,  104,  104,  104,  105,
 
-      102,   67,  102,   66,   65,   64,   63,   62,   60,   51,
-       50,   47,   45,   43,   37,   36,   34,   32,   31,   23,
-       20,    8,    7,    3,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98,   98,   98,   98,   98,   98,   98,
-       98,   98,   98,   98
+       71,  105,   70,   69,   68,   67,   66,   65,   63,   54,
+       53,   50,   48,   45,   39,   38,   37,   36,   35,   33,
+       32,   23,   20,   17,    8,    7,    3,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101,  101,
+      101,  101,  101,  101,  101,  101,  101,  101,  101
     } ;
 
 static yy_state_type yy_last_accepting_state;
@@ -556,8 +558,8 @@ static yy::lexer* lexer_instance = nullptr;
         return yy::parser::token::token_type; \
     } while (0)
 
-#line 560 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
-#line 561 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 562 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 563 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 #define INITIAL 0
 
@@ -777,7 +779,7 @@ YY_DECL
 #line 60 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 
 
-#line 781 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 783 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -804,13 +806,13 @@ yy_match:
 			while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 				{
 				yy_current_state = (int) yy_def[yy_current_state];
-				if ( yy_current_state >= 99 )
+				if ( yy_current_state >= 102 )
 					yy_c = yy_meta[yy_c];
 				}
 			yy_current_state = yy_nxt[yy_base[yy_current_state] + yy_c];
 			++yy_cp;
 			}
-		while ( yy_current_state != 98 );
+		while ( yy_current_state != 101 );
 		yy_cp = (yy_last_accepting_cpos);
 		yy_current_state = (yy_last_accepting_state);
 
@@ -870,7 +872,7 @@ YY_RULE_SETUP
 case 8:
 YY_RULE_SETUP
 #line 71 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::IMPORT; }
+{ TRACK_LOCATION(); return yy::parser::token::MODULE; }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
@@ -936,195 +938,205 @@ YY_RULE_SETUP
 case 20:
 YY_RULE_SETUP
 #line 92 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::IDENTIFIER; }
+{ TRACK_LOCATION(); return yy::parser::token::REST; }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 94 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::LAMBDA_BLOCK; }
+#line 93 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::IDENTIFIER; }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
 #line 95 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::NAMESPACE_DOT; }
+{ TRACK_LOCATION(); return yy::parser::token::LAMBDA_BLOCK; }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
 #line 96 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::RESTART_MARKER; }
+{ TRACK_LOCATION(); return yy::parser::token::NAMESPACE_DOT; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
 #line 97 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::EQ; }
+{ TRACK_LOCATION(); return yy::parser::token::RESTART_MARKER; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
 #line 98 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::NEQ; }
+{ TRACK_LOCATION(); return yy::parser::token::RANGE; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
 #line 99 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::LE; }
+{ TRACK_LOCATION(); return yy::parser::token::EQ; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
 #line 100 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::GE; }
+{ TRACK_LOCATION(); return yy::parser::token::NEQ; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
 #line 101 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::LSHIFT; }
+{ TRACK_LOCATION(); return yy::parser::token::LE; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
 #line 102 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::RSHIFT; }
+{ TRACK_LOCATION(); return yy::parser::token::GE; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
 #line 103 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::MEMORY_OP; }
+{ TRACK_LOCATION(); return yy::parser::token::LSHIFT; }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 105 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::PLUS; }
+#line 104 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ TRACK_LOCATION(); return yy::parser::token::RSHIFT; }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 106 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::MINUS; }
+#line 105 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ TRACK_LOCATION(); return yy::parser::token::MEMORY_OP; }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
 #line 107 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::MUL; }
+{ TRACK_LOCATION(); return yy::parser::token::PLUS; }
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
 #line 108 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::DIV; }
+{ TRACK_LOCATION(); return yy::parser::token::MINUS; }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
 #line 109 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::MOD; }
+{ TRACK_LOCATION(); return yy::parser::token::MUL; }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
 #line 110 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::LT; }
+{ TRACK_LOCATION(); return yy::parser::token::DIV; }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
 #line 111 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::GT; }
+{ TRACK_LOCATION(); return yy::parser::token::MOD; }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
 #line 112 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::AND; }
+{ TRACK_LOCATION(); return yy::parser::token::LT; }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
 #line 113 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::OR; }
+{ TRACK_LOCATION(); return yy::parser::token::GT; }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
 #line 114 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::XOR; }
+{ TRACK_LOCATION(); return yy::parser::token::AND; }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
 #line 115 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::NOT; }
+{ TRACK_LOCATION(); return yy::parser::token::OR; }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
 #line 116 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::QUESTION; }
+{ TRACK_LOCATION(); return yy::parser::token::XOR; }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
 #line 117 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::ASSIGN; }
+{ TRACK_LOCATION(); return yy::parser::token::NOT; }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
 #line 118 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::COLON; }
+{ TRACK_LOCATION(); return yy::parser::token::QUESTION; }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
 #line 119 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::SEMICOLON; }
+{ TRACK_LOCATION(); return yy::parser::token::ASSIGN; }
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
 #line 120 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::COMMA; }
+{ TRACK_LOCATION(); return yy::parser::token::COLON; }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
 #line 121 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::DOT; }
+{ TRACK_LOCATION(); return yy::parser::token::SEMICOLON; }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
 #line 122 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::TRIGGER; }
+{ TRACK_LOCATION(); return yy::parser::token::COMMA; }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
 #line 123 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::LPAREN; }
+{ TRACK_LOCATION(); return yy::parser::token::DOT; }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
 #line 124 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::RPAREN; }
+{ TRACK_LOCATION(); return yy::parser::token::TRIGGER; }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
 #line 125 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::LBRACKET; }
+{ TRACK_LOCATION(); return yy::parser::token::LPAREN; }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
 #line 126 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::RBRACKET; }
+{ TRACK_LOCATION(); return yy::parser::token::RPAREN; }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
 #line 127 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::LBRACE; }
+{ TRACK_LOCATION(); return yy::parser::token::LBRACKET; }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
 #line 128 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::RBRACE; }
-	YY_BREAK
-case YY_STATE_EOF(INITIAL):
-#line 130 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
-{ TRACK_LOCATION(); return yy::parser::token::YYEOF; }
+{ TRACK_LOCATION(); return yy::parser::token::RBRACKET; }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
+#line 129 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ TRACK_LOCATION(); return yy::parser::token::LBRACE; }
+	YY_BREAK
+case 56:
+YY_RULE_SETUP
+#line 130 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ TRACK_LOCATION(); return yy::parser::token::RBRACE; }
+	YY_BREAK
+case YY_STATE_EOF(INITIAL):
 #line 132 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+{ TRACK_LOCATION(); return yy::parser::token::YYEOF; }
+	YY_BREAK
+case 57:
+YY_RULE_SETUP
+#line 134 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     std::cerr << "Unexpected character: " << yytext[0] << std::endl;
 }
 	YY_BREAK
-case 56:
+case 58:
 YY_RULE_SETUP
-#line 136 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 138 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 ECHO;
 	YY_BREAK
-#line 1128 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 1140 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -1420,7 +1432,7 @@ static int yy_get_next_buffer (void)
 		while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 			{
 			yy_current_state = (int) yy_def[yy_current_state];
-			if ( yy_current_state >= 99 )
+			if ( yy_current_state >= 102 )
 				yy_c = yy_meta[yy_c];
 			}
 		yy_current_state = yy_nxt[yy_base[yy_current_state] + yy_c];
@@ -1448,11 +1460,11 @@ static int yy_get_next_buffer (void)
 	while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 		{
 		yy_current_state = (int) yy_def[yy_current_state];
-		if ( yy_current_state >= 99 )
+		if ( yy_current_state >= 102 )
 			yy_c = yy_meta[yy_c];
 		}
 	yy_current_state = yy_nxt[yy_base[yy_current_state] + yy_c];
-	yy_is_jam = (yy_current_state == 98);
+	yy_is_jam = (yy_current_state == 101);
 
 		return yy_is_jam ? 0 : yy_current_state;
 }
@@ -2128,7 +2140,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 136 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 138 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 
 
 yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
@@ -2161,8 +2173,8 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_PROCESS(yylloc);
         case yy::parser::token::LIB: 
             return yy::parser::make_LIB(yylloc);
-        case yy::parser::token::IMPORT: 
-            return yy::parser::make_IMPORT(yylloc);
+        case yy::parser::token::MODULE: 
+            return yy::parser::make_MODULE(yylloc);
         case yy::parser::token::INIT: 
             return yy::parser::make_INIT(yylloc);
         case yy::parser::token::EMIT: 
@@ -2177,6 +2189,10 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_LAMBDA_BLOCK(yylloc);
         case yy::parser::token::NAMESPACE_DOT: 
             return yy::parser::make_NAMESPACE_DOT(yylloc);
+        case yy::parser::token::RANGE: 
+            return yy::parser::make_RANGE(yylloc);
+        case yy::parser::token::REST: 
+            return yy::parser::make_REST(yylloc);
         case yy::parser::token::RESTART_MARKER: 
             return yy::parser::make_RESTART_MARKER(yylloc);
         case yy::parser::token::EQ: 

@@ -85,7 +85,7 @@ process: {
 ### 1.4 Namespace & Module Resolution
 
 - **Idyl libraries** (`.idl` files): Loaded globally via `lib()` keyword (import statements only in global scope)
-- **External modules** (compiled binaries): Loaded into namespace via `import("path")` (import statements only in global scope)
+- **External modules** (compiled binaries): Loaded into namespace via `module("path")` (import statements only in global scope)
 - **Function shadowing**: Later definitions override earlier ones (with warning)
 - **Lexical scoping**: Function parameters shadow outer scope naturally
 
@@ -200,11 +200,11 @@ frequency = 440.0
 ### 3.3 Triggers & Rest
 
 **Trigger** (`!`): Represents an instantaneous event/pulse.
-**Rest** (`.`): Represents silence or lack of event (opposite of trigger).
+**Rest** (`_`): Represents silence or lack of event (opposite of trigger).
 
 ```idl
 pulse = !           // A trigger
-silence = .         // Rest/no event
+silence = _         // Rest/no event
 combined = pulse + silence  // Just the pulse
 ```
 
@@ -295,7 +295,7 @@ smart_counter(spike!, dt=100ms) = count |> {
 **Semantic Distinction**: 
 - **Clock-driven** (`dt=10ms`): Updates at fixed intervals; execute all update code
 - **Pure trigger-driven** (trigger parameter with `!`): Updates only when trigger fires; execute all update code unconditionally
-- **Hybrid** (both trigger param + dt): Updates on both events; inspect trigger value `(.; 1 ? trigger)` to distinguish which event fired
+- **Hybrid** (both trigger param + dt): Updates on both events; inspect trigger value `(_; 1 ? trigger)` to distinguish which event fired
 
 ### 4.2 Initialization Block
 
@@ -510,20 +510,20 @@ flow notes = [60, 62, 64]
 
 // Multi-member
 flow drum_pattern = {
-    kick: [ ! . . . ],
-    snare: [ . . ! . ],
+    kick: [ ! _ _ _ ]
+    snare: [ _ _ ! _ ]
     hat: [ ! ! ! ! ]
 }
 
 // With repetition
 flow verse = {
     bass: [ 50  |4|| 53 ]
-    melody: [ 60 62 64 65 |2|| 61 62 66 68 |3|| ]
+    melody: [ 60 62 64 65 :|2 || 61 62 66 68 |3|| ]
 }
 
 // With restart
 flow complex = {
-    rhythm: [ ! |2|| || . ! |2|| ]
+    rhythm: [ ! |2|| || _ ! |2|| ]
 }
 
 // Programmatic generation
@@ -536,19 +536,19 @@ flow lookup_table(size, func) =
 #### Trigger-Based Indexing
 ```idl
 metro = metronome(500ms)
-current_note = drum_pattern::kick(metro)
+current_note = drum_pattern.kick[metro]
 ```
 
 #### Integer Indexing
 ```idl
 step = counter(metro)
-current_note = drum_pattern::kick(step)
+current_note = drum_pattern.kick[step]
 ```
 
 #### Float Indexing (Smooth Sweep)
 ```idl
 phase = phasor(1hz)
-current_note = drum_pattern::kick(phase)
+current_note = drum_pattern.kick[phase]
 ```
 
 ### 7.4 Flow Generation Features
@@ -564,7 +564,7 @@ Using the primitive `bit(val, index)` returns the binary state of a bit inside a
 a = int(7)
 b = int(3)
 
-create_pattern(a, b) = [i = 0..7 : .; ! ? bit(a&b, i)]
+create_pattern(a, b) = [i = 0..7 : _; ! ? bit(a&b, i)]
 ```
 
 #### Flow Transformation Functions
@@ -592,9 +592,9 @@ Modules expose **functions only**—no OOP-style objects or method chains. This 
 lib("scales.idl")
 lib("synth_utils.idl")
 
-cs = import("csound")
-osc = import("osc")
-midi = import("midi")
+cs = module("csound")
+osc = module("osc")
+midi = module("midi")
 
 // Now function definitions and process blocks can use these imports
 ```
@@ -607,13 +607,13 @@ Module functions are called functionally using the `::` namespace operator:
 
 ```idl
 // Module functions called with :: operator
-scheduler = import("scheduler")
+scheduler = module("scheduler")
 config = scheduler::load_config("timeline.json")
 timeline = scheduler::create_timeline(config)
 result = scheduler::execute(timeline, 0s, 60s)
 
 // OSC example
-osc = import("osc")
+osc = module("osc")
 sender = osc::sender("192.168.1.100", 8080)
 osc::send(sender, "/note", 60)
 ```
@@ -655,7 +655,7 @@ process: {
 }
 
 // Module composition (imports must be at global scope)
-scheduler = import("scheduler")
+scheduler = module("scheduler")
 
 process: {
     config = scheduler::load_config("control_map.json")
@@ -806,7 +806,7 @@ variable catch end : { ... }
 
 **Examples**:
 ```idl
-scheduler = import("scheduler")
+scheduler = module("scheduler")
 
 process control_sequence: {
     timeline = scheduler::create_timeline()
@@ -941,7 +941,7 @@ trait sequenceable {
     at(idx : number) : any
 }
 
-flow drum implements sequenceable = [!, ., !, .]
+flow drum implements sequenceable = [!, _, !, _]
 flow notes implements sequenceable = [60, 62, 64, 65]
 
 // Both can use trait functions
@@ -1009,7 +1009,7 @@ risky_call catch exception : {
 ### E.2 Type-Safe Module Loading
 
 ```idl
-cs = import("csound") catch exception : {
+cs = module("csound") catch exception : {
     print("Failed to load Csound module")
     mock_synth_engine = fallback
 }
@@ -1081,7 +1081,7 @@ Load modules into isolated namespaces to avoid conflicts:
 ```idl
 // Conceptual: future extension
 local cs = import_local("csound")  // Scoped to current process
-global = import("common_lib")      // Global (default)
+global = module("common_lib")      // Global (default)
 ```
 
 ### H.2 Module Composition

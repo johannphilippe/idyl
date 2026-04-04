@@ -79,32 +79,32 @@ Source Code (.idl)
        │
        ▼
 ┌─────────────────────┐
-│  Semantic Analysis   │  Validate names, types, parameters, scoping
-│  (see Step 1)        │  Detect errors before execution
+│  Semantic Analysis  │  Validate names, types, parameters, scoping
+│  (see Step 1)       │  Detect errors before execution
 └─────────────────────┘
        │
        ▼
 ┌─────────────────────┐
-│  IR Generation       │  (Optional) Flatten AST into linear operations
-│  (see Step 2)        │  Annotate with type info, resolve names
+│  IR Generation      │  (Optional) Flatten AST into linear operations
+│  (see Step 2)       │  Annotate with type info, resolve names
 └─────────────────────┘
        │
        ▼
 ┌─────────────────────┐
-│  Environment Setup   │  Build symbol tables, load modules
-│  (see Step 3)        │  Register built-in functions
+│  Environment Setup  │  Build symbol tables, load modules
+│  (see Step 3)       │  Register built-in functions
 └─────────────────────┘
        │
        ▼
 ┌─────────────────────┐
-│  Process Execution   │  Walk AST/IR for each process block
-│  (see Steps 4-8)     │  Instantiate functions, manage state
+│  Process Execution  │  Walk AST/IR for each process block
+│  (see Steps 4-8)    │  Instantiate functions, manage state
 └─────────────────────┘
        │
        ▼
 ┌─────────────────────┐
-│  Runtime Loop        │  Time engine drives updates
-│  (see Step 13)       │  GC cleans up dead instances
+│  Runtime Loop       │  Time engine drives updates
+│  (see Step 13)      │  GC cleans up dead instances
 └─────────────────────┘
 ```
 

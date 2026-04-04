@@ -1,8 +1,0 @@
-metro(fq, dt = fq) = 1t 
-    ~> {interval = 1/fq; interval!;}
-
-f = metro(3hz) : 
-    (interval) -> {   
-        inst = cs.ping(0, 3hz); 
-        oscil(3hz, dt=100hz) : (param1, phase) -> { a = 2; /*inst.freq = abs(param1) * 100 + 50;*/ };
-    }

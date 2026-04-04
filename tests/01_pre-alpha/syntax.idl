@@ -126,7 +126,7 @@ beat_value = 8.0b           // 8 beats (tempo-dependent)
 pulse = !
 
 // Rest: no event / silence
-no_event = .
+no_event = _
 
 // Combinations
 pulse_and_rest = pulse + no_event    // Just the pulse
@@ -387,8 +387,7 @@ This file demonstrates the core features of Idyl v0.1-pre-alpha:
 ✓ Error handling with catch
 
 Next topics (not yet implemented):
-- Library imports (lib/import)
-- Namespace resolution (::)
+- Library imports (lib/module)
+- Namespace resolution (:: for modules, . for flows)
 - Advanced pattern matching
-- Module system
 */

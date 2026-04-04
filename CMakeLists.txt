@@ -25,7 +25,9 @@ ADD_FLEX_BISON_DEPENDENCY(IdylScanner IdylParser)
 set(SOURCES
     ${BISON_IdylParser_OUTPUTS}
     ${FLEX_IdylScanner_OUTPUTS}
-    src/idyl.cpp)
+    src/idyl.cpp
+    src/semantic/analyzer.cpp
+    )
 
 add_executable(idyl ${SOURCES})
 

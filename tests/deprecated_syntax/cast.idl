@@ -1,4 +1,0 @@
-phasor(fq, dt = 5ms) = phase ~> {
-    incr = d<ms> / fq<ms>; // <ms> converts temporal value, is it necessary since it is both time primitive ? 
-    phase = fmod( ( (_ + incr) ~ ),  1.0); 
-}

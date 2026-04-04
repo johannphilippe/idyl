@@ -1,7 +1,0 @@
-// Oscillator: oscillates between min/max over a period, with dt defined
-oscillate(min, max, period, phase=0, dt=period/128) =
-    trigger0 + ( (trigger : delay(period)) ~)
-    ~> { phase = (phase + dt) % period;
-         out = map(phase, min, max);
-         out!; }
-    where { resolution = 128; }

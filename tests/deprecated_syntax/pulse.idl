@@ -1,3 +1,0 @@
-pulse(period, t=0, p=0) =
-    trigger + ((trigger : delay(period) ) ~)
-    ~> { t = t + period; p = t; t!; p!; }

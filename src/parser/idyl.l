@@ -68,7 +68,7 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 "flow"          { TRACK_LOCATION(); return yy::parser::token::FLOW; }
 "process"       { TRACK_LOCATION(); return yy::parser::token::PROCESS; }
 "lib"           { TRACK_LOCATION(); return yy::parser::token::LIB; }
-"import"        { TRACK_LOCATION(); return yy::parser::token::IMPORT; }
+"module"        { TRACK_LOCATION(); return yy::parser::token::MODULE; }
 "init"          { TRACK_LOCATION(); return yy::parser::token::INIT; }
 "emit"          { TRACK_LOCATION(); return yy::parser::token::EMIT; }
 "catch"         { TRACK_LOCATION(); return yy::parser::token::CATCH; }
@@ -89,11 +89,13 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 
 {NUMBER}        { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::NUMBER; }
 
+"_"             { TRACK_LOCATION(); return yy::parser::token::REST; }
 {IDENTIFIER}    { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::IDENTIFIER; }
 
 "|>"             { TRACK_LOCATION(); return yy::parser::token::LAMBDA_BLOCK; }
 "::"             { TRACK_LOCATION(); return yy::parser::token::NAMESPACE_DOT; }
 "||"             { TRACK_LOCATION(); return yy::parser::token::RESTART_MARKER; }
+".."             { TRACK_LOCATION(); return yy::parser::token::RANGE; }
 "=="             { TRACK_LOCATION(); return yy::parser::token::EQ; }
 "!="             { TRACK_LOCATION(); return yy::parser::token::NEQ; }
 "<="             { TRACK_LOCATION(); return yy::parser::token::LE; }
@@ -165,8 +167,8 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_PROCESS(yylloc);
         case yy::parser::token::LIB: 
             return yy::parser::make_LIB(yylloc);
-        case yy::parser::token::IMPORT: 
-            return yy::parser::make_IMPORT(yylloc);
+        case yy::parser::token::MODULE: 
+            return yy::parser::make_MODULE(yylloc);
         case yy::parser::token::INIT: 
             return yy::parser::make_INIT(yylloc);
         case yy::parser::token::EMIT: 
@@ -181,6 +183,10 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_LAMBDA_BLOCK(yylloc);
         case yy::parser::token::NAMESPACE_DOT: 
             return yy::parser::make_NAMESPACE_DOT(yylloc);
+        case yy::parser::token::RANGE: 
+            return yy::parser::make_RANGE(yylloc);
+        case yy::parser::token::REST: 
+            return yy::parser::make_REST(yylloc);
         case yy::parser::token::RESTART_MARKER: 
             return yy::parser::make_RESTART_MARKER(yylloc);
         case yy::parser::token::EQ: 

@@ -8,11 +8,41 @@
 
 namespace idyl::parser {
 
+// ============================================================================
+// Node type enum for semantic analysis dispatch
+// ============================================================================
+enum class node_t {
+    // Literals
+    number_literal, time_literal, trigger_literal, rest_literal, string_literal,
+    // Identifiers
+    identifier,
+    // Operators
+    binary_op, unary_op, ternary_op, memory_op,
+    // Flow/generators
+    generator_expr, flow_literal, repetition_marker, flow_member, flow_definition,
+    // Calls/access
+    argument, function_call, flow_access, module_access,
+    // Blocks
+    init_block, lambda_block, parameter,
+    // Expressions (wrappers)
+    literal_expr, identifier_expr, binary_op_expr, unary_op_expr, ternary_op_expr,
+    memory_op_expr, generator_expr_node, flow_literal_expr, function_call_expr,
+    flow_access_expr, module_access_expr, parenthesized_expr,
+    // Statements
+    expression_stmt, assignment, catch_block,
+    function_definition, process_block_body, process_block,
+    library_import, module_import,
+    // Top-level
+    program,
+};
+
 // Base node class
 struct node {
+    const node_t type_;
     int line_ = 0;
     int column_ = 0;
     
+    node(node_t type) : type_(type) {}
     virtual ~node() = default;
     virtual void print(int indent = 0) const = 0;
     
@@ -36,10 +66,12 @@ using stmt_ptr = std::shared_ptr<statement>;
 using param_ptr = std::shared_ptr<parameter>;
 
 struct expression : node {
+    using node::node;
     virtual expr_ptr clone() const = 0;
 };
 
 struct statement : node {
+    using node::node;
     virtual ~statement() = default;
 };
 
@@ -52,6 +84,8 @@ struct parameter : node {
     expr_ptr default_value_; // Optional
     bool is_trigger_parameter_ = false; // true for "name!"
     bool has_default_time_ = false; // true for "dt=value"
+    
+    parameter() : node(node_t::parameter) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -71,6 +105,8 @@ struct parameter : node {
 struct number_literal : node {
     std::string value_;
     
+    number_literal() : node(node_t::number_literal) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "NumberLiteral(" << value_ << ")\n";
@@ -81,6 +117,8 @@ struct time_literal : node {
     std::string value_;
     std::string unit_; // "ms", "s", "hz", "b"
     
+    time_literal() : node(node_t::time_literal) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "TimeLiteral(" << value_ << unit_ << ")\n";
@@ -88,6 +126,8 @@ struct time_literal : node {
 };
 
 struct trigger_literal : node {
+    trigger_literal() : node(node_t::trigger_literal) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "TriggerLiteral(!)\n";
@@ -95,14 +135,18 @@ struct trigger_literal : node {
 };
 
 struct rest_literal : node {
+    rest_literal() : node(node_t::rest_literal) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
-        std::cout << "RestLiteral(.)\n";
+        std::cout << "RestLiteral(_)\n";
     }
 };
 
 struct string_literal : node {
     std::string value_;
+    
+    string_literal() : node(node_t::string_literal) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -113,6 +157,8 @@ struct string_literal : node {
 struct identifier : node {
     std::string name_;
     bool is_trigger_param_ = false; // true if "name!", false if "name"
+    
+    identifier() : node(node_t::identifier) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -133,6 +179,8 @@ struct binary_op : node {
     expr_ptr left_;
     expr_ptr right_;
     
+    binary_op() : node(node_t::binary_op) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "BinaryOp(" << op_ << ")\n";
@@ -145,6 +193,8 @@ struct unary_op : node {
     std::string op_; // "~", "-"
     expr_ptr operand_;
     
+    unary_op() : node(node_t::unary_op) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "UnaryOp(" << op_ << ")\n";
@@ -155,6 +205,8 @@ struct unary_op : node {
 struct ternary_op : node {
     std::vector<expr_ptr> options_; // All options separated by ;
     expr_ptr condition_;
+    
+    ternary_op() : node(node_t::ternary_op) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -173,6 +225,8 @@ struct ternary_op : node {
 struct memory_op : node {
     expr_ptr expr_;
     expr_ptr delay_count_; // nullptr for one-sample delay
+    
+    memory_op() : node(node_t::memory_op) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -196,6 +250,8 @@ struct generator_expr : node {
     expr_ptr range_end_;
     expr_ptr body_;
     
+    generator_expr() : node(node_t::generator_expr) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "GeneratorExpr([" << variable_ << " = range : expr])\n";
@@ -208,6 +264,8 @@ struct generator_expr : node {
 struct flow_literal : node {
     std::vector<expr_ptr> elements_;
     
+    flow_literal() : node(node_t::flow_literal) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "FlowLiteral([" << elements_.size() << " elements])\n";
@@ -219,6 +277,8 @@ struct flow_literal : node {
 
 struct repetition_marker : node {
     expr_ptr repetition_count_; // nullptr for restart marker (||)
+    
+    repetition_marker() : node(node_t::repetition_marker) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -235,6 +295,8 @@ struct flow_member : node {
     std::string name_;
     expr_ptr value_; // generator_expr or flow_literal
     
+    flow_member() : node(node_t::flow_member) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "FlowMember(" << name_ << ")\n";
@@ -246,6 +308,8 @@ struct flow_definition : statement {
     std::string name_;
     std::vector<param_ptr> parameters_;
     std::vector<std::shared_ptr<flow_member>> members_; // Single member flow or multi-member
+    
+    flow_definition() : statement(node_t::flow_definition) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -267,6 +331,8 @@ struct argument : node {
     std::string name_; // Empty for positional args
     expr_ptr value_;
     
+    argument() : node(node_t::argument) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         if (!name_.empty()) {
@@ -281,6 +347,8 @@ struct argument : node {
 struct function_call : node {
     expr_ptr function_;
     std::vector<std::shared_ptr<argument>> arguments_;
+    
+    function_call() : node(node_t::function_call) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -297,9 +365,15 @@ struct flow_access : node {
     std::string member_;
     expr_ptr index_;
     
+    flow_access() : node(node_t::flow_access) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
-        std::cout << "FlowAccess(flow::" << member_ << ")\n";
+        if (!member_.empty()) {
+            std::cout << "FlowAccess(flow." << member_ << ")\n";
+        } else {
+            std::cout << "FlowAccess(flow[index])\n";
+        }
         if (flow_) flow_->print(indent + 1);
         if (index_) {
             printIndent(indent + 1);
@@ -313,6 +387,8 @@ struct module_access : node {
     expr_ptr module_;
     std::string function_;
     std::vector<std::shared_ptr<argument>> arguments_;
+    
+    module_access() : node(node_t::module_access) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -331,6 +407,8 @@ struct module_access : node {
 struct init_block : node {
     std::vector<stmt_ptr> statements_;
     
+    init_block() : node(node_t::init_block) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "InitBlock(" << statements_.size() << " statements)\n";
@@ -343,6 +421,8 @@ struct init_block : node {
 struct lambda_block : node {
     std::shared_ptr<init_block> init_; // Optional
     std::vector<stmt_ptr> update_statements_;
+    
+    lambda_block() : node(node_t::lambda_block) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -357,6 +437,8 @@ struct lambda_block : node {
 struct literal_expr : expression {
     node_ptr literal_; // number_literal, time_literal, trigger_literal, etc.
     
+    literal_expr() : expression(node_t::literal_expr) {}
+    
     void print(int indent = 0) const override {
         if (literal_) literal_->print(indent);
     }
@@ -368,6 +450,8 @@ struct literal_expr : expression {
 
 struct identifier_expr : expression {
     std::shared_ptr<idyl::parser::identifier> identifier_;
+    
+    identifier_expr() : expression(node_t::identifier_expr) {}
     
     void print(int indent = 0) const override {
         if (identifier_) identifier_->print(indent);
@@ -381,6 +465,8 @@ struct identifier_expr : expression {
 struct binary_op_expr : expression {
     std::shared_ptr<binary_op> op_;
     
+    binary_op_expr() : expression(node_t::binary_op_expr) {}
+    
     void print(int indent = 0) const override {
         if (op_) op_->print(indent);
     }
@@ -392,6 +478,8 @@ struct binary_op_expr : expression {
 
 struct unary_op_expr : expression {
     std::shared_ptr<unary_op> op_;
+    
+    unary_op_expr() : expression(node_t::unary_op_expr) {}
     
     void print(int indent = 0) const override {
         if (op_) op_->print(indent);
@@ -405,6 +493,8 @@ struct unary_op_expr : expression {
 struct ternary_op_expr : expression {
     std::shared_ptr<ternary_op> op_;
     
+    ternary_op_expr() : expression(node_t::ternary_op_expr) {}
+    
     void print(int indent = 0) const override {
         if (op_) op_->print(indent);
     }
@@ -416,6 +506,8 @@ struct ternary_op_expr : expression {
 
 struct memory_op_expr : expression {
     std::shared_ptr<memory_op> op_;
+    
+    memory_op_expr() : expression(node_t::memory_op_expr) {}
     
     void print(int indent = 0) const override {
         if (op_) op_->print(indent);
@@ -429,6 +521,8 @@ struct memory_op_expr : expression {
 struct generator_expr_node : expression {
     std::shared_ptr<generator_expr> generator_;
     
+    generator_expr_node() : expression(node_t::generator_expr_node) {}
+    
     void print(int indent = 0) const override {
         if (generator_) generator_->print(indent);
     }
@@ -440,6 +534,8 @@ struct generator_expr_node : expression {
 
 struct flow_literal_expr : expression {
     std::shared_ptr<flow_literal> flow_;
+    
+    flow_literal_expr() : expression(node_t::flow_literal_expr) {}
     
     void print(int indent = 0) const override {
         if (flow_) flow_->print(indent);
@@ -453,6 +549,8 @@ struct flow_literal_expr : expression {
 struct function_call_expr : expression {
     std::shared_ptr<function_call> call_;
     
+    function_call_expr() : expression(node_t::function_call_expr) {}
+    
     void print(int indent = 0) const override {
         if (call_) call_->print(indent);
     }
@@ -464,6 +562,8 @@ struct function_call_expr : expression {
 
 struct flow_access_expr : expression {
     std::shared_ptr<flow_access> access_;
+    
+    flow_access_expr() : expression(node_t::flow_access_expr) {}
     
     void print(int indent = 0) const override {
         if (access_) access_->print(indent);
@@ -477,6 +577,8 @@ struct flow_access_expr : expression {
 struct module_access_expr : expression {
     std::shared_ptr<module_access> access_;
     
+    module_access_expr() : expression(node_t::module_access_expr) {}
+    
     void print(int indent = 0) const override {
         if (access_) access_->print(indent);
     }
@@ -488,6 +590,8 @@ struct module_access_expr : expression {
 
 struct parenthesized_expr : expression {
     expr_ptr expr_;
+    
+    parenthesized_expr() : expression(node_t::parenthesized_expr) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -507,6 +611,8 @@ struct parenthesized_expr : expression {
 struct expression_stmt : statement {
     expr_ptr expression_;
     
+    expression_stmt() : statement(node_t::expression_stmt) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "ExpressionStmt\n";
@@ -518,6 +624,8 @@ struct assignment : statement {
     std::string name_;
     expr_ptr value_;
     bool is_emit_ = false; // true for "emit name = value"
+    
+    assignment() : statement(node_t::assignment) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -534,6 +642,8 @@ struct catch_block : statement {
     expr_ptr expression_;
     std::string event_type_; // "end"
     std::vector<stmt_ptr> handler_;
+    
+    catch_block() : statement(node_t::catch_block) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -555,6 +665,8 @@ struct function_definition : statement {
     expr_ptr body_;
     std::shared_ptr<lambda_block> lambda_block_; // Optional, for temporal functions
     
+    function_definition() : statement(node_t::function_definition) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "FunctionDefinition(" << name_ << ", " << parameters_.size() << " params)\n";
@@ -573,6 +685,8 @@ struct function_definition : statement {
 struct process_block_body : node {
     std::vector<stmt_ptr> statements_;
     
+    process_block_body() : node(node_t::process_block_body) {}
+    
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "ProcessBlockBody(" << statements_.size() << " statements)\n";
@@ -586,6 +700,8 @@ struct process_block : statement {
     std::string name_; // "main" by default, or custom name
     expr_ptr duration_; // Optional, for named process blocks
     std::shared_ptr<process_block_body> body_;
+    
+    process_block() : statement(node_t::process_block) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
@@ -601,21 +717,34 @@ struct process_block : statement {
 // ============================================================================
 
 struct library_import : statement {
+    std::string namespace_; // Empty = merge into global scope
     std::string path_;
+    
+    library_import() : statement(node_t::library_import) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
-        std::cout << "LibraryImport(\"" << path_ << "\")\n";
+        if (namespace_.empty()) {
+            std::cout << "LibraryImport(\"" << path_ << "\")\n";
+        } else {
+            std::cout << "LibraryImport(" << namespace_ << " = lib(\"" << path_ << "\"))\n";
+        }
     }
 };
 
 struct module_import : statement {
-    std::string variable_name_;
-    std::string module_path_;
+    std::string namespace_; // Empty = register at global scope
+    std::string path_;
+    
+    module_import() : statement(node_t::module_import) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);
-        std::cout << "ModuleImport(" << variable_name_ << " = import(\"" << module_path_ << "\"))\n";
+        if (namespace_.empty()) {
+            std::cout << "ModuleImport(\"" << path_ << "\")\n";
+        } else {
+            std::cout << "ModuleImport(" << namespace_ << " = module(\"" << path_ << "\"))\n";
+        }
     }
 };
 
@@ -625,6 +754,8 @@ struct module_import : statement {
 
 struct program : node {
     std::vector<stmt_ptr> statements_; // library_import, module_import, function_definition, flow_definition, process_block
+    
+    program() : node(node_t::program) {}
     
     void print(int indent = 0) const override {
         printIndent(indent);

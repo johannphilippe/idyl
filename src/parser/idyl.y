@@ -39,8 +39,8 @@
 %token <std::string> TIME_LITERAL
 %token <std::string> STRING_LITERAL
 
-%token FLOW PROCESS LIB IMPORT INIT EMIT CATCH END DT
-%token LAMBDA_BLOCK NAMESPACE_DOT RESTART_MARKER MEMORY_OP
+%token FLOW PROCESS LIB MODULE INIT EMIT CATCH END DT
+%token LAMBDA_BLOCK NAMESPACE_DOT RESTART_MARKER MEMORY_OP RANGE REST
 %token PLUS MINUS MUL DIV MOD
 %token EQ NEQ LT GT LE GE
 %token AND OR XOR NOT LSHIFT RSHIFT
@@ -146,11 +146,28 @@ top_level_statement
         lib_import->column_ = @1.begin.column;
         $$ = lib_import;
     }
-    | IDENTIFIER ASSIGN IMPORT LPAREN STRING_LITERAL RPAREN
+    | IDENTIFIER ASSIGN LIB LPAREN STRING_LITERAL RPAREN
+    {
+        auto lib_import = std::make_shared<idyl::parser::library_import>();
+        lib_import->namespace_ = $1;
+        lib_import->path_ = $5;
+        lib_import->line_ = @1.begin.line;
+        lib_import->column_ = @1.begin.column;
+        $$ = lib_import;
+    }
+    | MODULE LPAREN STRING_LITERAL RPAREN
     {
         auto mod_import = std::make_shared<idyl::parser::module_import>();
-        mod_import->variable_name_ = $1;
-        mod_import->module_path_ = $5;
+        mod_import->path_ = $3;
+        mod_import->line_ = @1.begin.line;
+        mod_import->column_ = @1.begin.column;
+        $$ = mod_import;
+    }
+    | IDENTIFIER ASSIGN MODULE LPAREN STRING_LITERAL RPAREN
+    {
+        auto mod_import = std::make_shared<idyl::parser::module_import>();
+        mod_import->namespace_ = $1;
+        mod_import->path_ = $5;
         mod_import->line_ = @1.begin.line;
         mod_import->column_ = @1.begin.column;
         $$ = mod_import;
@@ -237,6 +254,8 @@ flow_definition
         auto member = std::make_shared<idyl::parser::flow_member>();
         member->name_ = "";
         member->value_ = $4;
+        member->line_ = @3.begin.line;
+        member->column_ = @3.begin.column;
         flow->members_.push_back(member);
         flow->line_ = @1.begin.line;
         flow->column_ = @1.begin.column;
@@ -250,6 +269,8 @@ flow_definition
         auto member = std::make_shared<idyl::parser::flow_member>();
         member->name_ = "";
         member->value_ = $7;
+        member->line_ = @6.begin.line;
+        member->column_ = @6.begin.column;
         flow->members_.push_back(member);
         flow->line_ = @1.begin.line;
         flow->column_ = @1.begin.column;
@@ -284,6 +305,8 @@ flow_members
         auto member = std::make_shared<idyl::parser::flow_member>();
         member->name_ = $2;
         member->value_ = $4;
+        member->line_ = @2.begin.line;
+        member->column_ = @2.begin.column;
         $$.push_back(member);
     }
     | IDENTIFIER COLON flow_literal
@@ -292,6 +315,8 @@ flow_members
         auto member = std::make_shared<idyl::parser::flow_member>();
         member->name_ = $1;
         member->value_ = $3;
+        member->line_ = @1.begin.line;
+        member->column_ = @1.begin.column;
         $$.push_back(member);
     }
     ;
@@ -301,6 +326,8 @@ flow_literal
     {
         auto flow_lit = std::make_shared<idyl::parser::flow_literal>();
         flow_lit->elements_ = $2;
+        flow_lit->line_ = @1.begin.line;
+        flow_lit->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::flow_literal_expr>();
         expr->flow_ = flow_lit;
         expr->line_ = @1.begin.line;
@@ -322,8 +349,12 @@ flow_elements
         auto rep = std::make_shared<idyl::parser::repetition_marker>();
         auto num = std::make_shared<idyl::parser::number_literal>();
         num->value_ = $3;
+        num->line_ = @3.begin.line;
+        num->column_ = @3.begin.column;
         auto expr = std::make_shared<idyl::parser::literal_expr>();
         expr->literal_ = num;
+        expr->line_ = @3.begin.line;
+        expr->column_ = @3.begin.column;
         rep->repetition_count_ = expr;
         rep->line_ = @2.begin.line;
         rep->column_ = @2.begin.column;
@@ -342,13 +373,15 @@ flow_elements
     ;
 
 generator_expression
-    : LBRACKET IDENTIFIER ASSIGN expression DOT DOT expression COLON expression RBRACKET
+    : LBRACKET IDENTIFIER ASSIGN expression RANGE expression COLON expression RBRACKET
     {
         auto gen = std::make_shared<idyl::parser::generator_expr>();
         gen->variable_ = $2;
         gen->range_start_ = $4;
-        gen->range_end_ = $7;
-        gen->body_ = $9;
+        gen->range_end_ = $6;
+        gen->body_ = $8;
+        gen->line_ = @1.begin.line;
+        gen->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::generator_expr_node>();
         expr->generator_ = gen;
         expr->line_ = @1.begin.line;
@@ -577,6 +610,8 @@ ternary_expression
         auto ternary = std::make_shared<idyl::parser::ternary_op>();
         ternary->options_ = $1;
         ternary->condition_ = $3;
+        ternary->line_ = @2.begin.line;
+        ternary->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::ternary_op_expr>();
         expr->op_ = ternary;
         expr->line_ = @2.begin.line;
@@ -605,6 +640,8 @@ logical_or_expression
         binop->op_ = "|";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -621,6 +658,8 @@ logical_and_expression
         binop->op_ = "&";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -637,6 +676,8 @@ bitwise_or_expression
         binop->op_ = "|";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -653,6 +694,8 @@ bitwise_xor_expression
         binop->op_ = "^";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -669,6 +712,8 @@ bitwise_and_expression
         binop->op_ = "&";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -685,6 +730,8 @@ equality_expression
         binop->op_ = "==";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -697,6 +744,8 @@ equality_expression
         binop->op_ = "!=";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -713,6 +762,8 @@ relational_expression
         binop->op_ = "<";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -725,6 +776,8 @@ relational_expression
         binop->op_ = ">";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -737,6 +790,8 @@ relational_expression
         binop->op_ = "<=";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -749,6 +804,8 @@ relational_expression
         binop->op_ = ">=";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -765,6 +822,8 @@ shift_expression
         binop->op_ = "<<";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -777,6 +836,8 @@ shift_expression
         binop->op_ = ">>";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -793,6 +854,8 @@ additive_expression
         binop->op_ = "+";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -805,6 +868,8 @@ additive_expression
         binop->op_ = "-";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -821,6 +886,8 @@ multiplicative_expression
         binop->op_ = "*";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -833,6 +900,8 @@ multiplicative_expression
         binop->op_ = "/";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -845,6 +914,8 @@ multiplicative_expression
         binop->op_ = "%";
         binop->left_ = $1;
         binop->right_ = $3;
+        binop->line_ = @2.begin.line;
+        binop->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::binary_op_expr>();
         expr->op_ = binop;
         expr->line_ = @2.begin.line;
@@ -860,6 +931,8 @@ unary_expression
         auto unop = std::make_shared<idyl::parser::unary_op>();
         unop->op_ = "~";
         unop->operand_ = $2;
+        unop->line_ = @1.begin.line;
+        unop->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::unary_op_expr>();
         expr->op_ = unop;
         expr->line_ = @1.begin.line;
@@ -871,6 +944,8 @@ unary_expression
         auto unop = std::make_shared<idyl::parser::unary_op>();
         unop->op_ = "-";
         unop->operand_ = $2;
+        unop->line_ = @1.begin.line;
+        unop->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::unary_op_expr>();
         expr->op_ = unop;
         expr->line_ = @1.begin.line;
@@ -881,6 +956,8 @@ unary_expression
     {
         auto memop = std::make_shared<idyl::parser::memory_op>();
         memop->expr_ = $3;
+        memop->line_ = @1.begin.line;
+        memop->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::memory_op_expr>();
         expr->op_ = memop;
         expr->line_ = @1.begin.line;
@@ -892,6 +969,8 @@ unary_expression
         auto memop = std::make_shared<idyl::parser::memory_op>();
         memop->expr_ = $3;
         memop->delay_count_ = $5;
+        memop->line_ = @1.begin.line;
+        memop->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::memory_op_expr>();
         expr->op_ = memop;
         expr->line_ = @1.begin.line;
@@ -907,6 +986,8 @@ postfix_expression
         auto call = std::make_shared<idyl::parser::function_call>();
         call->function_ = $1;
         call->arguments_ = $3;
+        call->line_ = @2.begin.line;
+        call->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::function_call_expr>();
         expr->call_ = call;
         expr->line_ = @2.begin.line;
@@ -918,18 +999,36 @@ postfix_expression
         auto call = std::make_shared<idyl::parser::function_call>();
         call->function_ = $1;
         call->arguments_ = {};
+        call->line_ = @2.begin.line;
+        call->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::function_call_expr>();
         expr->call_ = call;
         expr->line_ = @2.begin.line;
         expr->column_ = @2.begin.column;
         $$ = expr;
     }
-    | postfix_expression NAMESPACE_DOT IDENTIFIER
+    | postfix_expression DOT IDENTIFIER
     {
         auto access = std::make_shared<idyl::parser::flow_access>();
         access->flow_ = $1;
         access->member_ = $3;
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::flow_access_expr>();
+        expr->access_ = access;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    | postfix_expression NAMESPACE_DOT IDENTIFIER
+    {
+        auto access = std::make_shared<idyl::parser::module_access>();
+        access->module_ = $1;
+        access->function_ = $3;
+        access->arguments_ = {};
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::module_access_expr>();
         expr->access_ = access;
         expr->line_ = @2.begin.line;
         expr->column_ = @2.begin.column;
@@ -941,6 +1040,8 @@ postfix_expression
         access->module_ = $1;
         access->function_ = $3;
         access->arguments_ = $5;
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::module_access_expr>();
         expr->access_ = access;
         expr->line_ = @2.begin.line;
@@ -953,6 +1054,8 @@ postfix_expression
         access->module_ = $1;
         access->function_ = $3;
         access->arguments_ = {};
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::module_access_expr>();
         expr->access_ = access;
         expr->line_ = @2.begin.line;
@@ -964,6 +1067,8 @@ postfix_expression
         auto access = std::make_shared<idyl::parser::flow_access>();
         access->flow_ = $1;
         access->index_ = $3;
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::flow_access_expr>();
         expr->access_ = access;
         expr->line_ = @2.begin.line;
@@ -977,6 +1082,8 @@ primary_expression
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = $1;
+        id->line_ = @1.begin.line;
+        id->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::identifier_expr>();
         expr->identifier_ = id;
         expr->line_ = @1.begin.line;
@@ -987,6 +1094,8 @@ primary_expression
     {
         auto num = std::make_shared<idyl::parser::number_literal>();
         num->value_ = $1;
+        num->line_ = @1.begin.line;
+        num->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::literal_expr>();
         expr->literal_ = num;
         expr->line_ = @1.begin.line;
@@ -1011,6 +1120,8 @@ primary_expression
             time->value_ = str.substr(0, str.length() - 1);
             time->unit_ = "s";
         }
+        time->line_ = @1.begin.line;
+        time->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::literal_expr>();
         expr->literal_ = time;
         expr->line_ = @1.begin.line;
@@ -1020,15 +1131,19 @@ primary_expression
     | TRIGGER
     {
         auto trigger = std::make_shared<idyl::parser::trigger_literal>();
+        trigger->line_ = @1.begin.line;
+        trigger->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::literal_expr>();
         expr->literal_ = trigger;
         expr->line_ = @1.begin.line;
         expr->column_ = @1.begin.column;
         $$ = expr;
     }
-    | DOT
+    | REST
     {
         auto rest = std::make_shared<idyl::parser::rest_literal>();
+        rest->line_ = @1.begin.line;
+        rest->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::literal_expr>();
         expr->literal_ = rest;
         expr->line_ = @1.begin.line;
@@ -1039,6 +1154,8 @@ primary_expression
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dt";
+        id->line_ = @1.begin.line;
+        id->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::identifier_expr>();
         expr->identifier_ = id;
         expr->line_ = @1.begin.line;
@@ -1049,6 +1166,8 @@ primary_expression
     {
         auto str = std::make_shared<idyl::parser::string_literal>();
         str->value_ = $1;
+        str->line_ = @1.begin.line;
+        str->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::literal_expr>();
         expr->literal_ = str;
         expr->line_ = @1.begin.line;

@@ -1,2 +1,0 @@
-cs = module("csound")
-osc = module("osc")

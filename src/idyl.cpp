@@ -7,6 +7,7 @@
 #include "parser/ast.hpp"
 #include "parser/idyl_lexer.hpp"
 #include "parser/idyl.tab.hh"
+#include "semantic/analyzer.hpp"
 
 // Forward declaration of global parsed program (defined in idyl.y)
 extern std::shared_ptr<idyl::parser::program> g_program;
@@ -28,6 +29,8 @@ int main(int argc, char** argv) {
     std::istream* input = nullptr;
     std::ifstream file_stream;
     bool trace = false;
+
+    idyl::semantic::analyzer analyzer; 
 
     // Parse command-line arguments
     if (argc > 1 && std::string(argv[1]) != "-") {
@@ -70,7 +73,17 @@ int main(int argc, char** argv) {
         if (g_program) {
             std::cout << "\nGenerated AST:\n";
             g_program->print();
+            // Perform semantic analysis
+            analyzer.analyze(*g_program);
+            analyzer.print_analysis_results();
+            if(analyzer.errors_.size() > 0 ) {
+                std::cerr << "Semantic analysis failed with " << analyzer.errors_.size() << " error(s).\n";
+                return 1;
+            } else {
+                std::cout << "Semantic analysis completed successfully with no errors.\n";
+            }
         }
+
         return 0;
     } else {
         std::cerr << "Parse failed with code " << result << std::endl;
