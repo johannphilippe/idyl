@@ -28,6 +28,7 @@ set(SOURCES
     src/idyl.cpp
     src/parser/parse.cpp
     src/semantic/analyzer.cpp
+    src/core/evaluator.cpp
     )
 
 add_executable(idyl ${SOURCES})

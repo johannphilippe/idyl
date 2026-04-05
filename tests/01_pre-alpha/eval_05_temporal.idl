@@ -1,0 +1,37 @@
+/*
+  Evaluator Test 05: Temporal Functions 
+  ─────────────────────────────────────
+  Tests: temporal function instantiation, init blocks, update cycle,
+         scheduler-driven ticks, output expression.
+
+  clock_counter increments counter_value by 1 every 100ms.
+  The process block prints the initial value from the first tick.
+  The scheduler will keep ticking in the background (until killed).
+*/
+
+// Simple counter: increments on every tick
+clock_counter(dt=100ms) = counter_value |> {
+    init: { counter_value = 0 }
+    counter_value = counter_value + 1
+}
+
+// Sawtooth: phase ramps 0→1 and wraps
+sawtooth(frequency, dt=50ms) = phase |> {
+    init: { phase = 0 }
+    phase = fmod(phase + frequency * (dt / 1000), 1)
+}
+
+// Constant for testing pure + temporal coexistence
+pi = 3.14159
+
+process: {
+    // Pure expression still works
+    print(pi)
+
+    // Instantiate temporal functions — first tick runs immediately
+    c = clock_counter()
+    print(c)
+
+    s = sawtooth(2)
+    print(s)
+}

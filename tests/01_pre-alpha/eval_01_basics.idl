@@ -1,0 +1,115 @@
+/*
+  Evaluator Test 01: Basics
+  ─────────────────────────
+  Tests: number literals, time literals, trigger/rest,
+         arithmetic, comparison, unary operators, parenthesization.
+         
+  Expected output:
+    42
+    3.14159
+    100ms
+    2500ms
+    1000ms
+    500ms
+    trigger ! 
+    15
+    -2
+    12.5
+    1
+    7
+    1
+    0
+    1
+    1
+    0
+    1
+    -5
+    20
+    200ms
+    3000ms
+    250ms
+    2
+*/
+
+// ── Number constants ──────────────────────────────────────────────
+answer = 42
+pi = 3.14159
+
+// ── Time constants ────────────────────────────────────────────────
+delay = 100ms
+long_wait = 2.5s
+one_sec = 1000ms
+half_beat = 0.5b
+
+// ── Trigger & rest ────────────────────────────────────────────────
+pulse = !
+quiet = _
+
+// ── Arithmetic constants ──────────────────────────────────────────
+sum = 10 + 5
+diff = 3 - 5
+product = 2.5 * 5
+modulo = 10 % 3
+remainder = 15 % 8
+
+// ── Comparison constants ──────────────────────────────────────────
+cmp_lt = 3 < 5
+cmp_gt = 3 > 5
+cmp_eq = 7 == 7
+cmp_ne = 7 != 7
+cmp_le = 5 <= 5
+cmp_ge = 10 >= 3
+
+// ── Unary operators ───────────────────────────────────────────────
+neg = 0 - 5
+
+// ── Parenthesized expressions ─────────────────────────────────────
+grouped = (2 + 3) * 4
+
+// ── Time arithmetic ───────────────────────────────────────────────
+time_sum = 100ms + 100ms
+time_scaled = 1000ms * 3
+time_halved = 500ms / 2
+time_ratio = 1000ms / 500ms
+
+process: {
+    // Number literals
+    print(answer)
+    print(pi)
+
+    // Time literals
+    print(delay)
+    print(long_wait)
+    print(one_sec)
+    print(half_beat)
+
+    // Trigger (rest prints nothing visible for trigger(false))
+    print(pulse)
+
+    // Arithmetic
+    print(sum)
+    print(diff)
+    print(product)
+    print(modulo)
+    print(remainder)
+
+    // Comparisons
+    print(cmp_lt)
+    print(cmp_gt)
+    print(cmp_eq)
+    print(cmp_ne)
+    print(cmp_le)
+    print(cmp_ge)
+
+    // Unary
+    print(neg)
+
+    // Parenthesized
+    print(grouped)
+
+    // Time arithmetic
+    print(time_sum)
+    print(time_scaled)
+    print(time_halved)
+    print(time_ratio)
+}

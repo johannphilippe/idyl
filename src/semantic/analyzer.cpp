@@ -267,10 +267,27 @@ namespace idyl::semantic {
                         for(const auto& stmt : func->lambda_block_->init_->statements_) {
                             if(stmt->type_ == parser::node_t::function_definition) {
                                 auto inner_func = std::static_pointer_cast<parser::function_definition>(stmt);
-                                scope_stack_.define(inner_func->name_, symbol_info{
+                                symbol_info inner_info{
                                     symbol_t::function, inner_func->name_, 
                                     inner_func->line_, inner_func->column_,
-                                    static_cast<int>(inner_func->parameters_.size())});
+                                    static_cast<int>(inner_func->parameters_.size())};
+                                // Populate param_info for check_call validation
+                                int req = 0;
+                                for (const auto& p : inner_func->parameters_) {
+                                    inner_info.param_info_.push_back(param_info{
+                                        p->name_,
+                                        p->default_value_ != nullptr,
+                                        p->is_trigger_parameter_,
+                                        p->is_trigger_parameter_ ? inferred_t::trigger
+                                            : (p->has_default_time_ || p->name_ == "dt") ? inferred_t::time
+                                            : p->default_value_ ? infer_expr_type(p->default_value_)
+                                            : inferred_t::unknown
+                                    });
+                                    if (!p->default_value_) req++;
+                                }
+                                inner_info.required_arity_ = req;
+                                inner_info.is_temporal_ = inner_func->lambda_block_ != nullptr;
+                                scope_stack_.define(inner_func->name_, inner_info);
                             } else if(stmt->type_ == parser::node_t::assignment) {
                                 auto assign = std::static_pointer_cast<parser::assignment>(stmt);
                                 symbol_t sym_type = assign->is_emit_ ? symbol_t::emit_variable : symbol_t::local_variable;
@@ -1059,7 +1076,7 @@ namespace idyl::semantic {
             case parser::node_t::trigger_literal:
                 return inferred_t::trigger;
             case parser::node_t::rest_literal:
-                return inferred_t::rest;
+                return inferred_t::trigger;
             case parser::node_t::flow_literal_expr:
             case parser::node_t::flow_literal:
                 return inferred_t::flow;
@@ -1109,8 +1126,6 @@ namespace idyl::semantic {
                 if (left == right) {
                     // trigger op trigger → trigger
                     if (left == inferred_t::trigger) return inferred_t::trigger;
-                    // rest op rest → rest
-                    if (left == inferred_t::rest) return inferred_t::rest;
                     // number op number → number
                     if (left == inferred_t::number) return inferred_t::number;
                     // time op time → depends on operator
@@ -1127,12 +1142,6 @@ namespace idyl::semantic {
                     if (op->op_ == "*") return inferred_t::time;
                     if (op->op_ == "/") return (left == inferred_t::time) ? inferred_t::time : inferred_t::unknown;
                     return inferred_t::unknown;
-                }
-
-                // trigger + rest → trigger
-                if ((left == inferred_t::trigger && right == inferred_t::rest) ||
-                    (left == inferred_t::rest && right == inferred_t::trigger)) {
-                    return inferred_t::trigger;
                 }
 
                 return inferred_t::unknown;

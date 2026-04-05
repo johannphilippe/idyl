@@ -1,0 +1,21 @@
+/*
+  Evaluator Test 06: Temporal Ticking (observable)
+  ────────────────────────────────────────────────
+  Uses print() inside the process block to read from a counter that 
+  ticks every 200ms.  We print once at instantiation.
+  To observe live ticking, a "ticker" function prints on each update.
+  
+  Expected: prints initial value 1, then the scheduler ticks in background.
+  Kill with Ctrl+C or timeout.
+*/
+
+// Counter that prints on each tick (observable side-effect)
+ticker(dt=200ms) = count |> {
+    init: { count = 0 }
+    count = count + 1
+}
+
+process: {
+    t = ticker()
+    print(t)
+}

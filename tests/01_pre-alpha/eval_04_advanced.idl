@@ -1,0 +1,105 @@
+/*
+  Evaluator Test 04: Advanced
+  ───────────────────────────
+  Tests: ternary (conditional) expressions, bitwise ops,
+         memory operator stub, complex nesting, multi-arg print.
+*/
+
+// ── Ternary: two-way selection ────────────────────────────────────
+// (false_option ; true_option ? condition)
+// condition=1 → picks index 1 (true_option)
+// condition=0 → picks index 0 (false_option)
+
+pos_val = 5
+neg_val = 0 - 3
+
+// is_positive: 0 if <=0, 1 if >0
+is_positive(x) = 0; 1 ? (x > 0)
+
+pos_check_5 = is_positive(5)
+pos_check_neg = is_positive(0 - 3)
+pos_check_zero = is_positive(0)
+
+// safe_divide: return 0 if b==0, else a/b
+safe_divide(a, b) = 0; (a / b) ? (b != 0)
+
+safe1 = safe_divide(10, 2)
+safe2 = safe_divide(10, 0)
+
+// ── Multi-way ternary ─────────────────────────────────────────────
+// selector(n) = a; b; c ? n
+// n=0 → a, n=1 → b, n=2 → c (wraps)
+pick(n) = 100; 200; 300 ? n
+
+pick0 = pick(0)
+pick1 = pick(1)
+pick2 = pick(2)
+
+// ── Bitwise operations ────────────────────────────────────────────
+and_result = 12 & 10
+or_result = 12 | 3
+xor_result = 12 ^ 10
+shl_result = 1 << 4
+shr_result = 32 >> 2
+not_result = ~0
+
+// ── Memory operator @ (Phase 1 stub: returns current value) ──────
+mem_val = 42
+
+// ── Complex nesting ───────────────────────────────────────────────
+add(a, b) = a + b
+mul(a, b) = a * b
+
+complex1 = add(mul(2, 3), mul(4, 5))
+complex2 = mul(add(1, 2), add(3, 4))
+
+// ── Expression-heavy constant ─────────────────────────────────────
+chain = ((2 + 3) * (4 - 1)) / (1 + 2)
+
+process: {
+    // Ternary tests
+    print(pos_check_5)
+    print(pos_check_neg)
+    print(pos_check_zero)
+
+    print(safe1)
+    print(safe2)
+
+    // Multi-way ternary
+    print(pick0)
+    print(pick1)
+    print(pick2)
+
+    // Bitwise
+    print(and_result)
+    print(or_result)
+    print(xor_result)
+    print(shl_result)
+    print(shr_result)
+    print(not_result)
+
+    // Memory operator (just returns current value)
+    print(mem_val)
+
+    // Complex nesting
+    print(complex1)
+    print(complex2)
+
+    // Chain expression
+    print(chain)
+
+    // Multi-argument print
+    print(1, 2, 3)
+    print(pos_check_5, safe1, complex1)
+
+    // Inline expressions in process block
+    x = (10 + 20) * 2
+    print(x)
+
+    y = is_positive(x)
+    print(y)
+
+    // Nested ternary via function
+    z = safe_divide(100, safe_divide(10, 2))
+    print(z)
+}

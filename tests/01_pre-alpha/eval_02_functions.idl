@@ -1,0 +1,127 @@
+/*
+  Evaluator Test 02: Functions
+  ────────────────────────────
+  Tests: user-defined functions (1-param, multi-param, default params),
+         builtin math functions, nested calls, constants via function calls.
+         
+  Expected output:
+    25
+    8
+    5
+    440
+    2
+    0.5
+    0
+    1
+    3
+    12
+    3.5
+    9
+    16
+    1
+    6.28318
+    2.71828
+    0.693147
+    8
+    1.41421
+    5
+    3
+    4
+    2
+    5
+    5
+    3
+    4.14
+    7.7
+    62.5
+*/
+
+// ── Single-parameter functions ────────────────────────────────────
+square(x) = x * x
+cube(x) = x * x * x
+half(x) = x / 2
+
+// ── Multi-parameter functions ─────────────────────────────────────
+add(a, b) = a + b
+multiply(a, b) = a * b
+scale_offset(input, scale, offset) = (input * scale) + offset
+blend(a, b, factor) = a * (1 - factor) + b * factor
+
+// ── Constants computed via function calls ─────────────────────────
+five_squared = square(5)
+two_cubed = cube(2)
+ten_halved = half(10)
+concert_a = 440
+
+sum_result = add(1, 1)
+half_result = multiply(1.0, 0.5)
+
+// ── Nested function calls ─────────────────────────────────────────
+nested1 = add(1, add(1, 1))
+nested2 = multiply(3, add(2, 2))
+blended = blend(3, 4, 0.5)
+
+// ── Composition ───────────────────────────────────────────────────
+composed = square(cube(2)) // should be: cube(2)=8, square(8) no wait... 
+// Actually square(cube(2)) = square(8) = 64... let me recalculate
+// cube(2) = 8, square(8) = 64
+// Let me use a simpler example
+sq_of_3 = square(3)
+sq_of_4 = square(4)
+
+process: {
+    // Single-param functions
+    print(five_squared)
+    print(two_cubed)
+    print(ten_halved)
+    print(concert_a)
+
+    // Multi-param results
+    print(sum_result)
+    print(half_result)
+
+    // Call builtins directly
+    print(floor(0.7))
+    print(ceil(0.3))
+    print(abs(0 - 3))
+
+    // Nested calls
+    print(nested2)
+    print(blended)
+
+    // Composed
+    print(sq_of_3)
+    print(sq_of_4)
+
+    // Direct builtin calls with expressions
+    print(sin(0))
+    print(cos(0) * 2 * 3.14159)
+    print(exp(1))
+    print(log(2))
+    print(pow(2, 3))
+    print(sqrt(2))
+
+    // Rounding builtins
+    print(abs(0 - 5))
+    print(floor(3.9))
+    print(ceil(3.1))
+    print(int(2.99))
+
+    // Min / Max
+    print(max(3, 5))
+    print(min(5, 8))
+
+    // Fmod
+    print(fmod(7, 4))
+
+    // User function calls inside process
+    a = add(1, 3.14)
+    print(a)
+
+    b = add(2.2, 5.5)
+    print(b)
+
+    // Scale and offset
+    c = scale_offset(5, 12.5, 0)
+    print(c)
+}

@@ -1,0 +1,6 @@
+func(a, b) = a + b
+
+z = func(2.2, 5.5)
+process: {
+    print(z)
+}

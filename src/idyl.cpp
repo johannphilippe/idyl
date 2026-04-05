@@ -5,10 +5,13 @@
 #include <sstream>
 #include <filesystem>
 #include <memory>
+#include <thread>
 #include "utilities/filesystem.hpp"
 #include "parser/ast.hpp"
 #include "parser/parse.hpp"
 #include "semantic/analyzer.hpp"
+#include "core/evaluator.hpp"
+#include "time/scheduler.hpp"
 #include "debug.hpp"
 
 std::string idyl::utilities::main_source_path = ""; // Initialize the main source path variable
@@ -76,6 +79,31 @@ int main(int argc, char** argv) {
         } else {
             idyl::debug("Semantic analysis completed successfully with no errors.");
         }
+
+        // ── Evaluate ────────────────────────────────────────────────────────
+        idyl::time::sys_clock_scheduler scheduler;
+        scheduler.start();
+
+        idyl::core::evaluator eval;
+        eval.scheduler_ = &scheduler;
+        eval.run(*program);
+
+        if (!eval.warnings_.empty()) {
+            eval.print_warnings();
+        }
+
+        // If there are active temporal subscriptions, keep the process
+        // alive so the scheduler thread can tick them.
+        if (scheduler.active_count() > 0) {
+            idyl::debug("Temporal functions active — running scheduler...");
+            // Run until all subscriptions finish or user interrupts (Ctrl+C)
+            while (scheduler.active_count() > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+        }
+
+        scheduler.stop();
+        idyl::debug("Evaluation completed.");
 
         return 0;
     } else {

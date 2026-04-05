@@ -10,7 +10,6 @@ namespace idyl::semantic {
         number,
         time,
         trigger,
-        rest,
         flow, 
         function, 
         module,

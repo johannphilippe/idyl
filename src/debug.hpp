@@ -84,7 +84,6 @@ namespace idyl {
             case semantic::inferred_t::number:   return "number";
             case semantic::inferred_t::time:     return "time";
             case semantic::inferred_t::trigger:  return "trigger";
-            case semantic::inferred_t::rest:     return "rest";
             case semantic::inferred_t::flow:     return "flow";
             case semantic::inferred_t::function: return "function";
             case semantic::inferred_t::module:   return "module";

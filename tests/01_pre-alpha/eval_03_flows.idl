@@ -1,0 +1,70 @@
+/*
+  Evaluator Test 03: Flows
+  ────────────────────────
+  Tests: flow literals, generator expressions, multi-member flows,
+         flow member access, flow index access, len() builtin.
+*/
+
+// ── Simple flow literal ───────────────────────────────────────────
+flow simple = [1 2 3 4 5]
+
+// ── Flow with computed expressions ────────────────────────────────
+flow computed = [10 20 30]
+
+// ── Generator: identity ───────────────────────────────────────────
+flow identity = [i = 0..5 : i]
+
+// ── Generator: doubling ───────────────────────────────────────────
+flow doubled = [i = 1..6 : i * 2]
+
+// ── Generator with function ───────────────────────────────────────
+square(x) = x * x
+flow squares = [i = 1..5 : square(i)]
+
+// ── Multi-member flow ─────────────────────────────────────────────
+flow intervals = {
+    root: [1.0]
+    fifth: [1.5]
+    octave: [2.0]
+}
+
+// ── Multi-member flow with generators ─────────────────────────────
+flow scale_data = {
+    degrees: [i = 0..4 : i]
+    freqs: [i = 0..4 : 440 * (i + 1)]
+}
+
+process: {
+    // Print entire flows (shows structure)
+    print(simple)
+    print(computed)
+    print(identity)
+    print(doubled)
+    print(squares)
+
+    // Flow length
+    print(len(simple))
+    print(len(identity))
+
+    // Index access (0-based)
+    print(simple[0])
+    print(simple[2])
+    print(simple[4])
+
+    // Generator results via index
+    print(doubled[0])
+    print(doubled[2])
+
+    // Squares via index
+    print(squares[0])
+    print(squares[3])
+
+    // Multi-member flow print
+    print(intervals)
+    print(scale_data)
+
+    // Member access
+    print(intervals.root)
+    print(intervals.fifth)
+    print(intervals.octave)
+}

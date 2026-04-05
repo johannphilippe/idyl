@@ -465,6 +465,14 @@ process_body_statement
     {
         $$ = $2;
     }
+    | expression
+    {
+        auto es = std::make_shared<idyl::parser::expression_stmt>();
+        es->expression_ = $1;
+        es->line_ = @1.begin.line;
+        es->column_ = @1.begin.column;
+        $$ = es;
+    }
     ;
 
 catch_block

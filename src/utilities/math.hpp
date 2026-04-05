@@ -8,11 +8,12 @@
 
 namespace idyl::math {
 
-    // ── High-precision π constants (Cody-Waite 3-part split) ──────────────────
-    // Together these sum to π/2 to ~150 bits of precision
-    static constexpr double PI_HI  =  3.141592653589793116;   // top 53 bits
-    static constexpr double PI_MID =  1.2246467991473531772e-16; // next 53 bits
-    static constexpr double PI_LO  = -2.9947698097183397e-33; // residual
+    // ── High-precision π/2 constants (Cody-Waite 3-part split) ─────────────────
+    // Together these sum to π/2 to ~150 bits of precision.
+    // range_reduce computes k = round(x / (π/2)), then subtracts k * (π/2).
+    static constexpr double PI2_HI  =  1.5707963267948965579989817342;  // top 53 bits of π/2
+    static constexpr double PI2_MID =  6.123233995736765886e-17;        // next 53 bits of π/2
+    static constexpr double PI2_LO  = -1.4973849048591698e-33;          // residual of π/2
 
     // Full π for reference (more bits than double can hold, but useful for comments)
     // π = 3.14159265358979323846264338327950288...
@@ -62,9 +63,9 @@ namespace idyl::math {
 
         // Subtract k * π/2 in 3 parts (compensated summation)
         const double kd = static_cast<double>(k);
-        r = ((x - kd * PI_HI)   // large part first
-                - kd * PI_MID)   // medium correction
-                - kd * PI_LO;    // tiny residual
+        r = ((x - kd * PI2_HI)   // large part first
+                - kd * PI2_MID)   // medium correction
+                - kd * PI2_LO;    // tiny residual
 
         return k & 3; // quadrant: 0,1,2,3
     }
@@ -116,7 +117,7 @@ namespace idyl::math {
     constexpr std::array<double, TABLE_SIZE + 1> SIN_TABLE = []() {
         std::array<double, TABLE_SIZE + 1> table{};
         for (size_t i = 0; i < table.size(); ++i) {
-            double x = (static_cast<double>(i) / table.size()) * TWO_PI;
+            double x = (static_cast<double>(i) / TABLE_SIZE) * TWO_PI;
             table[i] = accurate_sin(x);
         }
         return table;
