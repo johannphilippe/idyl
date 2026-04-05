@@ -1,0 +1,6 @@
+// Low-frequency oscillator (LFO) for modulation
+lfo(freq, amplitude=1, dt=10ms) = modulation |> {
+    init: { phase = 0 }
+    modulation = amplitude * sin(phase * 2 * pi)
+    phase = fmod(phase + 1 / (freq * (dt / 1000)), 1)
+}

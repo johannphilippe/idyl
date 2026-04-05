@@ -1,0 +1,7 @@
+lib("stdlib")
+
+process: {
+    l1 = lfo(10hz, 0.5)
+    l2 = lfo(1hz, l1)
+    l3 = lfo(5hz, l2, dt=20ms)
+}

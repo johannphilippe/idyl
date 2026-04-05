@@ -79,5 +79,23 @@ namespace idyl::semantic {
             }
             return nullptr; // Not found
         }
+
+        // Check if we are currently inside a temporal function (any enclosing scope is temporal)
+        bool is_in_temporal_context() const {
+            for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
+                if (it->is_temporal_function_) return true;
+            }
+            return false;
+        }
+
+        // Check if we are currently inside a lambda body or init block
+        bool is_in_lambda_context() const {
+            for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
+                if (it->type_ == scope_t::lambda_body || it->type_ == scope_t::init_block) return true;
+                // Stop at function boundary — don't leak into enclosing functions
+                if (it->type_ == scope_t::function_body) return false;
+            }
+            return false;
+        }
     };
 } // --- idyl::semantic ---

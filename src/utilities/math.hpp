@@ -148,4 +148,8 @@ namespace idyl::math {
         return fast_sin(x + PI_2);
     }
 
-}
+    inline double fmod(double x, double y) noexcept {
+        return x - y * std::floor(x / y);
+    }
+
+} // --- idyl::math ---

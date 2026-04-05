@@ -526,6 +526,7 @@ char *yytext;
 static std::string yylval_string;
 static yy::location yylloc;  // Declare yylloc globally
 static yy::lexer* lexer_instance = nullptr;
+static bool location_initialized = false;
 
 #define YY_INPUT(buf, result, max_size) \
     { \
@@ -558,8 +559,8 @@ static yy::lexer* lexer_instance = nullptr;
         return yy::parser::token::token_type; \
     } while (0)
 
-#line 562 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 #line 563 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 564 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 #define INITIAL 0
 
@@ -776,10 +777,10 @@ YY_DECL
 		}
 
 	{
-#line 60 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 61 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 
 
-#line 783 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 784 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -834,95 +835,95 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 62 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 63 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); }
 	YY_BREAK
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 63 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 64 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); }
 	YY_BREAK
 case 3:
 /* rule 3 can match eol */
 YY_RULE_SETUP
-#line 65 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 66 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 66 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 67 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 68 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 69 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::FLOW; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 69 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 70 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::PROCESS; }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 70 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 71 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LIB; }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 71 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 72 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::MODULE; }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 72 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 73 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::INIT; }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 73 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 74 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::EMIT; }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 74 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 75 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::CATCH; }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 75 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 76 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::END; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 76 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 77 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::DT; }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 78 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 79 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 79 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 80 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 80 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 81 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 81 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 82 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 	YY_BREAK
 case 18:
 /* rule 18 can match eol */
 YY_RULE_SETUP
-#line 83 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 84 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     std::string s = yytext;
     yylval_string = s.substr(1, s.length() - 2);
@@ -932,211 +933,211 @@ YY_RULE_SETUP
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 90 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 91 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::NUMBER; }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 92 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 93 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::REST; }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 93 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 94 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::IDENTIFIER; }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 95 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 96 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LAMBDA_BLOCK; }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 96 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 97 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::NAMESPACE_DOT; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 97 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 98 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::RESTART_MARKER; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 98 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 99 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::RANGE; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 99 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 100 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::EQ; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 100 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 101 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::NEQ; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 101 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 102 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LE; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 102 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 103 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::GE; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 103 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 104 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LSHIFT; }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 104 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 105 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::RSHIFT; }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 105 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 106 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::MEMORY_OP; }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 107 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 108 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::PLUS; }
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 108 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 109 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::MINUS; }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 109 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 110 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::MUL; }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 110 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 111 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::DIV; }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 111 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 112 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::MOD; }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 112 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 113 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LT; }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 113 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 114 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::GT; }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 114 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 115 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::AND; }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 115 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 116 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::OR; }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 116 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 117 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::XOR; }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 117 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 118 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::NOT; }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 118 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 119 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::QUESTION; }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 119 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 120 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::ASSIGN; }
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 120 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 121 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::COLON; }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 121 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 122 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::SEMICOLON; }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 122 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 123 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::COMMA; }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 123 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 124 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::DOT; }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 124 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 125 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::TRIGGER; }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 125 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 126 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LPAREN; }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 126 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 127 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::RPAREN; }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 127 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 128 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LBRACKET; }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 128 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 129 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::RBRACKET; }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 129 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 130 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::LBRACE; }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 130 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 131 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::RBRACE; }
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
-#line 132 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 133 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 { TRACK_LOCATION(); return yy::parser::token::YYEOF; }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 134 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 135 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 {
     std::cerr << "Unexpected character: " << yytext[0] << std::endl;
 }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 138 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 139 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 ECHO;
 	YY_BREAK
-#line 1140 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
+#line 1141 "/home/johann/Documents/git/idyl/src/parser/lex.yy.cc"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2140,11 +2141,10 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 138 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
+#line 139 "/home/johann/Documents/git/idyl/src/parser/idyl.l"
 
 
 yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
-    static bool location_initialized = false;
     lexer_instance = &driver;
     
     // Initialize location on first call
@@ -2268,5 +2268,14 @@ namespace yy {
     parser::symbol_type yylex(lexer& driver) {
         return yylex_impl(driver);
     }
+}
+
+// Reset the lexer state so the scanner can be reused for a new input stream.
+// Must be called before parsing a different file (e.g. for library imports).
+void reset_lexer_state() {
+    location_initialized = false;
+    lexer_instance = nullptr;
+    // Flush the current Flex buffer so the next yylex() starts fresh
+    YY_FLUSH_BUFFER;
 }
 

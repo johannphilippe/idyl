@@ -489,6 +489,15 @@ lambda_block
         lambda->column_ = @1.begin.column;
         $$ = lambda;
     }
+    | LAMBDA_BLOCK LBRACE init_block RBRACE
+    {
+        auto lambda = std::make_shared<idyl::parser::lambda_block>();
+        lambda->init_ = $3;
+        lambda->update_statements_ = {};
+        lambda->line_ = @1.begin.line;
+        lambda->column_ = @1.begin.column;
+        $$ = lambda;
+    }
     | LAMBDA_BLOCK LBRACE lambda_statements RBRACE
     {
         auto lambda = std::make_shared<idyl::parser::lambda_block>();
@@ -543,6 +552,26 @@ lambda_statement
         assign->line_ = @1.begin.line;
         assign->column_ = @1.begin.column;
         $$ = assign;
+    }
+    | IDENTIFIER LPAREN parameter_list RPAREN ASSIGN expression %prec ASSIGN
+    {
+        auto func = std::make_shared<idyl::parser::function_definition>();
+        func->name_ = $1;
+        func->parameters_ = $3;
+        func->body_ = $6;
+        func->line_ = @1.begin.line;
+        func->column_ = @1.begin.column;
+        $$ = func;
+    }
+    | IDENTIFIER LPAREN RPAREN ASSIGN expression %prec ASSIGN
+    {
+        auto func = std::make_shared<idyl::parser::function_definition>();
+        func->name_ = $1;
+        func->parameters_ = {};
+        func->body_ = $5;
+        func->line_ = @1.begin.line;
+        func->column_ = @1.begin.column;
+        $$ = func;
     }
     ;
 

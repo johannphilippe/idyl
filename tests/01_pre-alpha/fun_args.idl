@@ -1,0 +1,6 @@
+func(a, b) = add(a, b)
+|> {
+    init: {
+        add(one, two) = one + two 
+    }
+}

@@ -63,10 +63,11 @@ namespace idyl {
         return "unknown";
     }
 
-    std::string resolve_symbol_t(semantic::symbol_t type) {
+    inline std::string resolve_symbol_t(semantic::symbol_t type) {
         switch (type) {
             case semantic::symbol_t::function: return "function";
             case semantic::symbol_t::flow: return "flow";
+            case semantic::symbol_t::flow_member: return "flow_member";
             case semantic::symbol_t::parameter: return "parameter";
             case semantic::symbol_t::local_variable: return "local_variable";
             case semantic::symbol_t::emit_variable: return "emit_variable";
@@ -77,11 +78,34 @@ namespace idyl {
         return "unknown";
     }
 
-    inline void error(idyl::semantic::analyzer::error& err) 
-    {
-        std::cout << "Semantic Error: " << err.message_ << " at line " << err.line_ << ", column " << err.column_ << ".\n";
+    inline std::string resolve_inferred_t(semantic::inferred_t type) {
+        switch (type) {
+            case semantic::inferred_t::unknown:  return "unknown";
+            case semantic::inferred_t::number:   return "number";
+            case semantic::inferred_t::time:     return "time";
+            case semantic::inferred_t::trigger:  return "trigger";
+            case semantic::inferred_t::rest:     return "rest";
+            case semantic::inferred_t::flow:     return "flow";
+            case semantic::inferred_t::function: return "function";
+            case semantic::inferred_t::module:   return "module";
+        }
+        return "unknown";
     }
 
+    inline void print_diagnostic(const idyl::semantic::analyzer::diagnostic& d) 
+    {
+        const char* label = "Error";
+        if (d.level_ == idyl::semantic::severity::warning) label = "Warning";
+        else if (d.level_ == idyl::semantic::severity::info) label = "Info";
+        std::cout << "Semantic " << label << ": " << d.message_ << " at line " << d.line_ << ", column " << d.column_ << ".\n";
+    }
+
+    inline void debug(const std::string& message)
+    {
+        #ifdef IDYL_VERBOSE 
+            std::cout << "Debug: " << message << "\n";
+        #endif
+    }
 
     inline void warning(const std::string& message, int line, int column)
     {

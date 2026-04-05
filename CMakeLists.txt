@@ -26,6 +26,7 @@ set(SOURCES
     ${BISON_IdylParser_OUTPUTS}
     ${FLEX_IdylScanner_OUTPUTS}
     src/idyl.cpp
+    src/parser/parse.cpp
     src/semantic/analyzer.cpp
     )
 

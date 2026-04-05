@@ -9,6 +9,7 @@
 static std::string yylval_string;
 static yy::location yylloc;  // Declare yylloc globally
 static yy::lexer* lexer_instance = nullptr;
+static bool location_initialized = false;
 
 #define YY_INPUT(buf, result, max_size) \
     { \
@@ -138,7 +139,6 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 %%
 
 yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
-    static bool location_initialized = false;
     lexer_instance = &driver;
     
     // Initialize location on first call
@@ -262,4 +262,13 @@ namespace yy {
     parser::symbol_type yylex(lexer& driver) {
         return yylex_impl(driver);
     }
+}
+
+// Reset the lexer state so the scanner can be reused for a new input stream.
+// Must be called before parsing a different file (e.g. for library imports).
+void reset_lexer_state() {
+    location_initialized = false;
+    lexer_instance = nullptr;
+    // Flush the current Flex buffer so the next yylex() starts fresh
+    YY_FLUSH_BUFFER;
 }
