@@ -39,6 +39,9 @@ namespace idyl::core {
                         case value_t::time:
                             std::cout << val.number_ << " ms\n";
                             break;
+                        case value_t::string:
+                            std::cout << (val.string_ ? *val.string_ : "") << "\n";
+                            break;
                         case value_t::flow:
                             if (val.flow_) {
                                 recursive_print_flow(*val.flow_);
@@ -193,6 +196,9 @@ namespace idyl::core {
                             break;
                         case value_t::trigger:
                             if(v.trigger_) std::cout << "trigger ! ";
+                            break;
+                        case value_t::string:
+                            std::cout << (v.string_ ? *v.string_ : "");
                             break;
                         case value_t::flow:
                             if (v.flow_) {

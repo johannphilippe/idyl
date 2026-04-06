@@ -1,0 +1,21 @@
+/*
+  Flow Access Test: Member access + counter
+  Run with: timeout 2 ./idyl flow_member_counter.idl
+  Expected: wrapping counter on cflow.notes — 48, 59, 39, 61, 48, ...
+*/
+
+counter(dt=200ms) = cnt |> {
+    init: { cnt = 0 }
+    cnt = cnt + 1
+}
+
+flow cflow = {
+    kick:  [! _ ! !]
+    notes: [61 48 59 39]
+}
+
+process: {
+    c = counter()
+    res = cflow.notes[c]
+    print(res)
+}

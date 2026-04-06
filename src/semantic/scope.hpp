@@ -6,6 +6,7 @@
 
 #include "semantic/symbol.hpp"
 #include "core/builtins.hpp"
+#include "include/module.hpp"
 
 namespace idyl::semantic {
     enum class scope_t {
@@ -28,6 +29,9 @@ namespace idyl::semantic {
     struct scope_stack {
         std::vector<scope> scopes_; 
 
+        // Module registry pointer (set before analysis if modules are loaded)
+        module::registry* module_registry_ = nullptr;
+
         void push(scope_t type) {
             scopes_.emplace_back(scope{type});
         }
@@ -48,11 +52,28 @@ namespace idyl::semantic {
 
         void define_builtins() 
         {
-
+            // Register core builtins  
             for(size_t i = 0; i < core::num_builtins; ++i)
             {
                 const auto& builtin = core::builtins[i];
                 define(builtin.name_, symbol_info{symbol_t::builtin, builtin.name_});
+            }
+
+            // Predefined constants (mirrors environment::init)
+            for (const auto& name : {"pi", "tau"}) {
+                define(name, symbol_info{symbol_t::local_variable, name});
+            }
+
+            // Register module functions so the analyzer recognizes them
+            if (module_registry_) {
+                for (const auto& [name, entry] : module_registry_->all()) {
+                    symbol_info si;
+                    si.type_ = symbol_t::builtin;
+                    si.name_ = name;
+                    si.arity_ = entry.max_arity_;
+                    si.required_arity_ = entry.min_arity_;
+                    define(name, std::move(si));
+                }
             }
         }
 

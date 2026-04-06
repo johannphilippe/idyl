@@ -21,6 +21,20 @@ FLEX_TARGET(IdylScanner
 # Ensure correct build order
 ADD_FLEX_BISON_DEPENDENCY(IdylScanner IdylParser)
 
+# Modules (header-only INTERFACE library)
+add_subdirectory(src/modules)
+
+# ── Optional native modules ─────────────────────────────────────────────────
+# Each native module can be enabled/disabled at configure time.
+# When enabled, the corresponding compile definition is set, and the module
+# is conditionally registered in idyl.cpp via try_add().
+option(IDYL_MODULE_OSC "Enable the built-in OSC module" ON)
+if(IDYL_MODULE_OSC)
+    message(STATUS "Native module: OSC [enabled]")
+else()
+    message(STATUS "Native module: OSC [disabled]")
+endif()
+
 # Sources: use the generated outputs
 set(SOURCES
     ${BISON_IdylParser_OUTPUTS}
@@ -36,6 +50,13 @@ add_executable(idyl ${SOURCES})
 target_include_directories(idyl PRIVATE
     src
     src/parser)
+
+target_link_libraries(idyl PRIVATE idyl_modules)
+
+# Pass module enable/disable flags to the compiler
+if(IDYL_MODULE_OSC)
+    target_compile_definitions(idyl PRIVATE IDYL_MODULE_OSC=1)
+endif()
 
 add_custom_target(parser
     DEPENDS ${FLEX_IdylScanner_OUTPUTS} ${BISON_IdylParser_OUTPUTS}

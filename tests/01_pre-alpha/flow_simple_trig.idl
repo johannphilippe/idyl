@@ -1,0 +1,15 @@
+/*
+  Flow Access Test: Simple flow + trigger
+  Run with: timeout 2 ./idyl flow_simple_trig.idl
+  Expected: cycles through 10, 20, 30, 40, 50, 10, ...
+*/
+
+trig(dt=200ms) = !
+
+flow notes = [10 20 30 40 50]
+
+process: {
+    t = trig()
+    res = notes[t]
+    print(res)
+}

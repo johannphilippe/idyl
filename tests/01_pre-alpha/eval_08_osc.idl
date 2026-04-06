@@ -1,0 +1,36 @@
+// eval_08_osc.idl — OSC module tests
+//
+// Tests three send modes:
+//   1. Immediate one-shot sends
+//   2. dt-driven (scheduler-based periodic sends)
+//   3. Trigger-gated sends
+//
+// Run osc_receiver.rb first to verify receipt:
+//   ruby osc_receiver.rb 9000 8 10 &
+//   ./idyl eval_08_osc.idl
+
+host = "127.0.0.1"
+port = 9000
+
+process: {
+    print("Opening OSC output...")
+    osc_out(host, port)
+
+    // ── Mode 1: Immediate one-shot sends ───────────────────────────────
+    osc_send("/synth/freq", 440)
+    osc_send("/synth/gate", 1)
+    osc_send("/synth/name", "sine")
+    osc_send("/control/mix", 0.75, "wet")
+
+    // ── Mode 2: dt-driven send (repeats every 200ms) ──────────────────
+    // Sends a fixed message 3 times over ~600ms, then we stop.
+    osc_send("/dt/ping", 42, 200ms)
+
+    // ── Mode 3: trigger-gated sends ────────────────────────────────────
+    // Only fires when the trigger is true (!); rest (_) is skipped.
+    osc_send("/gate/yes", 1, !)    // this one sends (gate = trigger true)
+    osc_send("/gate/no", 0, _)     // this one is skipped (gate = rest)
+
+    print("OSC test: immediate + dt + gated sends dispatched.")
+    print("Waiting 700ms for dt sends...")
+}

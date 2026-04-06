@@ -1,0 +1,16 @@
+/*
+  Flow Access Test: Simple flow + phasor
+  Run with: timeout 3 ./idyl flow_simple_phasor.idl
+  Expected: phasor sweeps 0→1 at 1hz, mapping to nearest element.
+            10, 10, ..., 20, 20, ..., 30, ..., 40, ..., 50, 10, ...
+*/
+
+lib("stdlib")
+
+flow notes = [10 20 30 40 50]
+
+process: {
+    ph = phasor(1hz)
+    res = notes[ph]
+    print(res)
+}

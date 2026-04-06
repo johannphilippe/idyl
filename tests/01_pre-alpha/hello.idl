@@ -1,0 +1,6 @@
+trig(dt=100ms) = ! 
+
+process: {
+    t = trig()
+    print(t)
+}

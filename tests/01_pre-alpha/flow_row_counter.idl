@@ -1,0 +1,23 @@
+/*
+  Flow Access Test: Row-slice + counter
+  Run with: timeout 2 ./idyl flow_row_counter.idl
+  Expected: cflow[counter] returns row, .kick and .notes extracted.
+            counter starts at 1: (_, 48), (!, 59), (!, 39), (!, 61), ...
+*/
+
+counter(dt=200ms) = cnt |> {
+    init: { cnt = 0 }
+    cnt = cnt + 1
+}
+
+flow cflow = {
+    kick:  [! _ ! !]
+    notes: [61 48 59 39]
+}
+
+process: {
+    c = counter()
+    row = cflow[c]
+    print(row.kick)
+    print(row.notes)
+}

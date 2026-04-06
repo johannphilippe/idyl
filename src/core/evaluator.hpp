@@ -4,11 +4,13 @@
 #include <vector>
 #include <iostream>
 #include <memory>
+#include <set>
 
 #include "parser/ast.hpp"
 #include "core/core.hpp"
 #include "core/environment.hpp"
 #include "time/scheduler.hpp"
+#include "include/module.hpp"
 
 namespace idyl::core {
 
@@ -30,6 +32,17 @@ namespace idyl::core {
 
         // Scheduler (owned externally, nullable for Phase 1 compatibility)
         time::sys_clock_scheduler* scheduler_ = nullptr;
+
+        // Loaded library paths (canonical) — prevents duplicate loading
+        std::set<std::string> loaded_libraries_;
+
+        // ── Retick context ─────────────────────────────────────────────────────
+        // During a scheduler retick callback, this points to the instance being
+        // reticked.  When set, instantiate_temporal() returns the existing
+        // instance's output instead of creating a new instance.  This allows
+        // the full enclosing expression (e.g. lfo(1hz) + 1 * 2000 + 20) to be
+        // re-evaluated with the updated temporal value.
+        function_instance* retick_instance_ = nullptr;
 
         // Runtime warnings (non-fatal)
         struct runtime_warning {
@@ -53,15 +66,23 @@ namespace idyl::core {
                           int line = 0, int col = 0);
         value apply_unop(const std::string& op, const value& operand);
 
+        // Named argument map: parameter name → evaluated value
+        using named_args_t = std::unordered_map<std::string, value>;
+
         // ── Function / builtin calls ───────────────────────────────────────────
         value eval_call(const parser::function_call& call);
         value eval_builtin(const builtin& fn, const std::vector<value>& args);
+        value eval_module_fn(const module::function_entry& fn,
+                             const std::vector<value>& args,
+                             int line = 0, int col = 0);
         value eval_user_function(const parser::function_definition& def,
-                                 const std::vector<value>& args);
+                                 const std::vector<value>& args,
+                                 const named_args_t& named = {});
 
         // ── Temporal function instantiation ────────────────────────────────────
         value instantiate_temporal(const parser::function_definition& def,
-                                   const std::vector<value>& args);
+                                   const std::vector<value>& args,
+                                   const named_args_t& named = {});
         void tick_instance(function_instance& inst,
                            const parser::function_definition& def);
 

@@ -1,0 +1,20 @@
+/*
+  Flow Access Test: Row-slice + phasor
+  Run with: timeout 3 ./idyl flow_row_phasor.idl
+  Expected: phasor sweeps rows of cflow, .notes extracts the value.
+            61, ..., 48, ..., 59, ..., 39, 61, ...
+*/
+
+lib("stdlib")
+
+flow cflow = {
+    kick:  [! _ ! !]
+    notes: [61 48 59 39]
+}
+
+process: {
+    ph = phasor(1hz)
+    row = cflow[ph]
+    print(row.kick)
+    print(row.notes)
+}

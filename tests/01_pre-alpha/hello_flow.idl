@@ -1,0 +1,25 @@
+lib("stdlib")
+trig(dt=100ms) = ! 
+
+counter(dt = 100ms) = cnt
+|> {
+    init: {cnt = 0}
+    cnt = cnt + 1
+}
+
+
+flow mflow = [0 1 2 3] 
+
+flow cflow = {
+    kick: [! _ ! !]
+    notes: [ 61 48 59 39 77 ] 
+}
+
+process: {
+    cnt = counter()
+    ph = phasor(1hz)
+    t = trig(dt=500ms)
+
+    res = cflow.notes[cnt]
+    print(res)
+}

@@ -12,6 +12,10 @@
 #include "semantic/analyzer.hpp"
 #include "core/evaluator.hpp"
 #include "time/scheduler.hpp"
+#include "include/module.hpp"
+#ifdef IDYL_MODULE_OSC
+#include "modules/osc_module.hpp"
+#endif
 #include "debug.hpp"
 
 std::string idyl::utilities::main_source_path = ""; // Initialize the main source path variable
@@ -31,6 +35,14 @@ int main(int argc, char** argv) {
     std::string source_path;
 
     idyl::semantic::analyzer analyzer; 
+
+    // ── Module registry ─────────────────────────────────────────────────
+    // Native modules are compiled-in and auto-registered (no import keyword).
+    // Each module's available() is checked — disabled modules are skipped.
+    idyl::module::registry module_registry;
+    #ifdef IDYL_MODULE_OSC
+    module_registry.try_add(std::make_unique<idyl::modules::osc_module>());
+    #endif
 
     // Parse command-line arguments
     if (argc > 1 && std::string(argv[1]) != "-") {
@@ -70,6 +82,9 @@ int main(int argc, char** argv) {
             analyzer.source_path_ = source_path;
         }
 
+        // Wire module registry into semantic analyzer
+        analyzer.scope_stack_.module_registry_ = &module_registry;
+
         // Perform semantic analysis
         analyzer.analyze(*program);
         analyzer.print_analysis_results();
@@ -84,8 +99,12 @@ int main(int argc, char** argv) {
         idyl::time::sys_clock_scheduler scheduler;
         scheduler.start();
 
+        // Provide the scheduler to modules that need timing (e.g. osc dt sends)
+        module_registry.provide_scheduler(&scheduler);
+
         idyl::core::evaluator eval;
         eval.scheduler_ = &scheduler;
+        eval.env_.module_registry_ = &module_registry;
         eval.run(*program);
 
         if (!eval.warnings_.empty()) {

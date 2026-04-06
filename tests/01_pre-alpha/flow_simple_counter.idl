@@ -1,0 +1,18 @@
+/*
+  Flow Access Test: Simple flow + counter
+  Run with: timeout 2 ./idyl flow_simple_counter.idl
+  Expected: wrapping integer access — 20, 30, 40, 50, 10, 20, ...
+*/
+
+counter(dt=200ms) = cnt |> {
+    init: { cnt = 0 }
+    cnt = cnt + 1
+}
+
+flow notes = [10 20 30 40 50]
+
+process: {
+    c = counter()
+    res = notes[c]
+    print(res)
+}

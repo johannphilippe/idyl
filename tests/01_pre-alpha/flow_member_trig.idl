@@ -1,0 +1,18 @@
+/*
+  Flow Access Test: Member access + trigger
+  Run with: timeout 2 ./idyl flow_member_trig.idl
+  Expected: cycles through cflow.notes — 61, 48, 59, 39, 61, ...
+*/
+
+trig(dt=200ms) = !
+
+flow cflow = {
+    kick:  [! _ ! !]
+    notes: [61 48 59 39]
+}
+
+process: {
+    t = trig()
+    res = cflow.notes[t]
+    print(res)
+}

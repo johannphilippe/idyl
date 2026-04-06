@@ -1,0 +1,12 @@
+lib("stdlib")
+
+host = "127.0.0.1"
+port = 9000
+
+process: 
+{
+    osc_out(host, port)
+    mod = (lfo(10hz, dt=1ms) + 1) * 2  * 1000 + 20
+    print(mod)
+    osc_send("/csound/freq", mod)
+}

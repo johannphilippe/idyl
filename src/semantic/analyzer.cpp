@@ -55,16 +55,19 @@ namespace idyl::semantic {
                     std::string path = mod->path_;
 
                     if (!idyl::utilities::get_module_path(path)) {
-                        diagnostics_.push_back(diagnostic{severity::error,
-                            "Module file not found for '" + mod->path_ + "'.",
+                        // Module not found — warning, not error.
+                        // The evaluator will skip it gracefully at runtime.
+                        diagnostics_.push_back(diagnostic{severity::warning,
+                            "Module '" + mod->path_ + "' not found. "
+                            "Functions from this module will not be available.",
                             mod->line_, mod->column_});
                         break;
                     }
 
                     std::vector<std::string> symbols = idyl::utilities::list_dll_symbols(path);
                     if (symbols.empty()) {
-                        diagnostics_.push_back(diagnostic{severity::error,
-                            "No symbols found in module '" + mod->path_ + "'.",
+                        diagnostics_.push_back(diagnostic{severity::warning,
+                            "Module '" + mod->path_ + "' exported no functions.",
                             mod->line_, mod->column_});
                         break;
                     }
@@ -330,10 +333,13 @@ namespace idyl::semantic {
                 }
 
                 // Check for unused parameters (info diagnostic, spec §11.2.6)
+                // Skip 'dt' — it's an implicit scheduling parameter that may
+                // not appear in the function body but is used by the runtime.
                 {
                     auto& func_scope = scope_stack_.scopes_.back(); // function_body is still on top
                     for (const auto& [name, sym] : func_scope.symbols_) {
-                        if (sym.type_ == symbol_t::parameter && !sym.referenced_) {
+                        if (sym.type_ == symbol_t::parameter && !sym.referenced_
+                            && name != "dt") {
                             diagnostics_.push_back(diagnostic{severity::info,
                                 "Parameter '" + name + "' is never used in function '" + func->name_ + "'.",
                                 sym.line_, sym.column_});
@@ -1077,6 +1083,8 @@ namespace idyl::semantic {
                 return inferred_t::trigger;
             case parser::node_t::rest_literal:
                 return inferred_t::trigger;
+            case parser::node_t::string_literal:
+                return inferred_t::string;
             case parser::node_t::flow_literal_expr:
             case parser::node_t::flow_literal:
                 return inferred_t::flow;

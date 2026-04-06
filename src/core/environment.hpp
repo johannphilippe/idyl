@@ -7,6 +7,7 @@
 
 #include "core/core.hpp"
 #include "core/builtins.hpp"
+#include "include/module.hpp"
 
 namespace idyl::core {
 
@@ -27,6 +28,9 @@ namespace idyl::core {
         // Built-in function lookup (name → index into core::builtins[])
         std::unordered_map<std::string, size_t> builtin_index_;
 
+        // Module registry (owned externally — populated before init)
+        module::registry* module_registry_ = nullptr;
+
         // ── Initialization ─────────────────────────────────────────────────────
         void init() {
             // Push global scope
@@ -36,6 +40,10 @@ namespace idyl::core {
             for (size_t i = 0; i < num_builtins; ++i) {
                 builtin_index_[builtins[i].name_] = i;
             }
+
+            // Predefined constants
+            define("pi", value::number(3.14159265358979323846));
+            define("tau", value::number(6.28318530717958647692));
         }
 
         // ── Scope management ───────────────────────────────────────────────────
@@ -70,6 +78,14 @@ namespace idyl::core {
             auto it = builtin_index_.find(name);
             if (it != builtin_index_.end()) {
                 return &builtins[it->second];
+            }
+            return nullptr;
+        }
+
+        // ── Module function lookup ─────────────────────────────────────────────
+        const module::function_entry* lookup_module_fn(const std::string& name) const {
+            if (module_registry_) {
+                return module_registry_->lookup(name);
             }
             return nullptr;
         }

@@ -1,0 +1,19 @@
+/*
+  Flow Access Test: Row-slice + trigger
+  Run with: timeout 2 ./idyl flow_row_trig.idl
+  Expected: cflow[trig] returns a row, .notes extracts the value.
+            Cycles: 61, 48, 59, 39, 61, ...
+*/
+
+trig(dt=200ms) = !
+
+flow cflow = {
+    kick:  [! _ ! !]
+    notes: [61 48 59 39]
+}
+
+process: {
+    t = trig()
+    row = cflow[t]
+    print(row.notes)
+}

@@ -17,6 +17,7 @@ namespace idyl::core {
         number, 
         time, 
         trigger,
+        string,
         flow, 
         function, 
         module, 
@@ -35,15 +36,17 @@ namespace idyl::core {
         bool trigger_   = false; // used for trigger
 
         // Complex types (heap-allocated, ref-counted)
+        std::shared_ptr<std::string> string_;
         std::shared_ptr<flow_data> flow_;
         // function_ and module_ will be added in later phases
 
         // ── Constructors ───────────────────────────────────────────────────────
-        static value number(double v)       { return {value_t::number, v, false, nullptr}; }
-        static value time_ms(double ms)     { return {value_t::time, ms, false, nullptr}; }
-        static value trigger(bool fired)    { return {value_t::trigger, fired ? 1.0 : 0.0, fired, nullptr}; }
-        static value rest()                 { return {value_t::trigger, 0.0, false, nullptr}; } // rest is trigger(false)
-        static value nil()                  { return {value_t::nil, 0.0, false, nullptr}; }
+        static value number(double v)       { return {value_t::number, v, false, nullptr, nullptr}; }
+        static value time_ms(double ms)     { return {value_t::time, ms, false, nullptr, nullptr}; }
+        static value trigger(bool fired)    { return {value_t::trigger, fired ? 1.0 : 0.0, fired, nullptr, nullptr}; }
+        static value rest()                 { return {value_t::trigger, 0.0, false, nullptr, nullptr}; } // rest is trigger(false)
+        static value nil()                  { return {value_t::nil, 0.0, false, nullptr, nullptr}; }
+        static value string(std::string s)  { return {value_t::string, 0.0, false, std::make_shared<std::string>(std::move(s)), nullptr}; }
 
         // ── Numeric coercion (for operators) ───────────────────────────────────
         // trigger → 1.0 if fired, 0.0 otherwise
@@ -63,8 +66,31 @@ namespace idyl::core {
                 case value_t::number:  return number_ != 0.0;
                 case value_t::time:    return number_ != 0.0;
                 case value_t::trigger: return trigger_;
+                case value_t::string:  return string_ && !string_->empty();
                 case value_t::nil:     return false;
                 default:               return true;
+            }
+        }
+
+        // String coercion — used by module authors and string concatenation.
+        // Returns the string content for string values, or a human-readable
+        // representation for other types.
+        std::string as_string() const {
+            switch (type_) {
+                case value_t::string:  return string_ ? *string_ : "";
+                case value_t::number: {
+                    auto s = std::to_string(number_);
+                    auto dot = s.find('.');
+                    if (dot != std::string::npos) {
+                        auto last = s.find_last_not_of('0');
+                        if (last == dot) s.erase(dot);
+                        else s.erase(last + 1);
+                    }
+                    return s;
+                }
+                case value_t::time:    return std::to_string(number_) + "ms";
+                case value_t::trigger: return trigger_ ? "trigger" : "rest";
+                default:               return "";
             }
         }
     };
@@ -77,6 +103,13 @@ namespace idyl::core {
 
     struct flow_data {
         std::vector<flow_member> members_;
+
+        // Per-member cursors for trigger-driven sequential access.
+        // Keyed by member name ("" for unnamed single-member flows).
+        // Shared between parent and member-extracted views so that
+        // advancing in one advances the other.
+        std::shared_ptr<std::unordered_map<std::string, int>> cursors_ =
+            std::make_shared<std::unordered_map<std::string, int>>();
 
         size_t length() const {
             if (members_.empty()) return 0;

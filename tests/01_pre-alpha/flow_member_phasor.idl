@@ -1,0 +1,18 @@
+/*
+  Flow Access Test: Member access + phasor
+  Run with: timeout 3 ./idyl flow_member_phasor.idl
+  Expected: phasor sweeps cflow.notes — 61, ..., 48, ..., 59, ..., 39, 61, ...
+*/
+
+lib("stdlib")
+
+flow cflow = {
+    kick:  [! _ ! !]
+    notes: [61 48 59 39]
+}
+
+process: {
+    ph = phasor(1hz, dt=100ms)
+    res = cflow.notes[ph]
+    print(res)
+}
