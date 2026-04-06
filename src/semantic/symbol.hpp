@@ -14,6 +14,7 @@ namespace idyl::semantic {
         flow, 
         function, 
         module,
+        handle,
     };
 
     enum class symbol_t {

@@ -2,4 +2,4 @@ func(a, b) = a + b
 
 z = func(4, 5.5)
 
-print(z)
+print(z) // Invalid, no single evaluation at top level, should go to process block

@@ -1,0 +1,232 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Idyl",
+  "scopeName": "source.idyl",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#process-block" },
+    { "include": "#flow-definition" },
+    { "include": "#keywords" },
+    { "include": "#time-literals" },
+    { "include": "#trigger" },
+    { "include": "#rest" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#function-definition" },
+    { "include": "#function-call" },
+    { "include": "#namespace-access" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.idyl",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.idyl",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.idyl",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.idyl",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "process-block": {
+      "patterns": [
+        {
+          "comment": "process keyword followed by optional name and colon",
+          "match": "\\b(process)\\b\\s*(?:([a-zA-Z_][a-zA-Z0-9_]*)\\s*)?(?:,\\s*(dur)\\s*=)?",
+          "captures": {
+            "1": { "name": "keyword.control.process.idyl" },
+            "2": { "name": "entity.name.section.idyl" },
+            "3": { "name": "keyword.other.dur.idyl" }
+          }
+        }
+      ]
+    },
+    "flow-definition": {
+      "patterns": [
+        {
+          "comment": "flow keyword followed by name",
+          "match": "\\b(flow)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.flow.idyl" },
+            "2": { "name": "entity.name.type.flow.idyl" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.idyl",
+          "match": "\\b(process|catch|emit|end|init)\\b"
+        },
+        {
+          "name": "keyword.other.idyl",
+          "match": "\\b(flow|lib|module|dt|dur)\\b"
+        },
+        {
+          "name": "constant.language.idyl",
+          "match": "\\b(pi|tau)\\b"
+        }
+      ]
+    },
+    "time-literals": {
+      "patterns": [
+        {
+          "name": "constant.numeric.time.idyl",
+          "match": "\\b[0-9]+(?:\\.[0-9]+)?(?:ms|hz|s|b)\\b"
+        }
+      ]
+    },
+    "trigger": {
+      "patterns": [
+        {
+          "comment": "Trigger literal (standalone !)",
+          "name": "constant.language.trigger.idyl",
+          "match": "(?<=[=\\s,\\[;(])!(?=[\\s,\\];})]|$)"
+        }
+      ]
+    },
+    "rest": {
+      "patterns": [
+        {
+          "comment": "Rest literal (standalone _)",
+          "name": "constant.language.rest.idyl",
+          "match": "(?<=[=\\s,\\[;(])_(?=[\\s,\\];})]|$)"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.idyl",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.idyl",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.lambda.idyl",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.namespace.idyl",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.range.idyl",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.restart.idyl",
+          "match": "\\|\\|"
+        },
+        {
+          "name": "keyword.operator.memory.idyl",
+          "match": "@"
+        },
+        {
+          "name": "keyword.operator.comparison.idyl",
+          "match": "==|!=|<=|>=|<<|>>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.idyl",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.comparison.idyl",
+          "match": "[<>]"
+        },
+        {
+          "name": "keyword.operator.bitwise.idyl",
+          "match": "[&|^~]"
+        },
+        {
+          "name": "keyword.operator.ternary.idyl",
+          "match": "\\?"
+        },
+        {
+          "name": "keyword.operator.assignment.idyl",
+          "match": "(?<![=!<>])=(?!=)"
+        }
+      ]
+    },
+    "function-definition": {
+      "patterns": [
+        {
+          "comment": "Function definition: name(params) =",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\(.*\\)\\s*=)",
+          "captures": {
+            "1": { "name": "entity.name.function.idyl" }
+          }
+        }
+      ]
+    },
+    "function-call": {
+      "patterns": [
+        {
+          "comment": "Function call: name(",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.call.idyl" }
+          }
+        }
+      ]
+    },
+    "namespace-access": {
+      "patterns": [
+        {
+          "comment": "Module namespace access: module::func",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(::)\\s*([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "entity.name.namespace.idyl" },
+            "2": { "name": "keyword.operator.namespace.idyl" },
+            "3": { "name": "entity.name.function.call.idyl" }
+          }
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "comment": "Trigger parameter (name!)",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(!)",
+          "captures": {
+            "1": { "name": "variable.parameter.trigger.idyl" },
+            "2": { "name": "constant.language.trigger.idyl" }
+          }
+        },
+        {
+          "comment": "Member access: .member",
+          "match": "\\.([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "variable.other.member.idyl" }
+          }
+        }
+      ]
+    }
+  }
+}

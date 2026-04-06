@@ -1,0 +1,35 @@
+{
+  "name": "idyl-lang",
+  "displayName": "Idyl Language",
+  "description": "Syntax highlighting for the Idyl programming language (.idl files)",
+  "version": "0.0.1",
+  "publisher": "idyl",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "idyl",
+        "aliases": [
+          "Idyl",
+          "idyl"
+        ],
+        "extensions": [
+          ".idl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "idyl",
+        "scopeName": "source.idyl",
+        "path": "./syntaxes/idyl.tmLanguage.json"
+      }
+    ]
+  }
+}

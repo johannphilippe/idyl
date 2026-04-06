@@ -20,6 +20,6 @@ process: {
     ph = phasor(1hz)
     t = trig(dt=500ms)
 
-    res = cflow.notes[cnt]
-    print(res)
+    res = cflow[ph]
+    print(res.notes)
 }

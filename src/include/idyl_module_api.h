@@ -33,6 +33,8 @@
 #ifndef IDYL_MODULE_API_H
 #define IDYL_MODULE_API_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -43,17 +45,20 @@ typedef enum {
     IDYL_TIME    = 1,
     IDYL_TRIGGER = 2,
     IDYL_STRING  = 3,
+    IDYL_HANDLE  = 6,
     IDYL_NIL     = 7
 } idyl_value_type;
 
 /* ── Value passed to/from module functions ────────────────────────────────── */
 /* For IDYL_STRING: `string` is a null-terminated pointer valid for the       */
 /* duration of the function call.  Modules must copy if they need to keep it. */
+/* For IDYL_HANDLE: `handle` carries an opaque intptr_t (C pointer or ID).   */
 typedef struct {
     idyl_value_type type;
     double          number;     /* used by NUMBER, TIME                 */
     int             trigger;    /* used by TRIGGER (1 = bang, 0 = rest) */
     const char*     string;     /* used by STRING (NULL when unused)    */
+    intptr_t        handle;     /* used by HANDLE (opaque C pointer)    */
 } idyl_value;
 
 /* ── Module function signature ───────────────────────────────────────────── */

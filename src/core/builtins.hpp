@@ -49,6 +49,9 @@ namespace idyl::core {
                                 std::cout << "null flow\n";
                             }
                             break;
+                        case value_t::handle:
+                            std::cout << val.as_string() << "\n";
+                            break;
                         default:
                             std::cout << "nil or unknown type\n";
                     }
@@ -206,6 +209,9 @@ namespace idyl::core {
                             } else {
                                 std::cout << "<null flow>";
                             }
+                            break;
+                        case value_t::handle:
+                            std::cout << v.as_string();
                             break;
                         default:
                             std::cout << "<nil>";

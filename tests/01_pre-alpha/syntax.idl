@@ -364,6 +364,25 @@ process: {
 
 
 // ============================================================================
+// SECTION 17: EVENT HANDLING - CATCH BLOCKS
+// ============================================================================
+
+// A temporal function that emits a 'finished' trigger after 10 ticks
+countdown(dt=100ms) = remaining |> {
+    init: { remaining = 10  emit finished = _ }
+    remaining = remaining - 1
+    emit finished = _; ! ? (remaining <= 0)
+}
+
+process: {
+    timer = countdown()
+    timer catch finished: {
+        print("Countdown complete!")
+    }
+}
+
+
+// ============================================================================
 // END OF SYNTAX DEMONSTRATION
 // ============================================================================
 
@@ -384,7 +403,7 @@ This file demonstrates the core features of Idyl v0.1-pre-alpha:
 ✓ Hybrid trigger+clock functions
 ✓ Function composition and higher-order patterns
 ✓ Process blocks (executable entry points)
-✓ Error handling with catch
+✓ Catch blocks (emit-based event handling)
 
 Next topics (not yet implemented):
 - Library imports (lib/module)

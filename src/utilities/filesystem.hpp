@@ -32,6 +32,16 @@ namespace idyl::utilities {
         return path;
     }
 
+    // System-wide library directory (set at compile time via CMake)
+    static std::string system_lib_path()
+    {
+#ifdef IDYL_SYSTEM_LIB_DIR
+        return IDYL_SYSTEM_LIB_DIR;
+#else
+        return "/usr/local/share/idyl/lib/";
+#endif
+    }
+
     static std::string dllextension()
     {
         #ifdef _WIN32
@@ -98,15 +108,38 @@ namespace idyl::utilities {
             library_name = idyl::utilities::main_source_path + "/" + library_name;
             return true;
         } else {
-            // Then check in library directory
+            // Check in lib/ relative to source tree root (dev layout: <source_dir>/../../lib/)
+            if (!main_source_path.empty()) {
+                std::filesystem::path src_root = std::filesystem::path(main_source_path);
+                // Walk up from source file dir until we find a lib/ folder with the file
+                for (int depth = 0; depth < 5; ++depth) {
+                    std::filesystem::path candidate = src_root / "lib" / library_name;
+                    if (std::filesystem::exists(candidate)) {
+                        library_name = candidate.lexically_normal().string();
+                        return true;
+                    }
+                    auto parent = src_root.parent_path();
+                    if (parent == src_root) break;  // reached filesystem root
+                    src_root = parent;
+                }
+            }
+
+            // Then check in user library directory (~/.idyl/modules/)
             std::filesystem::path lib_dir_path = module_path() + library_name;
             if (std::filesystem::exists(lib_dir_path)) {
                 library_name = lib_dir_path.string();
                 return true;
-            } else {
-                std::cerr << "Error: Library file not found at either '" << local_path.string() << "' or '" << lib_dir_path.string() << "'.\n";
-                return false;
             }
+            // Then check in system library directory (<prefix>/share/idyl/lib/)
+            std::filesystem::path sys_path = system_lib_path() + library_name;
+            if (std::filesystem::exists(sys_path)) {
+                library_name = sys_path.string();
+                return true;
+            }
+            std::cerr << "Error: Library file not found at '" << local_path.string()
+                      << "', '" << lib_dir_path.string()
+                      << "', or '" << sys_path.string() << "'.\n";
+            return false;
         }
         return false; // Should never reach here
     }

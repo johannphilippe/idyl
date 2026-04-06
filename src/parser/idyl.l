@@ -75,6 +75,7 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 "catch"         { TRACK_LOCATION(); return yy::parser::token::CATCH; }
 "end"           { TRACK_LOCATION(); return yy::parser::token::END; }
 "dt"            { TRACK_LOCATION(); return yy::parser::token::DT; }
+"dur"           { TRACK_LOCATION(); return yy::parser::token::DUR; }
 
 {NUMBER}"ms"    { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 {NUMBER}"s"     { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
@@ -179,6 +180,8 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_END(yylloc);
         case yy::parser::token::DT: 
             return yy::parser::make_DT(yylloc);
+        case yy::parser::token::DUR: 
+            return yy::parser::make_DUR(yylloc);
         case yy::parser::token::LAMBDA_BLOCK: 
             return yy::parser::make_LAMBDA_BLOCK(yylloc);
         case yy::parser::token::NAMESPACE_DOT: 

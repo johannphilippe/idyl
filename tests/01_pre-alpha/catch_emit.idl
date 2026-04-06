@@ -1,0 +1,16 @@
+// Test: catch system with emitted values
+// A temporal function counts ticks and emits a 'done' trigger after 5 ticks.
+// The catch handler fires when 'done' becomes truthy.
+
+counter_with_end(dt=100ms) = count |> {
+    init: { count = 0  emit done = _ }
+    count = count + 1
+    emit done = _; ! ? (count >= 5)
+}
+
+process: {
+    sig = counter_with_end()
+    sig catch done: {
+        print("Caught done! count =", sig)
+    }
+}

@@ -39,7 +39,7 @@
 %token <std::string> TIME_LITERAL
 %token <std::string> STRING_LITERAL
 
-%token FLOW PROCESS LIB MODULE INIT EMIT CATCH END DT
+%token FLOW PROCESS LIB MODULE INIT EMIT CATCH END DT DUR
 %token LAMBDA_BLOCK NAMESPACE_DOT RESTART_MARKER MEMORY_OP RANGE REST
 %token PLUS MINUS MUL DIV MOD
 %token EQ NEQ LT GT LE GE
@@ -402,7 +402,7 @@ process_block
         proc->column_ = @1.begin.column;
         $$ = proc;
     }
-    | PROCESS IDENTIFIER COMMA DT ASSIGN expression COLON LBRACE process_body_statements RBRACE
+    | PROCESS IDENTIFIER COMMA DUR ASSIGN expression COLON LBRACE process_body_statements RBRACE
     {
         auto proc = std::make_shared<idyl::parser::process_block>();
         proc->name_ = $2;
@@ -463,7 +463,9 @@ process_body_statement
     }
     | expression catch_block
     {
-        $$ = $2;
+        auto catch_b = std::static_pointer_cast<idyl::parser::catch_block>($2);
+        catch_b->expression_ = $1;
+        $$ = catch_b;
     }
     | expression
     {
@@ -480,6 +482,15 @@ catch_block
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
         catch_b->event_type_ = "end";
+        catch_b->handler_ = $5;
+        catch_b->line_ = @1.begin.line;
+        catch_b->column_ = @1.begin.column;
+        $$ = catch_b;
+    }
+    | CATCH IDENTIFIER COLON LBRACE process_body_statements RBRACE
+    {
+        auto catch_b = std::make_shared<idyl::parser::catch_block>();
+        catch_b->event_type_ = $2;
         catch_b->handler_ = $5;
         catch_b->line_ = @1.begin.line;
         catch_b->column_ = @1.begin.column;
@@ -1191,6 +1202,18 @@ primary_expression
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dt";
+        id->line_ = @1.begin.line;
+        id->column_ = @1.begin.column;
+        auto expr = std::make_shared<idyl::parser::identifier_expr>();
+        expr->identifier_ = id;
+        expr->line_ = @1.begin.line;
+        expr->column_ = @1.begin.column;
+        $$ = expr;
+    }
+    | DUR
+    {
+        auto id = std::make_shared<idyl::parser::identifier>();
+        id->name_ = "dur";
         id->line_ = @1.begin.line;
         id->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::identifier_expr>();

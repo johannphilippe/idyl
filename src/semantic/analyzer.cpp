@@ -656,8 +656,13 @@ namespace idyl::semantic {
             case parser::node_t::catch_block:
             {
                 idyl::debug("Resolving catch block.");
+                auto cb = std::static_pointer_cast<parser::catch_block>(node);
+                // Resolve the source expression (the watched variable)
+                if (cb->expression_) {
+                    resolve(cb->expression_);
+                }
                 scope_stack_.push(scope_t::catch_block);
-                for(const auto& stmt : std::static_pointer_cast<parser::catch_block>(node)->handler_) {
+                for(const auto& stmt : cb->handler_) {
                     resolve(stmt);
                 }
                 scope_stack_.pop();

@@ -1,0 +1,10 @@
+lib("stdlib")
+
+flow notes = [61 48 59 39 77]
+
+// Phasor directly drives the flow (reaction of phasor segment)
+process: {
+    ph = phasor(1hz)
+    res = notes[ph]
+    print("ph:", ph, "note:", res)
+}

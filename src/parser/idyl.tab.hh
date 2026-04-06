@@ -525,42 +525,43 @@ namespace yy {
     CATCH = 268,                   // CATCH
     END = 269,                     // END
     DT = 270,                      // DT
-    LAMBDA_BLOCK = 271,            // LAMBDA_BLOCK
-    NAMESPACE_DOT = 272,           // NAMESPACE_DOT
-    RESTART_MARKER = 273,          // RESTART_MARKER
-    MEMORY_OP = 274,               // MEMORY_OP
-    RANGE = 275,                   // RANGE
-    REST = 276,                    // REST
-    PLUS = 277,                    // PLUS
-    MINUS = 278,                   // MINUS
-    MUL = 279,                     // MUL
-    DIV = 280,                     // DIV
-    MOD = 281,                     // MOD
-    EQ = 282,                      // EQ
-    NEQ = 283,                     // NEQ
-    LT = 284,                      // LT
-    GT = 285,                      // GT
-    LE = 286,                      // LE
-    GE = 287,                      // GE
-    AND = 288,                     // AND
-    OR = 289,                      // OR
-    XOR = 290,                     // XOR
-    NOT = 291,                     // NOT
-    LSHIFT = 292,                  // LSHIFT
-    RSHIFT = 293,                  // RSHIFT
-    QUESTION = 294,                // QUESTION
-    ASSIGN = 295,                  // ASSIGN
-    COLON = 296,                   // COLON
-    SEMICOLON = 297,               // SEMICOLON
-    COMMA = 298,                   // COMMA
-    DOT = 299,                     // DOT
-    TRIGGER = 300,                 // TRIGGER
-    LPAREN = 301,                  // LPAREN
-    RPAREN = 302,                  // RPAREN
-    LBRACKET = 303,                // LBRACKET
-    RBRACKET = 304,                // RBRACKET
-    LBRACE = 305,                  // LBRACE
-    RBRACE = 306                   // RBRACE
+    DUR = 271,                     // DUR
+    LAMBDA_BLOCK = 272,            // LAMBDA_BLOCK
+    NAMESPACE_DOT = 273,           // NAMESPACE_DOT
+    RESTART_MARKER = 274,          // RESTART_MARKER
+    MEMORY_OP = 275,               // MEMORY_OP
+    RANGE = 276,                   // RANGE
+    REST = 277,                    // REST
+    PLUS = 278,                    // PLUS
+    MINUS = 279,                   // MINUS
+    MUL = 280,                     // MUL
+    DIV = 281,                     // DIV
+    MOD = 282,                     // MOD
+    EQ = 283,                      // EQ
+    NEQ = 284,                     // NEQ
+    LT = 285,                      // LT
+    GT = 286,                      // GT
+    LE = 287,                      // LE
+    GE = 288,                      // GE
+    AND = 289,                     // AND
+    OR = 290,                      // OR
+    XOR = 291,                     // XOR
+    NOT = 292,                     // NOT
+    LSHIFT = 293,                  // LSHIFT
+    RSHIFT = 294,                  // RSHIFT
+    QUESTION = 295,                // QUESTION
+    ASSIGN = 296,                  // ASSIGN
+    COLON = 297,                   // COLON
+    SEMICOLON = 298,               // SEMICOLON
+    COMMA = 299,                   // COMMA
+    DOT = 300,                     // DOT
+    TRIGGER = 301,                 // TRIGGER
+    LPAREN = 302,                  // LPAREN
+    RPAREN = 303,                  // RPAREN
+    LBRACKET = 304,                // LBRACKET
+    RBRACKET = 305,                // RBRACKET
+    LBRACE = 306,                  // LBRACE
+    RBRACE = 307                   // RBRACE
       };
       /// Backward compatibility alias (Bison 3.6).
       typedef token_kind_type yytokentype;
@@ -577,7 +578,7 @@ namespace yy {
     {
       enum symbol_kind_type
       {
-        YYNTOKENS = 52, ///< Number of tokens.
+        YYNTOKENS = 53, ///< Number of tokens.
         S_YYEMPTY = -2,
         S_YYEOF = 0,                             // YYEOF
         S_YYerror = 1,                           // error
@@ -595,82 +596,83 @@ namespace yy {
         S_CATCH = 13,                            // CATCH
         S_END = 14,                              // END
         S_DT = 15,                               // DT
-        S_LAMBDA_BLOCK = 16,                     // LAMBDA_BLOCK
-        S_NAMESPACE_DOT = 17,                    // NAMESPACE_DOT
-        S_RESTART_MARKER = 18,                   // RESTART_MARKER
-        S_MEMORY_OP = 19,                        // MEMORY_OP
-        S_RANGE = 20,                            // RANGE
-        S_REST = 21,                             // REST
-        S_PLUS = 22,                             // PLUS
-        S_MINUS = 23,                            // MINUS
-        S_MUL = 24,                              // MUL
-        S_DIV = 25,                              // DIV
-        S_MOD = 26,                              // MOD
-        S_EQ = 27,                               // EQ
-        S_NEQ = 28,                              // NEQ
-        S_LT = 29,                               // LT
-        S_GT = 30,                               // GT
-        S_LE = 31,                               // LE
-        S_GE = 32,                               // GE
-        S_AND = 33,                              // AND
-        S_OR = 34,                               // OR
-        S_XOR = 35,                              // XOR
-        S_NOT = 36,                              // NOT
-        S_LSHIFT = 37,                           // LSHIFT
-        S_RSHIFT = 38,                           // RSHIFT
-        S_QUESTION = 39,                         // QUESTION
-        S_ASSIGN = 40,                           // ASSIGN
-        S_COLON = 41,                            // COLON
-        S_SEMICOLON = 42,                        // SEMICOLON
-        S_COMMA = 43,                            // COMMA
-        S_DOT = 44,                              // DOT
-        S_TRIGGER = 45,                          // TRIGGER
-        S_LPAREN = 46,                           // LPAREN
-        S_RPAREN = 47,                           // RPAREN
-        S_LBRACKET = 48,                         // LBRACKET
-        S_RBRACKET = 49,                         // RBRACKET
-        S_LBRACE = 50,                           // LBRACE
-        S_RBRACE = 51,                           // RBRACE
-        S_YYACCEPT = 52,                         // $accept
-        S_program = 53,                          // program
-        S_top_level_statements = 54,             // top_level_statements
-        S_top_level_statement = 55,              // top_level_statement
-        S_function_or_flow_definition = 56,      // function_or_flow_definition
-        S_function_definition = 57,              // function_definition
-        S_flow_definition = 58,                  // flow_definition
-        S_flow_members = 59,                     // flow_members
-        S_flow_literal = 60,                     // flow_literal
-        S_flow_elements = 61,                    // flow_elements
-        S_generator_expression = 62,             // generator_expression
-        S_process_block = 63,                    // process_block
-        S_process_body_statements = 64,          // process_body_statements
-        S_process_body_statement = 65,           // process_body_statement
-        S_catch_block = 66,                      // catch_block
-        S_lambda_block = 67,                     // lambda_block
-        S_init_block = 68,                       // init_block
-        S_lambda_statements = 69,                // lambda_statements
-        S_lambda_statement = 70,                 // lambda_statement
-        S_parameter_list = 71,                   // parameter_list
-        S_parameter = 72,                        // parameter
-        S_expression = 73,                       // expression
-        S_assignment_expression = 74,            // assignment_expression
-        S_ternary_expression = 75,               // ternary_expression
-        S_ternary_options = 76,                  // ternary_options
-        S_logical_or_expression = 77,            // logical_or_expression
-        S_logical_and_expression = 78,           // logical_and_expression
-        S_bitwise_or_expression = 79,            // bitwise_or_expression
-        S_bitwise_xor_expression = 80,           // bitwise_xor_expression
-        S_bitwise_and_expression = 81,           // bitwise_and_expression
-        S_equality_expression = 82,              // equality_expression
-        S_relational_expression = 83,            // relational_expression
-        S_shift_expression = 84,                 // shift_expression
-        S_additive_expression = 85,              // additive_expression
-        S_multiplicative_expression = 86,        // multiplicative_expression
-        S_unary_expression = 87,                 // unary_expression
-        S_postfix_expression = 88,               // postfix_expression
-        S_primary_expression = 89,               // primary_expression
-        S_argument_list = 90,                    // argument_list
-        S_argument = 91                          // argument
+        S_DUR = 16,                              // DUR
+        S_LAMBDA_BLOCK = 17,                     // LAMBDA_BLOCK
+        S_NAMESPACE_DOT = 18,                    // NAMESPACE_DOT
+        S_RESTART_MARKER = 19,                   // RESTART_MARKER
+        S_MEMORY_OP = 20,                        // MEMORY_OP
+        S_RANGE = 21,                            // RANGE
+        S_REST = 22,                             // REST
+        S_PLUS = 23,                             // PLUS
+        S_MINUS = 24,                            // MINUS
+        S_MUL = 25,                              // MUL
+        S_DIV = 26,                              // DIV
+        S_MOD = 27,                              // MOD
+        S_EQ = 28,                               // EQ
+        S_NEQ = 29,                              // NEQ
+        S_LT = 30,                               // LT
+        S_GT = 31,                               // GT
+        S_LE = 32,                               // LE
+        S_GE = 33,                               // GE
+        S_AND = 34,                              // AND
+        S_OR = 35,                               // OR
+        S_XOR = 36,                              // XOR
+        S_NOT = 37,                              // NOT
+        S_LSHIFT = 38,                           // LSHIFT
+        S_RSHIFT = 39,                           // RSHIFT
+        S_QUESTION = 40,                         // QUESTION
+        S_ASSIGN = 41,                           // ASSIGN
+        S_COLON = 42,                            // COLON
+        S_SEMICOLON = 43,                        // SEMICOLON
+        S_COMMA = 44,                            // COMMA
+        S_DOT = 45,                              // DOT
+        S_TRIGGER = 46,                          // TRIGGER
+        S_LPAREN = 47,                           // LPAREN
+        S_RPAREN = 48,                           // RPAREN
+        S_LBRACKET = 49,                         // LBRACKET
+        S_RBRACKET = 50,                         // RBRACKET
+        S_LBRACE = 51,                           // LBRACE
+        S_RBRACE = 52,                           // RBRACE
+        S_YYACCEPT = 53,                         // $accept
+        S_program = 54,                          // program
+        S_top_level_statements = 55,             // top_level_statements
+        S_top_level_statement = 56,              // top_level_statement
+        S_function_or_flow_definition = 57,      // function_or_flow_definition
+        S_function_definition = 58,              // function_definition
+        S_flow_definition = 59,                  // flow_definition
+        S_flow_members = 60,                     // flow_members
+        S_flow_literal = 61,                     // flow_literal
+        S_flow_elements = 62,                    // flow_elements
+        S_generator_expression = 63,             // generator_expression
+        S_process_block = 64,                    // process_block
+        S_process_body_statements = 65,          // process_body_statements
+        S_process_body_statement = 66,           // process_body_statement
+        S_catch_block = 67,                      // catch_block
+        S_lambda_block = 68,                     // lambda_block
+        S_init_block = 69,                       // init_block
+        S_lambda_statements = 70,                // lambda_statements
+        S_lambda_statement = 71,                 // lambda_statement
+        S_parameter_list = 72,                   // parameter_list
+        S_parameter = 73,                        // parameter
+        S_expression = 74,                       // expression
+        S_assignment_expression = 75,            // assignment_expression
+        S_ternary_expression = 76,               // ternary_expression
+        S_ternary_options = 77,                  // ternary_options
+        S_logical_or_expression = 78,            // logical_or_expression
+        S_logical_and_expression = 79,           // logical_and_expression
+        S_bitwise_or_expression = 80,            // bitwise_or_expression
+        S_bitwise_xor_expression = 81,           // bitwise_xor_expression
+        S_bitwise_and_expression = 82,           // bitwise_and_expression
+        S_equality_expression = 83,              // equality_expression
+        S_relational_expression = 84,            // relational_expression
+        S_shift_expression = 85,                 // shift_expression
+        S_additive_expression = 86,              // additive_expression
+        S_multiplicative_expression = 87,        // multiplicative_expression
+        S_unary_expression = 88,                 // unary_expression
+        S_postfix_expression = 89,               // postfix_expression
+        S_primary_expression = 90,               // primary_expression
+        S_argument_list = 91,                    // argument_list
+        S_argument = 92                          // argument
       };
     };
 
@@ -1575,6 +1577,21 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
+      make_DUR (location_type l)
+      {
+        return symbol_type (token::DUR, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_DUR (const location_type& l)
+      {
+        return symbol_type (token::DUR, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
       make_LAMBDA_BLOCK (location_type l)
       {
         return symbol_type (token::LAMBDA_BLOCK, std::move (l));
@@ -2442,7 +2459,7 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 487,     ///< Last index in yytable_.
+      yylast_ = 586,     ///< Last index in yytable_.
       yynnts_ = 40,  ///< Number of nonterminal symbols.
       yyfinal_ = 20 ///< Termination state number.
     };
@@ -2493,10 +2510,10 @@ switch (yykind)
       15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
       25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
       35,    36,    37,    38,    39,    40,    41,    42,    43,    44,
-      45,    46,    47,    48,    49,    50,    51
+      45,    46,    47,    48,    49,    50,    51,    52
     };
     // Last valid token kind.
-    const int code_max = 306;
+    const int code_max = 307;
 
     if (t <= 0)
       return symbol_kind::S_YYEOF;
@@ -2800,7 +2817,7 @@ switch (yykind)
 
 
 } // yy
-#line 2804 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
+#line 2821 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
 
 
 

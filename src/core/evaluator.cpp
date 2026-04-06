@@ -114,20 +114,39 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         auto& proc = static_cast<const parser::process_block&>(*stmt);
         if (!proc.body_) break;
 
+        ++process_count_;
         env_.push_scope();
+
+        // ── Catch info: monitors an emitted variable from a temporal instance ──
+        struct catch_info {
+            std::string watched_emit;               // emitted variable name to watch
+            std::vector<parser::stmt_ptr> handler;   // handler statements
+            bool fired = false;                      // fire once then deactivate
+        };
 
         struct temporal_segment {
             uint64_t    instance_id;
             std::string bound_var;
             parser::stmt_ptr binding_stmt;  // the original binding statement
             std::vector<parser::stmt_ptr> reactions;
+            std::vector<catch_info> catches;
         };
 
         std::vector<temporal_segment> segments;
         temporal_segment* current_seg = nullptr;
         bool has_temporal = false;
 
+        // Collect catch blocks separately for linking after instance creation
+        std::vector<std::shared_ptr<parser::catch_block>> catch_blocks;
+
         for (const auto& s : proc.body_->statements_) {
+            // Catch blocks are collected, not executed directly
+            if (s->type_ == parser::node_t::catch_block) {
+                catch_blocks.push_back(
+                    std::static_pointer_cast<parser::catch_block>(s));
+                continue;
+            }
+
             // Extract variable name if this is a binding
             std::string binding_name;
             if (s->type_ == parser::node_t::function_definition)
@@ -141,7 +160,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
             if (created_instance) {
                 has_temporal = true;
-                segments.push_back({next_instance_id_ - 1, binding_name, s, {}});
+                segments.push_back({next_instance_id_ - 1, binding_name, s, {}, {}});
                 current_seg = &segments.back();
             } else if (current_seg) {
                 // Statement follows a temporal binding → reaction
@@ -149,8 +168,26 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             }
         }
 
+        // ── Link catch blocks to their source segments ─────────────────────
+        for (auto& cb : catch_blocks) {
+            if (!cb->expression_) continue;
+            std::string source_var;
+            if (cb->expression_->type_ == parser::node_t::identifier_expr) {
+                auto& ie = static_cast<const parser::identifier_expr&>(*cb->expression_);
+                if (ie.identifier_) source_var = ie.identifier_->name_;
+            }
+            if (source_var.empty()) continue;
+
+            for (auto& seg : segments) {
+                if (seg.bound_var == source_var) {
+                    seg.catches.push_back({cb->event_type_, cb->handler_, false});
+                    break;
+                }
+            }
+        }
+
         // Subscribe each segment's temporal source to the scheduler.
-        // On each tick: update instance → update bound variable → re-run reactions.
+        // On each tick: update instance → update bound variable → re-run reactions → check catches.
         if (scheduler_ && has_temporal) {
             for (auto& seg : segments) {
                 auto inst_it = instances_.find(seg.instance_id);
@@ -163,24 +200,20 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
                 auto def_ptr   = def_it->second;
                 std::string var = seg.bound_var;
-                auto binding    = seg.binding_stmt;  // original binding statement
-                auto reactions  = seg.reactions; // copies shared_ptrs
+                auto binding    = seg.binding_stmt;
+                auto reactions  = seg.reactions;
                 auto weak_inst  = std::weak_ptr<function_instance>(inst);
+                // Shared so the fired flag persists across ticks
+                auto catches    = std::make_shared<std::vector<catch_info>>(std::move(seg.catches));
 
                 inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
-                    [this, def_ptr, weak_inst, var, binding, reactions]
+                    [this, def_ptr, weak_inst, var, binding, reactions, catches]
                     (double /*t*/, double /*dt*/) -> bool {
                         auto si = weak_inst.lock();
                         if (!si || !si->active_) return false;
 
                         tick_instance(*si, *def_ptr);
 
-                        // Re-evaluate the full binding expression so that
-                        // arithmetic around the temporal call is preserved.
-                        // e.g. mod = lfo(1hz) + 1 * 2000 + 20
-                        // Set retick_instance_ so that the lfo(1hz) call
-                        // returns the freshly-ticked output instead of
-                        // creating a new instance.
                         retick_instance_ = si.get();
                         if (binding)
                             exec_stmt(binding);
@@ -189,7 +222,21 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         for (const auto& r : reactions)
                             exec_stmt(r);
 
-                        return true;
+                        // ── Check catch registrations ──────────────────────
+                        bool should_end = false;
+                        for (auto& c : *catches) {
+                            if (c.fired) continue;
+                            if (c.watched_emit == "end") continue;  // handled on subscription end
+
+                            auto emit_it = si->emitted_.find(c.watched_emit);
+                            if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
+                                c.fired = true;
+                                for (const auto& h : c.handler)
+                                    exec_stmt(h);
+                            }
+                        }
+
+                        return !should_end;
                     });
             }
         }
@@ -595,6 +642,7 @@ value evaluator::apply_binop(const std::string& op, const value& lhs, const valu
                                          return s; }
                 case value_t::time:    return std::to_string(v.number_) + "ms";
                 case value_t::trigger: return v.trigger_ ? "trigger" : "rest";
+                case value_t::handle:  return v.as_string();
                 default:               return "nil";
             }
         };
@@ -774,6 +822,13 @@ value evaluator::eval_module_fn(const module::function_entry& fn,
              + ", got " + std::to_string(n));
         return value::nil();
     }
+    // Timed module functions receive scheduler time and dt
+    if (fn.is_timed_ && fn.timed_fn_) {
+        span<const value> arg_span{args.data(), args.size()};
+        double t = 0.0, dt = 0.0;
+        // TODO: pass real scheduler time when invoked from tick context
+        return fn.timed_fn_(arg_span, t, dt);
+    }
     span<const value> arg_span{args.data(), args.size()};
     return fn.fn_(arg_span);
 }
@@ -905,8 +960,20 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
         env_.pop_scope();
     }
 
-    // ── First tick: evaluate output with initial state ─────────────────────
-    tick_instance(*inst, def);
+    // ── Seed initial output from init state (without running update) ──────
+    // Evaluate only the output expression with the initial state so that
+    // init values are the first values seen (e.g. counter starts at 0,
+    // not 1).  The update block runs on the first scheduler tick.
+    if (def.lambda_block_ && def.body_) {
+        env_.push_scope();
+        for (auto& [name, val] : inst->params_)
+            env_.define(name, val);
+        for (auto& [name, val] : inst->current_)
+            env_.define(name, val);
+        value output = eval_expr(def.body_);
+        inst->write_output(std::move(output));
+        env_.pop_scope();
+    }
 
     // Constant temporal (no lambda block): evaluate body for initial output
     if (!def.lambda_block_ && def.body_) {
@@ -951,6 +1018,7 @@ void evaluator::tick_instance(function_instance& inst,
     // Double-buffered: all reads see current_, all writes go to next_.
     // We evaluate each statement, but assignments write to next_ buffer.
     inst.next_.clear();
+    inst.emitted_.clear();  // Reset emitted values for this tick
 
     for (const auto& stmt : def.lambda_block_->update_statements_) {
         if (!stmt) continue;
@@ -970,6 +1038,9 @@ void evaluator::tick_instance(function_instance& inst,
             value v = eval_expr(assign.value_);
             inst.next_[assign.name_] = v;
             env_.define(assign.name_, v);
+            if (assign.is_emit_) {
+                inst.emitted_[assign.name_] = v;
+            }
         }
     }
 

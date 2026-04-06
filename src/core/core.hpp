@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <cmath>
+#include <cstdint>
 #include <unordered_map>
 #include <mutex>
 
@@ -20,7 +21,8 @@ namespace idyl::core {
         string,
         flow, 
         function, 
-        module, 
+        module,
+        handle,
         nil
     };
 
@@ -34,6 +36,7 @@ namespace idyl::core {
         value_t type_ = value_t::nil;
         double number_ = 0.0;  // used for number and time (ms)
         bool trigger_   = false; // used for trigger
+        intptr_t handle_ = 0;    // used for handle (opaque C pointer)
 
         // Complex types (heap-allocated, ref-counted)
         std::shared_ptr<std::string> string_;
@@ -41,12 +44,13 @@ namespace idyl::core {
         // function_ and module_ will be added in later phases
 
         // ── Constructors ───────────────────────────────────────────────────────
-        static value number(double v)       { return {value_t::number, v, false, nullptr, nullptr}; }
-        static value time_ms(double ms)     { return {value_t::time, ms, false, nullptr, nullptr}; }
-        static value trigger(bool fired)    { return {value_t::trigger, fired ? 1.0 : 0.0, fired, nullptr, nullptr}; }
-        static value rest()                 { return {value_t::trigger, 0.0, false, nullptr, nullptr}; } // rest is trigger(false)
-        static value nil()                  { return {value_t::nil, 0.0, false, nullptr, nullptr}; }
-        static value string(std::string s)  { return {value_t::string, 0.0, false, std::make_shared<std::string>(std::move(s)), nullptr}; }
+        static value number(double v)       { return {value_t::number, v, false, 0, nullptr, nullptr}; }
+        static value time_ms(double ms)     { return {value_t::time, ms, false, 0, nullptr, nullptr}; }
+        static value trigger(bool fired)    { return {value_t::trigger, fired ? 1.0 : 0.0, fired, 0, nullptr, nullptr}; }
+        static value rest()                 { return {value_t::trigger, 0.0, false, 0, nullptr, nullptr}; } // rest is trigger(false)
+        static value nil()                  { return {value_t::nil, 0.0, false, 0, nullptr, nullptr}; }
+        static value string(std::string s)  { return {value_t::string, 0.0, false, 0, std::make_shared<std::string>(std::move(s)), nullptr}; }
+        static value handle(intptr_t h)     { return {value_t::handle, 0.0, false, h, nullptr, nullptr}; }
 
         // ── Numeric coercion (for operators) ───────────────────────────────────
         // trigger → 1.0 if fired, 0.0 otherwise
@@ -57,8 +61,13 @@ namespace idyl::core {
                 case value_t::number:  return number_;
                 case value_t::time:    return number_;
                 case value_t::trigger: return trigger_ ? 1.0 : 0.0;
+                case value_t::handle:  return static_cast<double>(handle_);
                 default:               return 0.0;
             }
+        }
+
+        intptr_t as_handle() const {
+            return (type_ == value_t::handle) ? handle_ : static_cast<intptr_t>(number_);
         }
 
         bool is_truthy() const {
@@ -67,6 +76,7 @@ namespace idyl::core {
                 case value_t::time:    return number_ != 0.0;
                 case value_t::trigger: return trigger_;
                 case value_t::string:  return string_ && !string_->empty();
+                case value_t::handle:  return handle_ != 0;
                 case value_t::nil:     return false;
                 default:               return true;
             }
@@ -90,6 +100,12 @@ namespace idyl::core {
                 }
                 case value_t::time:    return std::to_string(number_) + "ms";
                 case value_t::trigger: return trigger_ ? "trigger" : "rest";
+                case value_t::handle: {
+                    char buf[32];
+                    std::snprintf(buf, sizeof(buf), "handle@0x%lx",
+                                  static_cast<unsigned long>(handle_));
+                    return std::string(buf);
+                }
                 default:               return "";
             }
         }
@@ -132,6 +148,10 @@ namespace idyl::core {
 
         // Bound parameters (immutable after creation)
         std::unordered_map<std::string, value> params_;
+
+        // Emitted variables (set by `emit x = ...` in lambda blocks)
+        // Updated each tick; only variables marked with emit are stored here.
+        std::unordered_map<std::string, value> emitted_;
 
         // Current output value (recomputed each tick)
         value output_;

@@ -36,6 +36,11 @@ namespace idyl::core {
         // Loaded library paths (canonical) — prevents duplicate loading
         std::set<std::string> loaded_libraries_;
 
+        // ── Process tracking ───────────────────────────────────────────────────
+        // Number of process blocks encountered during evaluation. Controls
+        // keep-alive behavior: 1 process = unconditional keep-alive.
+        int process_count_ = 0;
+
         // ── Retick context ─────────────────────────────────────────────────────
         // During a scheduler retick callback, this points to the instance being
         // reticked.  When set, instantiate_temporal() returns the existing

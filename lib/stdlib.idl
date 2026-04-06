@@ -1,0 +1,301 @@
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  idyl standard library                                                     ║
+// ║  Temporal utilities: oscillators, triggers, control signals, helpers        ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §1  Oscillators
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Phasor — rising ramp 0→1 at given frequency. Foundation for all oscillators.
+phasor(freq, dt=10ms) = phase |> {
+    init: { phase = 0 }
+    phase = fmod(phase + dt / freq, 1)
+}
+
+// Sine — bipolar (-1…+1) low-frequency oscillator.
+sine(freq, amplitude=1, dt=10ms) = out |> {
+    init: { phase = 0 }
+    out = amplitude * sin(phase * tau)
+    phase = fmod(phase + dt / freq, 1)
+}
+
+// Cosine — bipolar (-1…+1), 90° ahead of sine.
+cosine(freq, amplitude=1, dt=10ms) = out |> {
+    init: { phase = 0 }
+    out = amplitude * cos(phase * tau)
+    phase = fmod(phase + dt / freq, 1)
+}
+
+// Triangle — bipolar (-1…+1), linear slopes.
+tri(freq, amplitude=1, dt=10ms) = out |> {
+    init: { phase = 0 }
+    out = amplitude * (4 * abs(phase - 0.5) - 1)
+    phase = fmod(phase + dt / freq, 1)
+}
+
+// Square — bipolar (-1…+1), 50 % duty cycle.
+square(freq, amplitude=1, dt=10ms) = out |> {
+    init: { phase = 0 }
+    out = amplitude * (2 * floor(2 * phase) - 1) * -1
+    phase = fmod(phase + dt / freq, 1)
+}
+
+// Pulse — bipolar, variable duty cycle (width 0…1).
+pulse(freq, width=0.5, amplitude=1, dt=10ms) = out |> {
+    init: { phase = 0 }
+    out = amplitude * (2 * floor(phase + 1 - width) - 1) * -1
+    phase = fmod(phase + dt / freq, 1)
+}
+
+// Saw — rising ramp -1…+1.
+saw(freq, amplitude=1, dt=10ms) = out |> {
+    init: { phase = 0 }
+    out = amplitude * (2 * phase - 1)
+    phase = fmod(phase + dt / freq, 1)
+}
+
+// LFO — alias for sine (backward-compatible).
+lfo(freq, amplitude=1, waveform=0, dt=10ms) = out |> {
+    init: { phase = 0 }
+    func = sine; tri; square; pulse; saw ? waveform
+    phase = fmod(phase + dt / freq, 1)
+    sig = func(phase, amplitude, dt)
+    out = amplitude * sig 
+}
+
+// Ramp — alias for saw.
+ramp(freq, amplitude=1, dt=10ms) = out |> {
+    init: { phase = 0 }
+    out = amplitude * (2 * phase - 1)
+    phase = fmod(phase + dt / freq, 1)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §2  Trigger utilities
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Metro — periodic trigger at a given frequency.
+metro(freq, dt=10ms) = trig |> {
+    init: {
+        phase = 0
+        trig = !
+    }
+    prev = phase
+    phase = fmod(phase + dt / freq, 1)
+    trig = phase < prev
+}
+
+// Dust — probabilistic trigger (Poisson-like). `density` = avg triggers/sec.
+dust(density, dt=10ms) = trig |> {
+    init: { trig = _ }
+    thresh = density * dt / 1000
+    trig = rnd() < thresh
+}
+
+// Clock divider — emits a trigger every `n`-th input trigger.
+clkdiv(input, n) = trig |> {
+    init: {
+        count = 0
+        trig = _
+    }
+    count = count + input
+    trig = count >= n
+    count = count * (1 - trig)
+}
+
+// Euclidean rhythm — distribute `hits` triggers over `steps` slots.
+// Outputs a trigger when the current step is an onset.
+euclid(hits, steps, dt=10ms) = trig |> {
+    init: {
+        phase = 0
+        trig = _
+    }
+    prev = int(phase * steps)
+    phase = fmod(phase + dt / (steps * dt), 1)
+    curr = int(phase * steps)
+    onset = fmod(curr * hits, steps) < hits
+    trig = (curr != prev) * onset
+}
+
+// Coin — trigger that fires with probability `p` (0…1) on each tick.
+coin(p=0.5, dt=10ms) = trig |> {
+    init: { trig = _ }
+    trig = rnd() < p
+}
+
+// Counter — free-running integer counter.
+counter(dt=10ms) = cnt |> {
+    init: { cnt = 0 }
+    cnt = cnt + 1
+}
+
+// Gate — hold a trigger high for a given `hold` duration, then rest.
+gate(input, hold=100ms, dt=10ms) = out |> {
+    init: {
+        remaining = 0
+        out = _
+    }
+    remaining = max(remaining - dt, 0) + input * hold
+    out = remaining > 0
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §3  Control signals — envelopes & curves
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Line — linear ramp from `start` to `target` over `duration` ms, then hold.
+line(start, target, duration, dt=10ms) = out |> {
+    init: {
+        phase = 0
+        out = start
+    }
+    phase = min(phase + dt / duration, 1)
+    out = start + (target - start) * phase
+}
+
+// Expcurve — exponential approach from `start` to `target`.
+// `curve` > 1 gives concave (fast-then-slow); < 1 gives convex (slow-then-fast).
+expcurve(start, target, duration, curve=2, dt=10ms) = out |> {
+    init: {
+        phase = 0
+        out = start
+    }
+    phase = min(phase + dt / duration, 1)
+    shaped = pow(phase, curve)
+    out = start + (target - start) * shaped
+}
+
+// Logcurve — logarithmic ease (fast start, slow end) from `start` to `target`.
+logcurve(start, target, duration, dt=10ms) = out |> {
+    init: {
+        phase = 0
+        out = start
+    }
+    phase = min(phase + dt / duration, 1)
+    shaped = log(1 + phase * (exp(1) - 1))
+    out = start + (target - start) * shaped
+}
+
+// S-curve (sigmoid) — smooth ease-in / ease-out from `start` to `target`.
+scurve(start, target, duration, dt=10ms) = out |> {
+    init: {
+        phase = 0
+        out = start
+    }
+    phase = min(phase + dt / duration, 1)
+    shaped = phase * phase * (3 - 2 * phase)
+    out = start + (target - start) * shaped
+}
+
+// Slew — low-pass smoothing filter. Smooths abrupt value changes.
+// `rate` = slew time in ms (higher = smoother).
+slew(input, rate=100, dt=10ms) = out |> {
+    init: { out = 0 }
+    coeff = min(dt / max(rate, dt), 1)
+    out = out + (input - out) * coeff
+}
+
+// Decay — exponential decay from 1 toward 0, re-triggered by `input`.
+// `time` = time in ms to decay to ~37 % (one time-constant).
+decay(input, time=500, dt=10ms) = out |> {
+    init: {
+        level = 0
+        out = 0
+    }
+    level = level * exp(0 - dt / time) + input
+    out = level
+}
+
+// AR (attack–release) — simple two-stage envelope.
+// Ramps up over `attack` ms, then down over `release` ms, re-triggered by `input`.
+ar(input, attack=10, release=500, dt=10ms) = out |> {
+    init: {
+        phase = 0
+        rising = 0
+        out = 0
+    }
+    rising = max(rising, input)
+    phase = phase + dt * rising / attack - dt * (1 - rising) / release
+    phase = max(min(phase, 1), 0)
+    rising = rising * (phase < 1)
+    out = phase
+}
+
+// ASR (attack–sustain-release) — gate-driven envelope.
+// Ramps up while `gate_in` is high, holds at 1, ramps down when gate goes low.
+asr(gate_in, attack=10, release=500, dt=10ms) = out |> {
+    init: {
+        level = 0
+        out = 0
+    }
+    target = gate_in
+    rate_up = dt / max(attack, dt)
+    rate_dn = dt / max(release, dt)
+    rate = target * rate_up + (1 - target) * rate_dn
+    level = level + (target - level) * min(rate, 1)
+    out = level
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §4  Mapping & scaling helpers (pure functions — no dt)
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Positive-only bias: map bipolar (-1…+1) to unipolar (0…1).
+pos(val) = (val + 1) * 0.5
+
+// Bipolar bias: map unipolar (0…1) to bipolar (-1…+1).
+bip(val) = val * 2 - 1
+
+// Linear map from one range to another.
+linmap(val, in_lo, in_hi, out_lo, out_hi) = out_lo + (val - in_lo) / (in_hi - in_lo) * (out_hi - out_lo)
+
+// Clamp a value between lo and hi.
+clamp(val, lo=0, hi=1) = min(max(val, lo), hi)
+
+// Wrap a value into the range [lo, hi).
+wrap(val, lo=0, hi=1) = lo + fmod(fmod(val - lo, hi - lo) + (hi - lo), hi - lo)
+
+// Quantize to the nearest step.
+quantize(val, step) = floor(val / step + 0.5) * step
+
+// Mix — linear interpolation between a and b.  t = 0 → a, t = 1 → b.
+mix(a, b, t) = a + (b - a) * t
+
+// Crossfade — equal-power crossfade.  t = 0 → a, t = 1 → b.
+xfade(a, b, t) = a * cos(t * pi * 0.5) + b * sin(t * pi * 0.5)
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §5  Sample-and-hold & latches
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Sample & hold — capture `input` whenever `trig_in` fires.
+sah(input, trig_in, dt=10ms) = out |> {
+    init: { out = 0 }
+    out = out * (1 - trig_in) + input * trig_in
+}
+
+// Toggle — flip between 0 and 1 on each trigger.
+toggle(trig_in, dt=10ms) = out |> {
+    init: {
+        state = 0
+        out = 0
+    }
+    state = abs(state - trig_in)
+    out = state
+}
+
+// Accumulator — add `step` on each trigger, wrapping within [0, wrap_at).
+accum(trig_in, step=1, wrap_at=128, dt=10ms) = out |> {
+    init: {
+        val = 0
+        out = 0
+    }
+    val = fmod(val + step * trig_in + wrap_at, wrap_at)
+    out = val
+}

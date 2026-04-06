@@ -36,6 +36,11 @@ namespace idyl::module {
     // std::function so module methods can capture `this` (stateful modules).
     using native_fn = std::function<core::value(span<const core::value>)>;
 
+    // ── Timed function type ────────────────────────────────────────────────
+    // Like native_fn but receives the current time and dt from the scheduler.
+    // Used for module functions that need temporal awareness (e.g. periodic polls).
+    using timed_fn = std::function<core::value(span<const core::value>, double t, double dt)>;
+
     // ── Function entry ─────────────────────────────────────────────────────
     // Describes one function exposed by a module.
     struct function_entry {
@@ -43,6 +48,8 @@ namespace idyl::module {
         native_fn   fn_;
         int min_arity_ = 0;
         int max_arity_ = 0;   // -1 = variadic (no upper bound)
+        bool is_timed_  = false;   // true → fn_ wraps a timed_fn (scheduler provides t,dt)
+        timed_fn timed_fn_;        // set when is_timed_ == true
     };
 
     // ── Base module ────────────────────────────────────────────────────────
@@ -177,6 +184,7 @@ namespace idyl::module {
                         cv.number  = v.number_;
                         cv.trigger = v.trigger_ ? 1 : 0;
                         cv.string  = nullptr;
+                        cv.handle  = v.handle_;
 
                         switch (v.type_) {
                             case core::value_t::number:
@@ -189,6 +197,8 @@ namespace idyl::module {
                                 cv.type = IDYL_STRING;
                                 cv.string = v.string_ ? v.string_->c_str() : "";
                                 break;
+                            case core::value_t::handle:
+                                cv.type = IDYL_HANDLE; break;
                             default:
                                 cv.type = IDYL_NIL; break;
                         }
@@ -206,6 +216,7 @@ namespace idyl::module {
                         case IDYL_STRING:
                             return core::value::string(
                                 result.string ? result.string : "");
+                        case IDYL_HANDLE:  return core::value::handle(result.handle);
                         default:           return core::value::nil();
                     }
                 };

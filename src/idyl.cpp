@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <memory>
 #include <thread>
+#include <csignal>
+#include <atomic>
 #include "utilities/filesystem.hpp"
 #include "parser/ast.hpp"
 #include "parser/parse.hpp"
@@ -19,6 +21,13 @@
 #include "debug.hpp"
 
 std::string idyl::utilities::main_source_path = ""; // Initialize the main source path variable
+
+// ── Signal handling for clean shutdown ──────────────────────────────────────
+static std::atomic<bool> g_running{true};
+
+static void signal_handler(int /*sig*/) {
+    g_running.store(false, std::memory_order_relaxed);
+}
 
 static void print_usage(const char* prog) {
     std::cerr << "Usage: " << prog << " [file.idyl] [options]\n"
@@ -99,6 +108,10 @@ int main(int argc, char** argv) {
         idyl::time::sys_clock_scheduler scheduler;
         scheduler.start();
 
+        // Install signal handlers for clean shutdown (Ctrl+C)
+        std::signal(SIGINT,  signal_handler);
+        std::signal(SIGTERM, signal_handler);
+
         // Provide the scheduler to modules that need timing (e.g. osc dt sends)
         module_registry.provide_scheduler(&scheduler);
 
@@ -111,12 +124,16 @@ int main(int argc, char** argv) {
             eval.print_warnings();
         }
 
-        // If there are active temporal subscriptions, keep the process
-        // alive so the scheduler thread can tick them.
-        if (scheduler.active_count() > 0) {
+        // Keep-alive logic depends on number of process blocks:
+        //  - 0 processes: exit immediately (script/definition-only mode)
+        //  - 1 process + active temporal: stay alive (keep-alive mode)
+        //  - N processes with active subscriptions: wait for them to finish
+        // Single-process keep-alive only engages when temporal functions exist.
+        // (Unconditional keep-alive for livecoding will be added when REPL exists.)
+        if (eval.process_count_ >= 1 && scheduler.active_count() > 0) {
             idyl::debug("Temporal functions active — running scheduler...");
-            // Run until all subscriptions finish or user interrupts (Ctrl+C)
-            while (scheduler.active_count() > 0) {
+            while (scheduler.active_count() > 0 &&
+                   g_running.load(std::memory_order_relaxed)) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
         }

@@ -5,8 +5,8 @@ port = 9000
 
 process: 
 {
-    osc_out(host, port)
-    mod = (lfo(10hz, dt=1ms) + 1) * 2  * 1000 + 20
+    handle = osc_out(host, port)
+    mod = pos(lfo(1hz, dt=50ms)) * 1000 + 100 // modulating frequency between 100 and 1100 Hz 
     print(mod)
-    osc_send("/csound/freq", mod)
+    osc_send(handle, "/csound/freq", mod)
 }

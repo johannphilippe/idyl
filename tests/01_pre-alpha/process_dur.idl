@@ -1,0 +1,12 @@
+// Test: process block with dur keyword
+// Named process with duration using 'dur' instead of 'dt'
+
+tick_fn(dt=200ms) = count |> {
+    init: { count = 0 }
+    count = count + 1
+}
+
+process intro, dur=2s: {
+    sig = tick_fn()
+    print("intro tick:", sig)
+}

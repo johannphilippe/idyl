@@ -58,6 +58,10 @@ if(IDYL_MODULE_OSC)
     target_compile_definitions(idyl PRIVATE IDYL_MODULE_OSC=1)
 endif()
 
+# Tell the binary where system libraries are installed
+target_compile_definitions(idyl PRIVATE
+    IDYL_SYSTEM_LIB_DIR="${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/idyl/lib/")
+
 add_custom_target(parser
     DEPENDS ${FLEX_IdylScanner_OUTPUTS} ${BISON_IdylParser_OUTPUTS}
     COMMENT "Regenerating scanner and parser with Flex/Bison"
@@ -75,3 +79,11 @@ add_custom_target(test
     COMMAND  cd ${CMAKE_CURRENT_SOURCE_DIR} && ./tests.sh
     COMMENT "Running tests"
 )
+
+# ── Install ──────────────────────────────────────────────────────────────────
+include(GNUInstallDirs)
+install(TARGETS idyl RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# Install standard library files to <prefix>/share/idyl/lib
+install(DIRECTORY lib/ DESTINATION ${CMAKE_INSTALL_DATADIR}/idyl/lib
+        FILES_MATCHING PATTERN "*.idl")
