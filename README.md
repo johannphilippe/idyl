@@ -332,7 +332,8 @@ What exists:
 - Clock hierarchy with proportional tempo propagation
 - Library imports with deduplication and namespacing
 - `--process` filter and `--listen` OSC control mode
-- VS Code syntax highlighting extension
+- Editor support: VS Code extension, Vim/Neovim syntax
+- [Online documentation](https://johannphilippe.github.io/idyl/) (GitHub Pages)
 
 ---
 

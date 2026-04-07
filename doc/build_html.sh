@@ -58,9 +58,17 @@ for md in "${FILES[@]}"; do
 
     html_name="${md%.md}.html"
 
+    # The main index becomes index.html (landing page for GitHub Pages)
+    if [[ "${md}" == "idyl_documentation.md" ]]; then
+        html_name="index.html"
+    fi
+
     # Convert .md links to .html links in a temp copy
+    # Also rewrite idyl_documentation.html → index.html
     tmp=$(mktemp)
-    sed 's/\(\[^)]*\)\.md\b/\1.html/g' "${src}" > "${tmp}"
+    sed -e 's/\.md)/.html)/g' \
+        -e 's/idyl_documentation\.html/index.html/g' \
+        "${src}" > "${tmp}"
 
     pandoc "${tmp}" \
         --from=markdown \

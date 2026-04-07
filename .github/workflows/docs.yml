@@ -1,0 +1,59 @@
+# ──────────────────────────────────────────────────────────
+# Deploy Idƴl documentation to GitHub Pages
+#
+# Runs on pushes to main that touch doc/ or on manual trigger.
+# Uses Pandoc to build HTML from Markdown, then deploys via
+# the official GitHub Pages actions.
+# ──────────────────────────────────────────────────────────
+name: Deploy docs to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'doc/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:          # manual trigger from the Actions tab
+
+# Grant GITHUB_TOKEN permissions to deploy to Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Build HTML documentation
+        working-directory: doc
+        run: |
+          chmod +x build_html.sh
+          ./build_html.sh
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: doc/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

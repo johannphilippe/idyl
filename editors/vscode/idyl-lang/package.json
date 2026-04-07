@@ -29,6 +29,16 @@
         "language": "idyl",
         "scopeName": "source.idyl",
         "path": "./syntaxes/idyl.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.idyl.codeblock",
+        "path": "./syntaxes/idyl-markdown-injection.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.idyl": "idyl"
+        }
       }
     ]
   }
