@@ -86,4 +86,4 @@ install(TARGETS idyl RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Install standard library files to <prefix>/share/idyl/lib
 install(DIRECTORY lib/ DESTINATION ${CMAKE_INSTALL_DATADIR}/idyl/lib
-        FILES_MATCHING PATTERN "*.idl")
+        FILES_MATCHING PATTERN "*.idyl")

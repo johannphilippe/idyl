@@ -15,11 +15,11 @@ The engine underneath is a high-accuracy system-clock scheduler that drives temp
 ## Philosophy
 
 - **Stateless by default.** Definitions are immutable. State exists only where you ask for it, inside temporal lambda blocks, and every mutation is explicit.
-- **Time is first-class.** Time literals (`100ms`, `2s`, `440hz`, `120bpm`, `4b`) are primitive values, not strings or numbers pretending. Temporal functions carry their own clock.
+./idyl path/to/file.idyl
 - **Functional at the core.** No `if/else`, no `while`, no assignment mutation outside lambda blocks. Control flow is ternary selection. Iteration is generator expressions. Composition replaces inheritance.
-- **The show must go on.** Warnings degrade gracefully — a missing value produces a fallback, not a crash. Designed for live contexts where silence is worse than imperfection.
+./idyl file.idyl --process clock_demo
 
----
+./idyl file.idyl --listen 9000
 
 ## Features
 
@@ -46,13 +46,13 @@ cmake ..
 make -j$(nproc)
 
 # Run a file
-./idyl path/to/file.idl
+./idyl path/to/file.idyl
 
 # Run a specific process block
-./idyl file.idl --process clock_demo
+./idyl file.idyl --process clock_demo
 
 # Listen mode — control process blocks via OSC
-./idyl file.idl --listen 9000
+./idyl file.idyl --listen 9000
 ```
 
 ---
@@ -223,11 +223,11 @@ process: {
 
 ### Libraries
 
-Import `.idl` files with optional namespacing:
+Import `.idyl` files with optional namespacing:
 
 ```idyl
-lib("scales.idl")
-lib("utils.idl", as="util")
+lib("scales.idyl")
+lib("utils.idyl", as="util")
 
 process: {
     scale = util::major_scale(440)
@@ -239,7 +239,7 @@ process: {
 ## CLI
 
 ```
-Usage: idyl [file.idl] [options]
+Usage: idyl [file.idyl] [options]
 
 Options:
   --trace              Enable parser/lexer debug tracing
@@ -262,15 +262,15 @@ Options:
 Combine with `--process` to pre-start a specific block:
 
 ```bash
-idyl file.idl --listen 9000 -p counting
+idyl file.idyl --listen 9000 -p counting
 ```
 
 ---
 
-## Architecture
+Source (.idyl)
 
 ```
-Source (.idl)
+Source (.idyl)
      │
      ▼
  Lexer (Flex) → Parser (Bison)

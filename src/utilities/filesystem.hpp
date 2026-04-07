@@ -91,9 +91,9 @@ namespace idyl::utilities {
         }
 
         // Add extension if not already present 
-        if(library_name.find(".idl") == std::string::npos)
+        if(library_name.find(".idyl") == std::string::npos)
         {
-            library_name += ".idl";
+            library_name += ".idyl";
         }
 
         // Check current directory first

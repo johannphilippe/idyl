@@ -105,8 +105,8 @@
         }
       ]
     },
-    "rest": {
-      "patterns": [
+    "name": "Idyl",
+    "scopeName": "source.idyl",
         {
           "comment": "Rest literal (standalone _)",
           "name": "constant.language.rest.idyl",
@@ -123,7 +123,7 @@
         {
           "name": "constant.numeric.integer.idyl",
           "match": "\\b[0-9]+\\b"
-        }
+    "fileTypes": ["idyl"],
       ]
     },
     "operators": {
