@@ -1,2 +1,2 @@
 " Detect Idyl files
-autocmd BufNewFile,BufRead *.idl setfiletype idyl
+autocmd BufNewFile,BufRead *.idyl setfiletype idyl

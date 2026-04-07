@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:    Idyl
 " Maintainer:  Idyl contributors
-" Filenames:   *.idl
+" Filenames:   *.idyl
 " URL:         https://github.com/...  (update as needed)
 
 if exists('b:current_syntax')
