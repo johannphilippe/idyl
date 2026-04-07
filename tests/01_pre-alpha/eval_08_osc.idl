@@ -11,15 +11,15 @@ port = 9000
 process: {
     // Open an OSC output (UDP sender)
     print("Opening OSC output...")
-    osc_out(host, port)
+    handle = osc_out(host, port)
 
     // Send a few OSC messages with different argument types
-    osc_send("/synth/freq", 440)
-    osc_send("/synth/gate", 1)
-    osc_send("/synth/name", "sine")
-    osc_send("/control/mix", 0.75, "wet")
+    osc_send(handle, "/synth/freq", 440)
+    osc_send(handle, "/synth/gate", 1)
+    osc_send(handle, "/synth/name", "sine")
+    osc_send(handle, "/control/mix", 0.75, "wet")
 
     // Close the connection
-    osc_close()
+    osc_close(handle)
     print("OSC test complete.")
 }

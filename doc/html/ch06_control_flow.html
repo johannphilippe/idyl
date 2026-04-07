@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Idƴl Documentation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        background-color: #ffffff;
+        color: #a0a0a0;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #a0a0a0;  padding-left: 4px; }
+    div.sourceCode
+      { color: #1f1c1b; background-color: #ffffff; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span { color: #1f1c1b; } /* Normal */
+    code span.al { color: #bf0303; background-color: #f7e6e6; font-weight: bold; } /* Alert */
+    code span.an { color: #ca60ca; } /* Annotation */
+    code span.at { color: #0057ae; } /* Attribute */
+    code span.bn { color: #b08000; } /* BaseN */
+    code span.bu { color: #644a9b; font-weight: bold; } /* BuiltIn */
+    code span.cf { color: #1f1c1b; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #924c9d; } /* Char */
+    code span.cn { color: #aa5500; } /* Constant */
+    code span.co { color: #898887; } /* Comment */
+    code span.cv { color: #0095ff; } /* CommentVar */
+    code span.do { color: #607880; } /* Documentation */
+    code span.dt { color: #0057ae; } /* DataType */
+    code span.dv { color: #b08000; } /* DecVal */
+    code span.er { color: #bf0303; text-decoration: underline; } /* Error */
+    code span.ex { color: #0095ff; font-weight: bold; } /* Extension */
+    code span.fl { color: #b08000; } /* Float */
+    code span.fu { color: #644a9b; } /* Function */
+    code span.im { color: #ff5500; } /* Import */
+    code span.in { color: #b08000; } /* Information */
+    code span.kw { color: #1f1c1b; font-weight: bold; } /* Keyword */
+    code span.op { color: #1f1c1b; } /* Operator */
+    code span.ot { color: #006e28; } /* Other */
+    code span.pp { color: #006e28; } /* Preprocessor */
+    code span.re { color: #0057ae; background-color: #e0e9f8; } /* RegionMarker */
+    code span.sc { color: #3daee9; } /* SpecialChar */
+    code span.ss { color: #ff5500; } /* SpecialString */
+    code span.st { color: #bf0303; } /* String */
+    code span.va { color: #0057ae; } /* Variable */
+    code span.vs { color: #bf0303; } /* VerbatimString */
+    code span.wa { color: #bf0303; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Idƴl Documentation</h1>
+</header>
+<h1 id="control-flow-operators">6 — Control flow &amp; operators</h1>
+<p><a href="idyl_documentation.md">← Back to index</a> · <a
+href="ch05_flows.md">Previous: Flows</a></p>
+<hr />
+<p>Idƴl has no <code>if/else</code>, no <code>while</code>, no
+<code>for</code>. Control flow is expression-based: ternary selection
+replaces conditionals, generator expressions replace loops.</p>
+<hr />
+<h2 id="ternary-selection">Ternary selection</h2>
+<p>The ternary operator selects between options based on a
+condition.</p>
+<p><strong>Syntax</strong>:
+<code>option0; option1 ? condition</code></p>
+<ul>
+<li>If <code>condition</code> is <code>0</code> (false) → returns
+<code>option0</code></li>
+<li>If <code>condition</code> is non-zero (true) → returns
+<code>option1</code></li>
+</ul>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">abs_value</span>(x) <span class="op">=</span> (<span class="dv">0</span> <span class="op">-</span> x); x <span class="op">?</span> (x <span class="op">&gt;=</span> <span class="dv">0</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">safe_divide</span>(a, b) <span class="op">=</span> <span class="dv">0</span>; (a / b) <span class="op">?</span> (b <span class="op">!=</span> <span class="dv">0</span>)</span></code></pre></div>
+<h3 id="multi-way-selection">Multi-way selection</h3>
+<p>More than two options — the condition wraps around:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ condition % N selects the option</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">note</span>(degree) <span class="op">=</span> <span class="dv">261</span>; <span class="dv">293</span>; <span class="dv">329</span>; <span class="dv">349</span>; <span class="dv">391</span> <span class="op">?</span> (degree <span class="op">%</span> <span class="dv">5</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">state_out</span>(state, idle, attack, sustain) <span class="op">=</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    idle; attack; sustain <span class="op">?</span> state</span></code></pre></div>
+<p>Options are separated by <code>;</code> (semicolons), not commas —
+this avoids ambiguity with function argument separators.</p>
+<hr />
+<h2 id="arithmetic-operators">Arithmetic operators</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Operator</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>+</code></td>
+<td>Addition (also string concatenation)</td>
+</tr>
+<tr class="even">
+<td><code>-</code></td>
+<td>Subtraction</td>
+</tr>
+<tr class="odd">
+<td><code>*</code></td>
+<td>Multiplication</td>
+</tr>
+<tr class="even">
+<td><code>/</code></td>
+<td>Division</td>
+</tr>
+<tr class="odd">
+<td><code>%</code></td>
+<td>Modulo</td>
+</tr>
+<tr class="even">
+<td><code>^</code></td>
+<td>Power</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>sum <span class="op">=</span> <span class="dv">3</span> <span class="op">+</span> <span class="dv">4</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>product <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> <span class="dv">5</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>power <span class="op">=</span> <span class="dv">2</span> <span class="op">^</span> <span class="dv">10</span>       /<span class="co">/ 1024</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>modulo <span class="op">=</span> <span class="dv">17</span> <span class="op">%</span> <span class="dv">5</span>      /<span class="co">/ 2</span></span></code></pre></div>
+<h3 id="unary">Unary</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Operator</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>-</code></td>
+<td>Negation</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>neg <span class="op">=</span> <span class="op">-</span><span class="dv">42</span></span></code></pre></div>
+<hr />
+<h2 id="comparison-operators">Comparison operators</h2>
+<p>All comparisons return <code>1</code> (true) or <code>0</code>
+(false). There is no boolean type.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Operator</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>==</code></td>
+<td>Equal</td>
+</tr>
+<tr class="even">
+<td><code>!=</code></td>
+<td>Not equal</td>
+</tr>
+<tr class="odd">
+<td><code>&lt;</code></td>
+<td>Less than</td>
+</tr>
+<tr class="even">
+<td><code>&gt;</code></td>
+<td>Greater than</td>
+</tr>
+<tr class="odd">
+<td><code>&lt;=</code></td>
+<td>Less or equal</td>
+</tr>
+<tr class="even">
+<td><code>&gt;=</code></td>
+<td>Greater or equal</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>is_loud <span class="op">=</span> amplitude <span class="op">&gt;</span> <span class="dv">0.5</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>in_range <span class="op">=</span> (x <span class="op">&gt;=</span> <span class="dv">0</span>) <span class="op">*</span> (x <span class="op">&lt;=</span> <span class="dv">1</span>)    /<span class="co">/ AND via multiplication</span></span></code></pre></div>
+<p>Since there are no boolean operators (<code>&amp;&amp;</code>,
+<code>||</code>), use multiplication for AND and addition/max for
+OR:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>both <span class="op">=</span> (a <span class="op">&gt;</span> <span class="dv">0</span>) <span class="op">*</span> (b <span class="op">&gt;</span> <span class="dv">0</span>)           /<span class="co">/ 1 only if both true</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>either <span class="op">=</span> <span class="bu">max</span>((a <span class="op">&gt;</span> <span class="dv">0</span>), (b <span class="op">&gt;</span> <span class="dv">0</span>))     /<span class="co">/ 1 if either true</span></span></code></pre></div>
+<hr />
+<h2 id="bitwise-operators">Bitwise operators</h2>
+<p>Operate on integer-converted values:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Operator</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&amp;</code></td>
+<td>Bitwise AND</td>
+</tr>
+<tr class="even">
+<td><code>\|</code></td>
+<td>Bitwise OR</td>
+</tr>
+<tr class="odd">
+<td><code>^</code></td>
+<td>Bitwise XOR (context-dependent: power on floats)</td>
+</tr>
+<tr class="even">
+<td><code>&lt;&lt;</code></td>
+<td>Left shift</td>
+</tr>
+<tr class="odd">
+<td><code>&gt;&gt;</code></td>
+<td>Right shift</td>
+</tr>
+<tr class="even">
+<td><code>~</code></td>
+<td>Bitwise NOT</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> <span class="bu">int</span>(<span class="dv">12</span>)       /<span class="co">/ 1100 in binary</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> <span class="bu">int</span>(<span class="dv">10</span>)       /<span class="co">/ 1010 in binary</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> a <span class="op">&amp;</span> b    /<span class="co">/ 1000 = 8</span></span></code></pre></div>
+<p>Use <code>bit(value, index)</code> to extract a single bit:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>pattern <span class="op">=</span> <span class="bu">int</span>(<span class="dv">7</span>)                    /<span class="co">/ 0111 in binary</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>b0 <span class="op">=</span> <span class="bu">bit</span>(pattern, <span class="dv">0</span>)               /<span class="co">/ 1</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>b3 <span class="op">=</span> <span class="bu">bit</span>(pattern, <span class="dv">3</span>)               /<span class="co">/ 0</span></span></code></pre></div>
+<hr />
+<h2 id="operator-precedence">Operator precedence</h2>
+<p>From highest to lowest:</p>
+<ol type="1">
+<li>Parentheses <code>()</code></li>
+<li>Unary <code>-</code>, <code>~</code></li>
+<li><code>^</code> (power)</li>
+<li><code>*</code>, <code>/</code>, <code>%</code></li>
+<li><code>+</code>, <code>-</code></li>
+<li><code>&lt;&lt;</code>, <code>&gt;&gt;</code></li>
+<li><code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>,
+<code>&gt;=</code></li>
+<li><code>==</code>, <code>!=</code></li>
+<li><code>&amp;</code></li>
+<li><code>|</code></li>
+<li><code>;</code> … <code>?</code> (ternary)</li>
+</ol>
+<p>Use parentheses when in doubt:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Clear</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> (x <span class="op">+</span> y) <span class="op">*</span> z</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Ambiguous without knowing precedence</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> x <span class="op">+</span> y <span class="op">*</span> z        /<span class="co">/ = x + (y * z)</span></span></code></pre></div>
+<hr />
+<h2 id="generator-expressions-iteration">Generator expressions
+(iteration)</h2>
+<p>Instead of imperative loops, use generators to create flows:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Range</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>numbers <span class="op">=</span> [i <span class="op">=</span> <span class="dv">0</span><span class="op">..</span><span class="dv">10</span> : i]</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ With transform</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>table <span class="op">=</span> [i <span class="op">=</span> <span class="dv">0</span><span class="op">..</span><span class="dv">256</span> : <span class="bu">sin</span>(i / <span class="dv">256</span> <span class="op">*</span> <span class="dv">2</span> <span class="op">*</span> <span class="cn">pi</span>)]</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Chromatic scale</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="fu">chromatic</span>(root) <span class="op">=</span> [s <span class="op">=</span> <span class="dv">0</span><span class="op">..</span><span class="dv">11</span> : root <span class="op">*</span> (<span class="dv">2.0</span> <span class="op">^</span> (s / <span class="dv">12.0</span>))]</span></code></pre></div>
+<p>Generators are declarative, composable, and produce flows
+directly.</p>
+<hr />
+<p><a href="ch07_emit_catch.md">Next: Emit &amp; catch →</a></p>
+</body>
+</html>

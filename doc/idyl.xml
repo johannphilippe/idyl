@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE language SYSTEM "language.dtd"
+[
+  <!ENTITY ident "[a-zA-Z_][a-zA-Z0-9_]*">
+]>
+<!--
+  Kate/KDE syntax definition for the Idyl language.
+  Used by Pandoc via: pandoc --syntax-definition=idyl.xml
+-->
+<language name="Idyl"
+          section="Sources"
+          version="1"
+          kateversion="5.0"
+          extensions="*.idl"
+          mimetype="text/x-idyl"
+          author="Idyl contributors"
+          license="MIT">
+
+  <highlighting>
+
+    <!-- Keyword lists -->
+    <list name="control">
+      <item>process</item>
+      <item>init</item>
+      <item>catch</item>
+      <item>emit</item>
+      <item>end</item>
+    </list>
+
+    <list name="other-keywords">
+      <item>flow</item>
+      <item>lib</item>
+      <item>module</item>
+      <item>dt</item>
+      <item>dur</item>
+      <item>as</item>
+      <item>parent</item>
+    </list>
+
+    <list name="builtins">
+      <item>sin</item>
+      <item>cos</item>
+      <item>tan</item>
+      <item>log</item>
+      <item>exp</item>
+      <item>pow</item>
+      <item>sqrt</item>
+      <item>abs</item>
+      <item>floor</item>
+      <item>ceil</item>
+      <item>fmod</item>
+      <item>min</item>
+      <item>max</item>
+      <item>int</item>
+      <item>float</item>
+      <item>rint</item>
+      <item>bit</item>
+      <item>rnd</item>
+      <item>len</item>
+      <item>print</item>
+      <item>now</item>
+      <item>clock</item>
+      <item>tempo</item>
+      <item>bpm</item>
+      <item>osc_out</item>
+      <item>osc_send</item>
+      <item>osc_close</item>
+      <item>osc_in</item>
+    </list>
+
+    <list name="constants">
+      <item>pi</item>
+      <item>tau</item>
+    </list>
+
+    <contexts>
+
+      <!-- Main context -->
+      <context name="Normal" attribute="Normal Text" lineEndContext="#stay">
+        <!-- Comments -->
+        <DetectChar   char="/"  attribute="Normal Text" context="MaybeComment" />
+
+        <!-- Strings -->
+        <DetectChar   char="&quot;" attribute="String" context="String" />
+
+        <!-- Time literals (must come before plain numbers) -->
+        <RegExpr attribute="Time Literal" context="#stay"
+                 String="\b[0-9]+(\.[0-9]+)?(ms|hz|s|b|bpm)\b" />
+
+        <!-- Numbers -->
+        <RegExpr attribute="Number" context="#stay"
+                 String="\b[0-9]+\.[0-9]+\b" />
+        <RegExpr attribute="Number" context="#stay"
+                 String="\b[0-9]+\b" />
+
+        <!-- Pipe-arrow operator -->
+        <StringDetect attribute="Operator" context="#stay" String="|&gt;" />
+        <Detect2Chars attribute="Operator" char="|" char1="&gt;" context="#stay" />
+
+        <!-- Double-char operators -->
+        <Detect2Chars attribute="Operator" char=":" char1=":" context="#stay" />
+        <Detect2Chars attribute="Operator" char="." char1="." context="#stay" />
+        <Detect2Chars attribute="Operator" char="|" char1="|" context="#stay" />
+        <Detect2Chars attribute="Operator" char="=" char1="=" context="#stay" />
+        <Detect2Chars attribute="Operator" char="!" char1="=" context="#stay" />
+        <Detect2Chars attribute="Operator" char="&lt;" char1="=" context="#stay" />
+        <Detect2Chars attribute="Operator" char="&gt;" char1="=" context="#stay" />
+        <Detect2Chars attribute="Operator" char="&lt;" char1="&lt;" context="#stay" />
+        <Detect2Chars attribute="Operator" char="&gt;" char1="&gt;" context="#stay" />
+
+        <!-- Single-char operators -->
+        <AnyChar attribute="Operator" context="#stay" String="+-*/%=&lt;&gt;?&amp;|^~@" />
+
+        <!-- Trigger literal (standalone !) -->
+        <RegExpr attribute="Trigger" context="#stay"
+                 String="(?&lt;=[=\s,\[;(])!(?=[\s,\];})]|$)" />
+
+        <!-- Rest literal (standalone _) -->
+        <RegExpr attribute="Rest" context="#stay"
+                 String="(?&lt;=[=\s,\[;(])_(?=[\s,\];})]|$)" />
+
+        <!-- Keywords & builtins -->
+        <keyword attribute="Keyword"   context="#stay" String="control" />
+        <keyword attribute="Keyword"   context="#stay" String="other-keywords" />
+        <keyword attribute="Built-in"  context="#stay" String="builtins" />
+        <keyword attribute="Constant"  context="#stay" String="constants" />
+
+        <!-- Function definition: name( -->
+        <RegExpr attribute="Function"  context="#stay"
+                 String="\b&ident;(?=\s*\()" />
+
+        <!-- Identifiers -->
+        <RegExpr attribute="Normal Text" context="#stay"
+                 String="\b&ident;\b" />
+      </context>
+
+      <!-- Slash disambiguation: // or /* or plain / -->
+      <context name="MaybeComment" attribute="Normal Text" lineEndContext="#pop"
+               fallthrough="true" fallthroughContext="#pop">
+        <DetectChar char="/" attribute="Comment" context="LineComment" />
+        <DetectChar char="*" attribute="Comment" context="BlockComment" />
+      </context>
+
+      <context name="LineComment" attribute="Comment" lineEndContext="#pop#pop">
+      </context>
+
+      <context name="BlockComment" attribute="Comment" lineEndContext="#stay">
+        <Detect2Chars char="*" char1="/" attribute="Comment" context="#pop#pop" />
+      </context>
+
+      <!-- String -->
+      <context name="String" attribute="String" lineEndContext="#stay">
+        <DetectChar char="\" attribute="Escape" context="Escape" />
+        <DetectChar char="&quot;" attribute="String" context="#pop" />
+      </context>
+
+      <context name="Escape" attribute="Escape" lineEndContext="#pop">
+        <RegExpr attribute="Escape" context="#pop" String="." />
+      </context>
+
+    </contexts>
+
+    <itemDatas>
+      <itemData name="Normal Text"   defStyleNum="dsNormal"   />
+      <itemData name="Keyword"       defStyleNum="dsKeyword"  bold="true" />
+      <itemData name="Built-in"      defStyleNum="dsBuiltIn"  />
+      <itemData name="Function"      defStyleNum="dsFunction" />
+      <itemData name="Constant"      defStyleNum="dsConstant" />
+      <itemData name="Number"        defStyleNum="dsDecVal"   />
+      <itemData name="Time Literal"  defStyleNum="dsSpecialChar" />
+      <itemData name="String"        defStyleNum="dsString"   />
+      <itemData name="Escape"        defStyleNum="dsChar"     />
+      <itemData name="Comment"       defStyleNum="dsComment"  italic="true" />
+      <itemData name="Operator"      defStyleNum="dsOperator" />
+      <itemData name="Trigger"       defStyleNum="dsAlert"    />
+      <itemData name="Rest"          defStyleNum="dsSpecialString" />
+    </itemDatas>
+
+  </highlighting>
+
+  <general>
+    <comments>
+      <comment name="singleLine" start="//" />
+      <comment name="multiLine" start="/*" end="*/" />
+    </comments>
+    <keywords casesensitive="1" />
+  </general>
+
+</language>

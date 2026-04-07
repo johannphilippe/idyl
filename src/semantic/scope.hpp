@@ -56,7 +56,17 @@ namespace idyl::semantic {
             for(size_t i = 0; i < core::num_builtins; ++i)
             {
                 const auto& builtin = core::builtins[i];
-                define(builtin.name_, symbol_info{symbol_t::builtin, builtin.name_});
+                symbol_info si{symbol_t::builtin, builtin.name_};
+                si.inferred_type_ = inferred_t::function;
+                define(builtin.name_, std::move(si));
+            }
+
+            // Register evaluator intrinsics (clock/tempo) that are handled
+            // specially in eval_call but still need to pass semantic analysis.
+            for (const auto& name : {"clock", "tempo", "bpm"}) {
+                symbol_info si{symbol_t::builtin, name};
+                si.inferred_type_ = inferred_t::function;
+                define(name, std::move(si));
             }
 
             // Predefined constants (mirrors environment::init)
@@ -72,6 +82,7 @@ namespace idyl::semantic {
                     si.name_ = name;
                     si.arity_ = entry.max_arity_;
                     si.required_arity_ = entry.min_arity_;
+                    si.inferred_type_ = inferred_t::function;
                     define(name, std::move(si));
                 }
             }

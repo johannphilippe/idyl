@@ -51,6 +51,10 @@ namespace idyl::core {
         static value nil()                  { return {value_t::nil, 0.0, false, 0, nullptr, nullptr}; }
         static value string(std::string s)  { return {value_t::string, 0.0, false, 0, std::make_shared<std::string>(std::move(s)), nullptr}; }
         static value handle(intptr_t h)     { return {value_t::handle, 0.0, false, h, nullptr, nullptr}; }
+        static value function_ref(std::string name) { return {value_t::function, 0.0, false, 0, std::make_shared<std::string>(std::move(name)), nullptr}; }
+
+        // Accessor for function-ref values
+        const std::string& fn_name() const { static const std::string empty; return string_ ? *string_ : empty; }
 
         // ── Numeric coercion (for operators) ───────────────────────────────────
         // trigger → 1.0 if fired, 0.0 otherwise
@@ -77,6 +81,7 @@ namespace idyl::core {
                 case value_t::trigger: return trigger_;
                 case value_t::string:  return string_ && !string_->empty();
                 case value_t::handle:  return handle_ != 0;
+                case value_t::function: return string_ && !string_->empty();
                 case value_t::nil:     return false;
                 default:               return true;
             }
@@ -106,6 +111,8 @@ namespace idyl::core {
                                   static_cast<unsigned long>(handle_));
                     return std::string(buf);
                 }
+                case value_t::function:
+                    return string_ ? ("<fn:" + *string_ + ">") : "<fn>";
                 default:               return "";
             }
         }
@@ -184,6 +191,79 @@ namespace idyl::core {
             }
             next_.clear();
         }
+    };
+
+    // ── Clock node ─────────────────────────────────────────────────────────────
+    // A clock maintains a BPM rate and an optional parent relationship.
+    // When a parent's BPM changes, all children scale proportionally
+    // preserving the ratio established at bind time.
+    struct clock_node {
+        uint64_t    id_        = 0;
+        double      bpm_       = 120.0;
+        uint64_t    parent_id_ = 0;      // 0 = no parent (free-running)
+        double      ratio_     = 1.0;    // this.bpm / parent.bpm at bind time
+        std::vector<uint64_t> children_;
+    };
+
+    // ── Clock registry ─────────────────────────────────────────────────────────
+    // Manages the global clock hierarchy.  A default "main" clock is created
+    // at startup.  All new clocks bind to main unless parent= is specified.
+    struct clock_registry {
+        std::unordered_map<uint64_t, clock_node> clocks_;
+        uint64_t next_id_ = 1;
+        uint64_t main_id_ = 0;
+
+        // Initialise with a main clock at the given BPM (default 120)
+        void init(double bpm = 120.0) {
+            clock_node main_clk;
+            main_clk.id_  = next_id_++;
+            main_clk.bpm_ = bpm;
+            main_clk.parent_id_ = 0;  // no parent
+            main_clk.ratio_      = 1.0;
+            main_id_ = main_clk.id_;
+            clocks_[main_clk.id_] = std::move(main_clk);
+        }
+
+        // Create a new clock.  parent_id=0 means free-running.
+        // When parent_id > 0 the ratio child/parent is computed and stored.
+        uint64_t create(double bpm, uint64_t parent_id) {
+            clock_node clk;
+            clk.id_  = next_id_++;
+            clk.bpm_ = bpm;
+            clk.parent_id_ = parent_id;
+            if (parent_id != 0) {
+                auto pit = clocks_.find(parent_id);
+                if (pit != clocks_.end() && pit->second.bpm_ > 0.0) {
+                    clk.ratio_ = bpm / pit->second.bpm_;
+                    pit->second.children_.push_back(clk.id_);
+                }
+            }
+            uint64_t id = clk.id_;
+            clocks_[id] = std::move(clk);
+            return id;
+        }
+
+        // Set BPM on a clock and recursively propagate to children.
+        void set_bpm(uint64_t id, double new_bpm) {
+            auto it = clocks_.find(id);
+            if (it == clocks_.end()) return;
+            it->second.bpm_ = new_bpm;
+            for (uint64_t child_id : it->second.children_) {
+                auto cit = clocks_.find(child_id);
+                if (cit != clocks_.end()) {
+                    set_bpm(child_id, new_bpm * cit->second.ratio_);
+                }
+            }
+        }
+
+        // Query BPM of a clock.
+        double bpm(uint64_t id) const {
+            auto it = clocks_.find(id);
+            return (it != clocks_.end()) ? it->second.bpm_ : 120.0;
+        }
+
+        // Main clock BPM shorthand.
+        double main_bpm() const { return bpm(main_id_); }
     };
 
 } // --- idyl::core ---

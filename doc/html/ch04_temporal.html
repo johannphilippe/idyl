@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Idƴl Documentation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        background-color: #ffffff;
+        color: #a0a0a0;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #a0a0a0;  padding-left: 4px; }
+    div.sourceCode
+      { color: #1f1c1b; background-color: #ffffff; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span { color: #1f1c1b; } /* Normal */
+    code span.al { color: #bf0303; background-color: #f7e6e6; font-weight: bold; } /* Alert */
+    code span.an { color: #ca60ca; } /* Annotation */
+    code span.at { color: #0057ae; } /* Attribute */
+    code span.bn { color: #b08000; } /* BaseN */
+    code span.bu { color: #644a9b; font-weight: bold; } /* BuiltIn */
+    code span.cf { color: #1f1c1b; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #924c9d; } /* Char */
+    code span.cn { color: #aa5500; } /* Constant */
+    code span.co { color: #898887; } /* Comment */
+    code span.cv { color: #0095ff; } /* CommentVar */
+    code span.do { color: #607880; } /* Documentation */
+    code span.dt { color: #0057ae; } /* DataType */
+    code span.dv { color: #b08000; } /* DecVal */
+    code span.er { color: #bf0303; text-decoration: underline; } /* Error */
+    code span.ex { color: #0095ff; font-weight: bold; } /* Extension */
+    code span.fl { color: #b08000; } /* Float */
+    code span.fu { color: #644a9b; } /* Function */
+    code span.im { color: #ff5500; } /* Import */
+    code span.in { color: #b08000; } /* Information */
+    code span.kw { color: #1f1c1b; font-weight: bold; } /* Keyword */
+    code span.op { color: #1f1c1b; } /* Operator */
+    code span.ot { color: #006e28; } /* Other */
+    code span.pp { color: #006e28; } /* Preprocessor */
+    code span.re { color: #0057ae; background-color: #e0e9f8; } /* RegionMarker */
+    code span.sc { color: #3daee9; } /* SpecialChar */
+    code span.ss { color: #ff5500; } /* SpecialString */
+    code span.st { color: #bf0303; } /* String */
+    code span.va { color: #0057ae; } /* Variable */
+    code span.vs { color: #bf0303; } /* VerbatimString */
+    code span.wa { color: #bf0303; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Idƴl Documentation</h1>
+</header>
+<h1 id="time-temporal-functions">4 — Time &amp; temporal functions</h1>
+<p><a href="idyl_documentation.md">← Back to index</a> · <a
+href="ch03_functions.md">Previous: Functions</a></p>
+<hr />
+<p>Temporal functions are the heart of Idƴl. They carry state across
+time, driven by a clock or by trigger events. Where a pure function maps
+input to output once, a temporal function <em>evolves</em>.</p>
+<hr />
+<h2 id="the-operator">The <code>|&gt;</code> operator</h2>
+<p>The pipe-arrow <code>|&gt;</code> introduces a <strong>lambda
+block</strong> — a stateful body that executes repeatedly on each tick.
+The expression before <code>|&gt;</code> is the <strong>output
+variable</strong> — the value the function yields on each tick.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span>(params, <span class="kw">dt</span><span class="op">=</span>interval) <span class="op">=</span> output_var <span class="op">|&gt;</span> {</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { <span class="op">..</span>. }</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    /<span class="co">/ update statements</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>A temporal function must have at least one time source: - A
+<code>dt=</code> parameter (clock-driven), or - A trigger parameter with
+<code>!</code> suffix (event-driven), or - Both (hybrid)</p>
+<hr />
+<h2 id="clock-driven-temporal-functions">Clock-driven temporal
+functions</h2>
+<p>The <code>dt</code> parameter sets the tick interval. The function
+updates at that rate.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Counts up by 1 every 10ms</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">clock_counter</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> n <span class="op">|&gt;</span> {</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { n <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> n <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="lfo-example">LFO example</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">lfo</span>(freq, amplitude, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> modulation <span class="op">|&gt;</span> {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { phase <span class="op">=</span> <span class="dv">0</span>  modulation <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    modulation <span class="op">=</span> amplitude <span class="op">*</span> <span class="bu">sin</span>(phase <span class="op">*</span> <span class="dv">2</span> <span class="op">*</span> <span class="cn">pi</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    phase <span class="op">=</span> <span class="bu">fmod</span>(phase <span class="op">+</span> <span class="dv">1</span> / (freq <span class="op">*</span> (<span class="kw">dt</span> / <span class="dv">1000</span>)), <span class="dv">1</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<ul>
+<li><code>init:</code> runs once at instantiation. It sets initial
+state.</li>
+<li>Update statements run on every tick, in order.</li>
+<li>The output variable (<code>modulation</code>) is what the caller
+sees.</li>
+</ul>
+<h3 id="smooth-control">Smooth control</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">smooth</span>(input, factor, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> smoothed <span class="op">|&gt;</span> {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { state <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    smoothed <span class="op">=</span> state</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> state <span class="op">+</span> (input <span class="op">-</span> state) <span class="op">*</span> factor</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="trigger-driven-temporal-functions">Trigger-driven temporal
+functions</h2>
+<p>Instead of a clock, a trigger parameter (suffixed with
+<code>!</code>) fires the function when the trigger event occurs.</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Increments on each trigger pulse</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">trigger_counter</span>(spike!) <span class="op">=</span> count <span class="op">|&gt;</span> {</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { count <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    count <span class="op">=</span> count <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Captures input when trigger fires</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="fu">sample_hold</span>(input, capture!) <span class="op">=</span> held <span class="op">|&gt;</span> {</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { held <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    held <span class="op">=</span> input</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>The function body executes once per trigger event, not on a periodic
+clock.</p>
+<hr />
+<h2 id="hybrid-trigger-clock">Hybrid: trigger + clock</h2>
+<p>A function can accept both <code>dt</code> and trigger parameters. It
+updates on both:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Trigger sets to 1, clock decays over time</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">decay_on_trigger</span>(trig!, decay_rate, <span class="kw">dt</span><span class="op">=</span><span class="sc">50ms</span>) <span class="op">=</span> level <span class="op">|&gt;</span> {</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { level <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    level <span class="op">=</span> (<span class="dv">0</span>; <span class="dv">1</span> <span class="op">?</span> trig) <span class="op">+</span> level <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> decay_rate)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>Use the ternary operator to distinguish which event fired.</p>
+<hr />
+<h2 id="the-init-block">The <code>init</code> block</h2>
+<p>The <code>init:</code> block runs <strong>once</strong> when the
+function is instantiated. It sets initial state.</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">counter</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">100ms</span>) <span class="op">=</span> n <span class="op">|&gt;</span> {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { n <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> n <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>Rules: - Variables defined in <code>init</code> persist across ticks
+(they are the function’s state). - <code>init</code> is optional.
+Without it, the first update runs immediately (no dt delay). - With
+<code>init</code>, the function’s first output is the init value; the
+first update runs after one <code>dt</code>.</p>
+<hr />
+<h2 id="state-variables">State variables</h2>
+<p>Variables inside the lambda block are local state. They persist
+across ticks but are not visible outside the function — unless emitted
+(see <a href="ch07_emit_catch.md">Chapter 7</a>).</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sawtooth</span>(freq, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> phase <span class="op">|&gt;</span> {</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { phase <span class="op">=</span> <span class="dv">0</span> }</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    phase <span class="op">=</span> <span class="bu">fmod</span>(phase <span class="op">+</span> <span class="dv">1</span> / (freq <span class="op">*</span> (<span class="kw">dt</span> / <span class="sc">1000ms</span>)), <span class="dv">1</span>)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><code>phase</code> is updated every tick. The caller sees only the
+output (<code>phase</code> in this case, since it is the output
+variable).</p>
+<hr />
+<h2 id="instantiation">Instantiation</h2>
+<p>Temporal functions are <strong>instantiated</strong> when called.
+Each call creates an independent instance with its own state:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    slow <span class="op">=</span> <span class="fu">lfo</span>(<span class="sc">0.2hz</span>, <span class="dv">1.0</span>, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>)   /<span class="co">/ instance 1</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    fast <span class="op">=</span> <span class="fu">lfo</span>(<span class="sc">1.5hz</span>, <span class="dv">1.0</span>, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>)   /<span class="co">/ instance 2</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    combined <span class="op">=</span> slow <span class="op">+</span> fast              /<span class="co">/ two independent LFOs</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>The two LFOs have separate <code>phase</code> state — they don’t
+interfere.</p>
+<hr />
+<h2 id="reactive-chains">Reactive chains</h2>
+<p>Inside a process block, statements that follow a temporal binding are
+<strong>reactions</strong> — they re-execute on every tick of the
+temporal source:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    osc <span class="op">=</span> <span class="fu">lfo</span>(<span class="sc">5hz</span>, <span class="dv">1.0</span>, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    modulated <span class="op">=</span> <span class="sc">440hz</span> <span class="op">*</span> (<span class="dv">1</span> <span class="op">+</span> osc <span class="op">*</span> <span class="dv">0.1</span>)   /<span class="co">/ re-evaluated every 10ms</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;freq:&quot;</span>, modulated)               /<span class="co">/ prints every 10ms</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>The <code>print</code> call is not a one-shot — it runs every time
+<code>osc</code> ticks.</p>
+<hr />
+<h2 id="summary">Summary</h2>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 28%" />
+<col style="width: 35%" />
+<col style="width: 17%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Aspect</th>
+<th>Clock-driven</th>
+<th>Trigger-driven</th>
+<th>Hybrid</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Time source</td>
+<td><code>dt=interval</code></td>
+<td><code>param!</code></td>
+<td>Both</td>
+</tr>
+<tr class="even">
+<td>Update rate</td>
+<td>Periodic</td>
+<td>On event</td>
+<td>Both</td>
+</tr>
+<tr class="odd">
+<td>Use case</td>
+<td>LFOs, counters, smoothers</td>
+<td>Counters, sample-hold</td>
+<td>Envelopes, duckers</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a href="ch05_flows.md">Next: Flows →</a></p>
+</body>
+</html>

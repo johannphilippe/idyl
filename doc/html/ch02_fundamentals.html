@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Idƴl Documentation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        background-color: #ffffff;
+        color: #a0a0a0;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #a0a0a0;  padding-left: 4px; }
+    div.sourceCode
+      { color: #1f1c1b; background-color: #ffffff; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span { color: #1f1c1b; } /* Normal */
+    code span.al { color: #bf0303; background-color: #f7e6e6; font-weight: bold; } /* Alert */
+    code span.an { color: #ca60ca; } /* Annotation */
+    code span.at { color: #0057ae; } /* Attribute */
+    code span.bn { color: #b08000; } /* BaseN */
+    code span.bu { color: #644a9b; font-weight: bold; } /* BuiltIn */
+    code span.cf { color: #1f1c1b; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #924c9d; } /* Char */
+    code span.cn { color: #aa5500; } /* Constant */
+    code span.co { color: #898887; } /* Comment */
+    code span.cv { color: #0095ff; } /* CommentVar */
+    code span.do { color: #607880; } /* Documentation */
+    code span.dt { color: #0057ae; } /* DataType */
+    code span.dv { color: #b08000; } /* DecVal */
+    code span.er { color: #bf0303; text-decoration: underline; } /* Error */
+    code span.ex { color: #0095ff; font-weight: bold; } /* Extension */
+    code span.fl { color: #b08000; } /* Float */
+    code span.fu { color: #644a9b; } /* Function */
+    code span.im { color: #ff5500; } /* Import */
+    code span.in { color: #b08000; } /* Information */
+    code span.kw { color: #1f1c1b; font-weight: bold; } /* Keyword */
+    code span.op { color: #1f1c1b; } /* Operator */
+    code span.ot { color: #006e28; } /* Other */
+    code span.pp { color: #006e28; } /* Preprocessor */
+    code span.re { color: #0057ae; background-color: #e0e9f8; } /* RegionMarker */
+    code span.sc { color: #3daee9; } /* SpecialChar */
+    code span.ss { color: #ff5500; } /* SpecialString */
+    code span.st { color: #bf0303; } /* String */
+    code span.va { color: #0057ae; } /* Variable */
+    code span.vs { color: #bf0303; } /* VerbatimString */
+    code span.wa { color: #bf0303; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Idƴl Documentation</h1>
+</header>
+<h1 id="language-fundamentals">2 — Language fundamentals</h1>
+<p><a href="idyl_documentation.md">← Back to index</a> · <a
+href="ch01_getting_started.md">Previous: Getting started</a></p>
+<hr />
+<h2 id="comments">Comments</h2>
+<p>Idƴl uses C-style comments:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Single-line comment — extends to end of line</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>/<span class="co">* Multi-line comment.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">   Everything between the delimiters is ignored. */</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> <span class="dv">42</span>  /<span class="co">/ comments can appear at end of a line</span></span></code></pre></div>
+<p>Comments have no semantic meaning. They are discarded during
+lexing.</p>
+<hr />
+<h2 id="core-principles">Core principles</h2>
+<table>
+<colgroup>
+<col style="width: 42%" />
+<col style="width: 57%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Principle</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Stateless by default</strong></td>
+<td>Variables are immutable bindings. There are no mutable globals.</td>
+</tr>
+<tr class="even">
+<td><strong>Explicit state</strong></td>
+<td>State only exists inside temporal lambda blocks
+(<code>\|&gt; { ... }</code>), and every mutation is visible.</td>
+</tr>
+<tr class="odd">
+<td><strong>Time is first-class</strong></td>
+<td>Time literals are primitive values. Temporal functions carry their
+own clock.</td>
+</tr>
+<tr class="even">
+<td><strong>Functional</strong></td>
+<td>No <code>if/else</code>, no <code>while</code>, no classes. Control
+is ternary selection, iteration is generator expressions.</td>
+</tr>
+<tr class="odd">
+<td><strong>Graceful degradation</strong></td>
+<td>Type mismatches and missing values produce warnings, not crashes.
+The show goes on.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="types">Types</h2>
+<p>Idƴl has a small, implicit type system. There are no type annotations
+— the analyzer infers types and warns on mismatches.</p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 46%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Type</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>number</code></td>
+<td>64-bit floating point</td>
+<td><code>42</code>, <code>3.14</code>, <code>0.5</code></td>
+</tr>
+<tr class="even">
+<td><code>time</code></td>
+<td>Duration in milliseconds</td>
+<td><code>100ms</code>, <code>2s</code>, <code>440hz</code>,
+<code>120bpm</code>, <code>4b</code></td>
+</tr>
+<tr class="odd">
+<td><code>trigger</code></td>
+<td>Instantaneous event</td>
+<td><code>!</code></td>
+</tr>
+<tr class="even">
+<td><code>rest</code></td>
+<td>Absence of event</td>
+<td><code>_</code></td>
+</tr>
+<tr class="odd">
+<td><code>string</code></td>
+<td>Text</td>
+<td><code>"hello"</code></td>
+</tr>
+<tr class="even">
+<td><code>flow</code></td>
+<td>Ordered sequence</td>
+<td><code>[1 2 3]</code></td>
+</tr>
+<tr class="odd">
+<td><code>function</code></td>
+<td>Callable reference</td>
+<td><code>sin</code>, <code>my_func</code></td>
+</tr>
+<tr class="even">
+<td><code>handle</code></td>
+<td>Opaque module resource</td>
+<td>returned by <code>osc_out(...)</code></td>
+</tr>
+<tr class="odd">
+<td><code>nil</code></td>
+<td>Nothing</td>
+<td>default uninitialized state</td>
+</tr>
+</tbody>
+</table>
+<p>Types are <strong>soft</strong> — the analyzer warns about mismatches
+but does not prevent execution. This is intentional: in live contexts, a
+warning is better than a crash.</p>
+<hr />
+<h2 id="number-literals">Number literals</h2>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> <span class="dv">42</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>pi_approx <span class="op">=</span> <span class="dv">3.14159</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>ratio <span class="op">=</span> <span class="dv">0.5</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>negative <span class="op">=</span> <span class="op">-</span><span class="dv">1</span></span></code></pre></div>
+<p>Numbers are always 64-bit floating point. Integer conversion is
+available via <code>int()</code>.</p>
+<hr />
+<h2 id="time-literals">Time literals</h2>
+<p>Time is a first-class value. Five unit suffixes are recognized:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Suffix</th>
+<th>Meaning</th>
+<th>Internal representation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>ms</code></td>
+<td>Milliseconds</td>
+<td>Direct</td>
+</tr>
+<tr class="even">
+<td><code>s</code></td>
+<td>Seconds</td>
+<td>× 1000</td>
+</tr>
+<tr class="odd">
+<td><code>hz</code></td>
+<td>Hertz (frequency)</td>
+<td>1000 / value (period in ms)</td>
+</tr>
+<tr class="even">
+<td><code>b</code></td>
+<td>Beats</td>
+<td>Scaled by current tempo</td>
+</tr>
+<tr class="odd">
+<td><code>bpm</code></td>
+<td>Beats per minute</td>
+<td>60000 / value (period in ms)</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>delay <span class="op">=</span> <span class="sc">100ms</span>              /<span class="co">/ 100 milliseconds</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>duration <span class="op">=</span> <span class="sc">2.5s</span>            /<span class="co">/ 2500ms</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>pitch <span class="op">=</span> <span class="sc">440hz</span>              /<span class="co">/ ≈ 2.27ms period</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>quarter <span class="op">=</span> <span class="sc">120bpm</span>           /<span class="co">/ 500ms period</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>musical <span class="op">=</span> <span class="sc">4.0b</span>             /<span class="co">/ 4 beats (tempo-dependent)</span></span></code></pre></div>
+<p>Time arithmetic works naturally:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>total <span class="op">=</span> <span class="sc">2s</span> <span class="op">+</span> <span class="sc">100ms</span>         /<span class="co">/ 2100ms</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>doubled <span class="op">=</span> <span class="sc">100ms</span> <span class="op">*</span> <span class="dv">2</span>        /<span class="co">/ 200ms</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>half <span class="op">=</span> <span class="sc">1s</span> / <span class="dv">2</span>              /<span class="co">/ 500ms</span></span></code></pre></div>
+<hr />
+<h2 id="trigger-and-rest">Trigger and rest</h2>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>pulse <span class="op">=</span> !      /<span class="co">/ trigger — an instantaneous event</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>silence <span class="op">=</span> _    /<span class="co">/ rest — absence of event</span></span></code></pre></div>
+<p>Triggers are used as input events for trigger-driven temporal
+functions (see <a href="ch04_temporal.md">Chapter 4</a>). Rest
+represents “nothing happened.”</p>
+<hr />
+<h2 id="strings">Strings</h2>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>greeting <span class="op">=</span> <span class="st">&quot;hello idyl&quot;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>address <span class="op">=</span> <span class="st">&quot;/osc/note&quot;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Concatenation with +</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>full <span class="op">=</span> <span class="st">&quot;hello&quot;</span> <span class="op">+</span> <span class="st">&quot; &quot;</span> <span class="op">+</span> <span class="st">&quot;world&quot;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ Number coercion</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>label <span class="op">=</span> <span class="st">&quot;value: &quot;</span> <span class="op">+</span> <span class="dv">42</span>          /<span class="co">/ &quot;value: 42&quot;</span></span></code></pre></div>
+<p>String comparison: <code>==</code>, <code>!=</code>,
+<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>,
+<code>&gt;=</code> (lexicographic).</p>
+<hr />
+<h2 id="constants">Constants</h2>
+<p>A zero-parameter definition is a constant. It is evaluated eagerly at
+load time:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>silence <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>concert_pitch <span class="op">=</span> <span class="sc">440hz</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>pi_approx <span class="op">=</span> <span class="dv">3.14159</span></span></code></pre></div>
+<p>The predefined constants <code>pi</code>, <code>tau</code>, and
+<code>euler</code> are always available:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>circle <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> <span class="cn">pi</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>full_circle <span class="op">=</span> <span class="cn">tau</span>      /<span class="co">/ = 2π</span></span></code></pre></div>
+<hr />
+<h2 id="scope-rules">Scope rules</h2>
+<p>Top-level definitions are <strong>hoisted</strong> — they can
+reference each other regardless of declaration order:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">foo</span>(x) <span class="op">=</span> <span class="fu">bar</span>(x) <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bar</span>(x) <span class="op">=</span> x <span class="op">*</span> <span class="dv">2</span>           /<span class="co">/ defined after foo — still valid</span></span></code></pre></div>
+<p>Inside lambda blocks, <strong>declaration order applies</strong> — a
+variable must be defined before it is used.</p>
+<p>Definitions are lexically scoped. Function parameters shadow
+outer-scope bindings. Lambda-local variables are visible only within
+their block.</p>
+<hr />
+<p><a href="ch03_functions.md">Next: Functions →</a></p>
+</body>
+</html>

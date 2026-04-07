@@ -3,6 +3,7 @@
 #include <string>
 #include <cmath>
 #include <cstdlib>
+#include <ctime>
 
 #include "utilities/math.hpp"
 #include "utilities/span.hpp"
@@ -21,45 +22,46 @@ namespace idyl::core {
 
     inline void recursive_print_flow(const flow_data& fd)
     {
+        // Each member is printed in one line, with the member name and values. 
         size_t n = fd.length();
-        std::cout << "Flow with " << n << " elements:\n";
+        std::cout << "Flow with " << n << " elements [ ";
         for (size_t i = 0; i < n; ++i) {
-            std::cout << "Element " << i << ":\n";
             for (const auto& member : fd.members_) {
                 if (i < member.elements_.size()) {
-                    std::cout << "  " << member.name_ << ": ";
                     const value& val = member.elements_[i];
                     switch (val.type_) {
                         case value_t::number:
-                            std::cout << val.number_ << "\n";
+                            std::cout << val.number_ << " ";
                             break;
                         case value_t::trigger:
-                            std::cout << (val.trigger_ ? "true" : "false") << "\n";
+                            std::cout << (val.trigger_ ? "true" : "false") << " ";
                             break;
                         case value_t::time:
-                            std::cout << val.number_ << " ms\n";
+                            std::cout << val.number_ << " ms ";
                             break;
                         case value_t::string:
-                            std::cout << (val.string_ ? *val.string_ : "") << "\n";
+                            std::cout << (val.string_ ? *val.string_ : "") << " ";
                             break;
                         case value_t::flow:
                             if (val.flow_) {
                                 recursive_print_flow(*val.flow_);
                             } else {
-                                std::cout << "null flow\n";
+                                std::cout << "null flow ";
                             }
                             break;
                         case value_t::handle:
-                            std::cout << val.as_string() << "\n";
+                            std::cout << val.as_string() << " ";
                             break;
                         default:
-                            std::cout << "nil or unknown type\n";
+                            std::cout << "nil or unknown type ";
                     }
                 } else {
                     std::cout << "  " << member.name_ << ": <no element>\n";
                 }
             }
         }
+        std::cout << "]\n";
+
     }
 
     const builtin builtins[] = {
@@ -175,6 +177,17 @@ namespace idyl::core {
                 return value::number(static_cast<double>(rand()) / RAND_MAX);
             }, 0, 3
         },
+        {
+            "seed", [](span<const value> args) -> value {
+                if (args.size_ > 0) {
+                    unsigned int seed = static_cast<unsigned int>(args[0].as_number());
+                    srand(seed);
+                } else {
+                    srand(static_cast<unsigned int>(::time(nullptr)));
+                }
+                return value::nil();
+            }, 0, 1
+        },
         // ── Flow utilities ─────────────────────────────────────────────────────
         {
             "len", [](span<const value> args) -> value {
@@ -213,6 +226,9 @@ namespace idyl::core {
                         case value_t::handle:
                             std::cout << v.as_string();
                             break;
+                        case value_t::function:
+                            std::cout << v.as_string();
+                            break;
                         default:
                             std::cout << "<nil>";
                     }
@@ -220,6 +236,32 @@ namespace idyl::core {
                 std::cout << std::endl;
                 return value::nil();
             }, 1, -1
+        },
+        // ── Temporal utilities ───────────────────────────────────────────────────
+        //  clock() and tempo() are handled as evaluator intrinsics
+        //  (see evaluator.cpp eval_call) so they have access to the
+        //  clock registry and named arguments.
+        {
+            "now", [](span<const value> args) -> value {
+                if(args.size_ == 1) {
+                    if(args[0].type_ == value_t::string)
+                    {
+                        if(args[0].string_ && *args[0].string_ == "ms") {
+                            auto now = std::chrono::steady_clock::now();
+                            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+                            return value::time_ms(static_cast<double>(ms)); 
+                        } else if(args[0].string_ && *args[0].string_ == "s") {
+                            auto now = std::chrono::steady_clock::now();
+                            auto s = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+                            return value::time_ms(static_cast<double>(s * 1000)); 
+                        }
+                    }
+
+                }
+                auto now = std::chrono::steady_clock::now();
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+                return value::time_ms(static_cast<double>(ms));
+            }, 0, 1
         },
     };
     constexpr size_t num_builtins = sizeof(builtins) / sizeof(builtin);

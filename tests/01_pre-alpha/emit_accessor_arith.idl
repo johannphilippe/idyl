@@ -1,0 +1,17 @@
+// Test: emit accessor used in arithmetic
+// The emitted side-channel value is used in an expression.
+
+counter(dt=200ms) = cnt |> {
+    init: {
+        cnt = 0
+        emit step = 0
+    }
+    emit step = 3
+    cnt = cnt + step
+}
+
+process: {
+    c = counter()
+    doubled_step = c::step * 2
+    print("cnt:", c, "step:", c::step, "doubled:", doubled_step)
+}

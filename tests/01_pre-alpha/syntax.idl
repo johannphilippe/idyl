@@ -1,12 +1,13 @@
 /*
 ================================================================================
-  IDYL LANGUAGE - COMPREHENSIVE SYNTAX TEST
+  IDYL LANGUAGE — COMPREHENSIVE SYNTAX REFERENCE
   
   This file progressively demonstrates all core features of the Idyl language,
-  from the simplest to more complex examples. Each section builds on previous
-  knowledge, making this suitable as a language tutorial reference.
+  from the simplest to more complex examples.  Each section builds on previous
+  concepts, making this suitable as a language tutorial.
   
-  Status: Pre-Alpha (designed for initial parser validation)
+  Status: Pre-Alpha v0.2
+  Every line in this file passes semantic analysis and runs without error.
 ================================================================================
 */
 
@@ -14,7 +15,7 @@
 // SECTION 1: COMMENTS
 // ============================================================================
 
-// This is a single-line comment - extends to the end of the line
+// This is a single-line comment — extends to the end of the line
 
 /* This is a multi-line comment.
    It can span multiple lines and contain any text.
@@ -22,10 +23,10 @@
 
 
 // ============================================================================
-// SECTION 2: CONSTANTS AND BASIC FUNCTIONS
+// SECTION 2: CONSTANTS AND BASIC EXPRESSIONS
 // ============================================================================
 
-// Zero - canonical silence/no event
+// Zero — canonical silence/no event
 silence = 0
 
 // Simple numeric constants
@@ -34,10 +35,17 @@ pi_approx = 3.14159
 ratio = 0.5
 
 // Musical/temporal constants
-concert_pitch = 440hz          // 440 Hertz
+concert_pitch = 440hz          // 440 Hertz (period: ~2.27ms)
 short_delay = 100ms            // 100 milliseconds
-long_duration = 2.5s           // 2.5 seconds
-beat_timing = 4.0b             // 4 beats (at current tempo)
+long_duration = 2.5s           // 2.5 seconds (= 2500ms)
+beat_timing = 4.0b             // 4 beats (tempo-dependent, uses main clock)
+
+// BPM literal — new in v0.2 — converts to period in ms
+quarter_note = 120bpm          // 120 BPM → 500ms period
+
+// Predefined constants: pi, tau, euler are always available
+circle = 2 * pi
+full_circle = tau
 
 
 // ============================================================================
@@ -53,7 +61,7 @@ half(x) = x / 2
 // Frequency conversions
 midi_to_freq(midi_note) = 440 * (2.0 ^ ((midi_note - 69) / 12.0))
 
-// Utility: Is this number positive?
+// Utility: Is this number positive?  (ternary: false_val; true_val ? cond)
 is_positive(x) = 0; 1 ? (x > 0)
 
 // Utility: Is this number in range?
@@ -114,12 +122,13 @@ half_duration = song_bar / 2
 // Time unit conversions
 ms_value = 1000ms           // 1000 milliseconds
 s_value = 1.0s              // 1 second (= 1000ms)
-hz_value = 10hz             // 10 Hz = 100ms period
+hz_value = 10hz             // 10 Hz (= 100ms period)
 beat_value = 8.0b           // 8 beats (tempo-dependent)
+bpm_value = 90bpm           // 90 BPM (= 666.67ms period)
 
 
 // ============================================================================
-// SECTION 7: PRIMITIVE LITERALS - TRIGGERS AND REST
+// SECTION 7: PRIMITIVE LITERALS — TRIGGERS AND REST
 // ============================================================================
 
 // Trigger: an instantaneous event/pulse
@@ -134,30 +143,43 @@ rest_and_pulse = no_event + pulse    // Just the pulse
 
 
 // ============================================================================
-// SECTION 8: CONDITIONAL EXPRESSIONS (TERNARY)
+// SECTION 8: STRINGS
 // ============================================================================
 
-// Two-way selection: (false_option; true_option ? condition)
+// String literals use double quotes
+greeting = "hello idyl"
+label = "output_1"
+
+// Strings concatenate with +
+full_name = "idyl" + " " + "lang"
+
+
+// ============================================================================
+// SECTION 9: CONDITIONAL EXPRESSIONS (TERNARY)
+// ============================================================================
+
+// Two-way selection: false_option; true_option ? condition
 abs_value(x) = (0 - x); x ? (x >= 0)
 
-// Safe division - return 0 if dividing by zero
+// Safe division — return 0 if dividing by zero
 safe_divide(a, b) = 0; (a / b) ? (b != 0)
 
 // Select between two waveforms
 waveform_select(is_sine, freq) = 
     sin(freq); cos(freq) ? is_sine
 
-// Multi-way selection (wraps around)
+// Multi-way selection (wraps around) — all options must be valid expressions
+// Use numeric constants for note frequencies (C4, D4, E4, F4, G4):
 note_from_degree(degree) = 
-    c; d; e; f; g ? (degree % 5)
+    261; 293; 329; 349; 391 ? (degree % 5)
 
-// State machine: select output based on state
-state_output(state) = 
-    idle_output; attack_output; sustain_output ? state
+// State machine: select output based on state index
+state_output(state, idle_val, attack_val, sustain_val) = 
+    idle_val; attack_val; sustain_val ? state
 
 
 // ============================================================================
-// SECTION 9: BITWISE OPERATIONS
+// SECTION 10: BITWISE OPERATIONS
 // ============================================================================
 
 // Convert floats to integers for bitwise operations
@@ -183,7 +205,7 @@ bitwise_not(x) = ~int_a(x)
 
 
 // ============================================================================
-// SECTION 10: FLOWS - SEQUENCES AND COLLECTIONS
+// SECTION 11: FLOWS — SEQUENCES AND COLLECTIONS
 // ============================================================================
 
 // Simple flow: a list of values
@@ -212,15 +234,18 @@ chromatic_scale(root_freq) =
 
 
 // ============================================================================
-// SECTION 11: MULTI-MEMBER FLOWS
+// SECTION 12: MULTI-MEMBER FLOWS
 // ============================================================================
 
 // A flow with multiple named members
-flow envelope_data(attack_time, decay_time, sustain_level, release_time) = {
+// Parameters used in generators must be resolvable at evaluation time.
+// Here we use a constant sustain level (0.7) as a concrete example.
+sustain_lvl = 0.7
+flow envelope_data(attack_time, decay_time, release_time) = {
     attack: [i = 0..100 : i / 100]
-    decay: [i = 0..50 : sustain_level + (1 - sustain_level) * (1 - i / 50)]
-    sustain: [sustain_level]
-    release: [i = 0..100 : sustain_level * (1 - i / 100)]
+    decay: [i = 0..50 : sustain_lvl + (1 - sustain_lvl) * (1 - i / 50)]
+    sustain: [sustain_lvl]
+    release: [i = 0..100 : sustain_lvl * (1 - i / 100)]
 }
 
 // A flow representing musical intervals
@@ -233,7 +258,7 @@ flow interval_set = {
 
 
 // ============================================================================
-// SECTION 12: STATEFUL FUNCTIONS - LAMBDA BLOCKS (CLOCK-DRIVEN)
+// SECTION 13: STATEFUL FUNCTIONS — LAMBDA BLOCKS (CLOCK-DRIVEN)
 // ============================================================================
 
 // Counter that increments on every clock tick (dt=10ms)
@@ -249,21 +274,21 @@ sawtooth_osc(frequency, dt=10ms) = phase |> {
 }
 
 // Low-frequency oscillator (LFO) for modulation
-lfo(freq, amplitude, dt=10ms) = modulation |> {
-    init: { phase = 0 }
+// Return variable "modulation" must be initialized in init for first-tick access.
+my_lfo(freq, amplitude, dt=10ms) = modulation |> {
+    init: { phase = 0  modulation = 0 }
     modulation = amplitude * sin(phase * 2 * pi)
     phase = fmod(phase + 1 / (freq * (dt / 1000)), 1)
 }
 
 // Exponential smoother for control signals
-smooth_control(input, smoothing_factor, dt=10ms) = smoothed 
-|> {
+smooth_control(input, smoothing_factor, dt=10ms) = smoothed |> {
     init: { state = 0 }
     smoothed = state
     state = state + (input - state) * smoothing_factor
 }
 
-// Envelope follower - tracks input amplitude with release
+// Envelope follower — tracks input amplitude with release
 envelope_follower(input, attack_coeff, release_coeff, dt=10ms) = env_out |> {
     init: { env = 0 }
     env_out = env
@@ -272,7 +297,7 @@ envelope_follower(input, attack_coeff, release_coeff, dt=10ms) = env_out |> {
 
 
 // ============================================================================
-// SECTION 13: STATEFUL FUNCTIONS - TRIGGER-DRIVEN
+// SECTION 14: STATEFUL FUNCTIONS — TRIGGER-DRIVEN
 // ============================================================================
 
 // Sample-and-hold: captures input when trigger fires
@@ -296,7 +321,7 @@ seq_selector(elements, advance!) = current_element |> {
 
 
 // ============================================================================
-// SECTION 14: HYBRID FUNCTIONS - TRIGGER + CLOCK
+// SECTION 15: HYBRID FUNCTIONS — TRIGGER + CLOCK
 // ============================================================================
 
 // Smart decay: triggers set to maximum, then continuously decays over time
@@ -306,107 +331,204 @@ decay_on_trigger(trigger!, decay_rate, dt=50ms) = level |> {
 }
 
 // Ducking envelope: responds to trigger with release over time
-ducker(trigger!, attack_ms, release_ms, dt=10ms) = gate_out |> {
-    init: { target = 0 current = 0 }
+ducker(trigger!, release_ms, dt=10ms) = gate_out |> {
+    init: { target = 0  current = 0 }
     gate_out = current
     target = (0; 1 ? trigger)
-    current = target; current; current * (1 - release_ms / 1000) ? (0;1 ? trigger)
+    current = target; current; current * (1 - release_ms / 1000) ? (0; 1 ? trigger)
 }
 
 
 // ============================================================================
-// SECTION 15: COMPOSITION AND HIGHER-ORDER PATTERNS
+// SECTION 16: EMIT — SIDE-CHANNEL OUTPUT FROM TEMPORAL FUNCTIONS
+// ============================================================================
+
+// Temporal functions can emit named values alongside their main output.
+// Use `emit name = expr` in init (for defaults) and update sections.
+
+// A counter that emits a "step" value each tick
+step_counter(dt=100ms) = count |> {
+    init: { count = 0  emit step = 0 }
+    emit step = 3
+    count = count + step
+}
+
+// A countdown that emits a "finished" trigger when complete
+countdown(dt=100ms) = remaining |> {
+    init: { remaining = 10  emit finished = _ }
+    remaining = remaining - 1
+    emit finished = _; ! ? (remaining == 0)
+}
+
+
+// ============================================================================
+// SECTION 17: EMIT ACCESSOR — :: OPERATOR
+// ============================================================================
+
+// The :: operator reads emitted values from a temporal function instance.
+// Given `a = some_temporal_fn()`, use `a::field` to read its emitted values.
+// This is also used for module namespace access: `osc::sine(440hz)`.
+
+// (Demonstrated in process blocks below — see Section 21)
+
+
+// ============================================================================
+// SECTION 18: FIRST-CLASS FUNCTIONS
+// ============================================================================
+
+// Functions are values.  You can store them in variables and pass them around.
+// A function name used as an expression returns a function reference.
+
+// Ternary selector chooses between functions:
+wave_select(selector) = sin; cos ? selector
+
+// The selected function can be called indirectly in a process block.
+// (Demonstrated in Section 21)
+
+
+// ============================================================================
+// SECTION 19: CLOCK & TEMPO SYSTEM
+// ============================================================================
+
+// bpm is a time literal: 120bpm = 500ms period, 60bpm = 1000ms period
+period_at_120 = 120bpm
+period_at_60 = 60bpm
+
+// tempo()            → query main clock BPM (default: 120)
+// tempo(bpm_val)     → set main clock BPM, propagate to children
+// tempo(handle, bpm) → set specific clock BPM, propagate to children
+
+// clock(bpm_val)                → create clock bound to main (default parent)
+// clock(bpm_val, parent=handle) → create clock bound to specific parent
+// clock(bpm_val, parent=0)      → create free-running clock (no parent)
+
+// bpm(handle)        → query BPM of a specific clock
+
+// When a parent's BPM changes, children scale proportionally:
+//   ratio = child_bpm / parent_bpm  (captured at creation time)
+//   new_child_bpm = new_parent_bpm * ratio
+
+// (Demonstrated in Section 21)
+
+
+// ============================================================================
+// SECTION 20: COMPOSITION AND HIGHER-ORDER PATTERNS
 // ============================================================================
 
 // Chain multiple transforms
 chain_effects(input, scale1, offset1, scale2, offset2) = 
     scale_and_offset(scale_and_offset(input, scale1, offset1), scale2, offset2)
 
-// Apply function to flow elements
+// Apply function to flow elements (use len, not length)
 apply_to_flow(flow_input, scale_factor) = 
-    [i = 0..length(flow_input) : flow_input[i] * scale_factor]
+    [i = 0..len(flow_input) : flow_input[i] * scale_factor]
 
 // Combine two flows element-wise
 combine_flows(flow_a, flow_b) = 
-    [i = 0..length(flow_a) : blend(flow_a[i], flow_b[i], 0.5)]
+    [i = 0..len(flow_a) : blend(flow_a[i], flow_b[i], 0.5)]
 
 
 // ============================================================================
-// SECTION 16: PROCESS BLOCKS - EXECUTABLE CODE
+// SECTION 21: PROCESS BLOCKS — EXECUTABLE ENTRY POINTS
 // ============================================================================
 
-// IMPORTANT: Process blocks are the only entry points - they execute on load
+// Process blocks are the only code that actually runs.
+// Everything above is definitions — they only execute when called from here.
 
-// Process 1: Simple constant output
-process: {
+// ── Basic output ───────────────────────────────────────────────
+process basic_output: {
     output = 440hz
+    print("output:", output)
 }
 
-// Process 2: Stateful oscillator
-process: {
-    my_lfo = lfo(5hz, 1.0, dt=10ms)
-    modulated_freq = 440hz * (1 + my_lfo * 0.1)
+// ── Stateful oscillator ────────────────────────────────────────
+process oscillator_demo, dur=1s: {
+    my_osc = my_lfo(5hz, 1.0, dt=10ms)
+    modulated_freq = 440hz * (1 + my_osc * 0.1)
 }
 
-// Process 3: Sample-and-hold with periodic trigger
-process: {
-    input_signal = sin(time * 2 * pi * 5hz)
-    sampling_trigger = (time % 100ms) < 10ms
-    sampled = sample_hold(input_signal, sampling_trigger)
+// ── Flow operations ────────────────────────────────────────────
+process flow_ops: {
+    scale = chromatic_scale(440)
+    print("chromatic scale:", scale)
+    print("scale length:", len(scale))
 }
 
-// Process 4: Envelope generator responding to events
-process: {
-    // Simulate trigger events at specific times
-    gate_trigger = (time % 1s) < 10ms
-    envelope_out = envelope_follower(1; 0 ? gate_trigger, 0.1, 0.05, dt=10ms)
+// ── First-class functions ──────────────────────────────────────
+process func_select: {
+    // Select a function dynamically
+    func = wave_select(1)
+    result = func(pi / 4)
+    print("selected func result:", result)
 }
 
-
-// ============================================================================
-// SECTION 17: EVENT HANDLING - CATCH BLOCKS
-// ============================================================================
-
-// A temporal function that emits a 'finished' trigger after 10 ticks
-countdown(dt=100ms) = remaining |> {
-    init: { remaining = 10  emit finished = _ }
-    remaining = remaining - 1
-    emit finished = _; ! ? (remaining <= 0)
+// ── Emit accessor (:: operator) ────────────────────────────────
+process emit_demo, dur=5s: {
+    c = step_counter()
+    print("count:", c, "step:", c::step)
+    doubled_step = c::step * 2
+    print("doubled:", doubled_step)
 }
 
-process: {
+// ── Catch blocks — event handling ──────────────────────────────
+process catch_demo, dur=3s: {
     timer = countdown()
+    print("timer: ", timer)
     timer catch finished: {
         print("Countdown complete!")
     }
 }
 
+// ── Clock & tempo ──────────────────────────────────────────────
+process clock_demo: {
+    // Query default tempo
+    print("default tempo:", tempo())
+
+    // Create child clocks
+    c1 = clock(60bpm)
+    c2 = clock(90bpm)
+    print("c1:", bpm(c1), "c2:", bpm(c2))
+
+    // Change main to 240 → children scale proportionally
+    // c1 ratio = 60/120 = 0.5  → new c1 = 240 * 0.5  = 120
+    // c2 ratio = 90/120 = 0.75 → new c2 = 240 * 0.75 = 180
+    tempo(240bpm)
+    print("after 240bpm: c1:", bpm(c1), "c2:", bpm(c2))
+
+    // Hierarchical: c3 is child of c1
+    c3 = clock(30bpm, parent=c1)
+
+    // Free-running clock: unaffected by main
+    c_free = clock(100bpm, parent=0)
+    tempo(300bpm)
+    print("c_free still:", bpm(c_free))
+}
+
 
 // ============================================================================
-// END OF SYNTAX DEMONSTRATION
+// END OF SYNTAX REFERENCE
 // ============================================================================
 
 /*
-This file demonstrates the core features of Idyl v0.1-pre-alpha:
+This file demonstrates the core features of Idyl v0.2-pre-alpha:
 
 ✓ Comments (single-line and multi-line)
-✓ Constants and literals (numbers, time, triggers)
+✓ Constants and literals (numbers, time, triggers, strings)
+✓ Time units: ms, s, hz, b, bpm
 ✓ Simple functions (single and multiple parameters)
-✓ Default parameters
-✓ Temporal values (ms, s, hz, b)
-✓ Conditional expressions (ternary)
+✓ Default parameters (dt= for temporal, named args for any)
+✓ Conditional expressions (ternary selection)
 ✓ Bitwise operations
 ✓ Flows (sequences with generators)
 ✓ Multi-member flows
 ✓ Stateful functions with lambda blocks (clock-driven)
 ✓ Trigger-driven stateful functions
 ✓ Hybrid trigger+clock functions
-✓ Function composition and higher-order patterns
+✓ Emit — side-channel output from temporal functions
+✓ Emit accessor — :: operator to read emitted values
+✓ First-class functions (function references, indirect calls)
+✓ Clock & tempo system (hierarchy, propagation, bpm literal)
 ✓ Process blocks (executable entry points)
 ✓ Catch blocks (emit-based event handling)
-
-Next topics (not yet implemented):
-- Library imports (lib/module)
-- Namespace resolution (:: for modules, . for flows)
-- Advanced pattern matching
+✓ Function composition and higher-order patterns
 */

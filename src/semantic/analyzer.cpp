@@ -145,6 +145,7 @@ namespace idyl::semantic {
                     func_info->has_dt_param_ = has_dt;
                     func_info->is_temporal_ = is_temporal;
                     func_info->required_arity_ = required_arity;
+                    func_info->inferred_type_ = inferred_t::function;
                     scope_stack_.define(func_info->name_, *func_info);
                     break;
                 }
@@ -262,6 +263,26 @@ namespace idyl::semantic {
                     scope_stack_.push(scope_t::lambda_body);
                     scope_stack_.scopes_.back().is_temporal_function_ = is_temporal;
                     scope_stack_.scopes_.back().enclosing_function_ = func->name_;
+
+                    // Pre-collect update-section assignments so the return
+                    // variable (func->body_) can resolve against them.  The
+                    // return variable is often assigned in the update section
+                    // rather than the init block (e.g.  `= out |> { init: { phase = 0 }  out = sin(phase) }`).
+                    for(const auto& stmt : func->lambda_block_->update_statements_) {
+                        if(stmt->type_ == parser::node_t::function_definition) {
+                            auto inner_func = std::static_pointer_cast<parser::function_definition>(stmt);
+                            if (inner_func->parameters_.empty() && inner_func->body_) {
+                                // Looks like a bare assignment parsed as 0-param def
+                                symbol_t sym_type = symbol_t::local_variable;
+                                scope_stack_.define(inner_func->name_, symbol_info{sym_type, inner_func->name_, inner_func->line_, inner_func->column_});
+                            }
+                        } else if(stmt->type_ == parser::node_t::assignment) {
+                            auto assign = std::static_pointer_cast<parser::assignment>(stmt);
+                            symbol_t sym_type = assign->is_emit_ ? symbol_t::emit_variable : symbol_t::local_variable;
+                            scope_stack_.define(assign->name_, symbol_info{sym_type, assign->name_, assign->line_, assign->column_});
+                        }
+                    }
+
                     if(func->lambda_block_->init_) {
                         scope_stack_.push(scope_t::init_block);
                         scope_stack_.scopes_.back().is_temporal_function_ = is_temporal;
@@ -290,6 +311,7 @@ namespace idyl::semantic {
                                 }
                                 inner_info.required_arity_ = req;
                                 inner_info.is_temporal_ = inner_func->lambda_block_ != nullptr;
+                                inner_info.inferred_type_ = inferred_t::function;
                                 scope_stack_.define(inner_func->name_, inner_info);
                             } else if(stmt->type_ == parser::node_t::assignment) {
                                 auto assign = std::static_pointer_cast<parser::assignment>(stmt);
@@ -624,7 +646,7 @@ namespace idyl::semantic {
                     // Non-identifier on LHS of :: — resolve normally
                     resolve(access->module_);
                 } else {
-                    // Compose "namespace::member" and look it up as a flat qualified name
+                    // First try as a flat qualified name (namespace::member)
                     std::string qualified = ns_name + "::" + access->function_;
                     if (symbol_info* info = scope_stack_.lookup(qualified)) {
                         idyl::debug("Qualified name '" + qualified
@@ -640,6 +662,14 @@ namespace idyl::semantic {
                             synth_call->arguments_ = access->arguments_;
                             check_call(synth_call, *info);
                         }
+                    } else if (symbol_info* lhs_info = scope_stack_.lookup(ns_name)) {
+                        // LHS is a known variable — this may be an emit accessor
+                        // (e.g. a::incr where a is bound to a temporal instance).
+                        // We can't statically verify the emitted field name, so
+                        // just mark the LHS as referenced and allow it.
+                        lhs_info->referenced_ = true;
+                        idyl::debug("Emit accessor '" + ns_name + "::" + access->function_
+                                  + "' — deferring to runtime.");
                     } else {
                         diagnostics_.push_back(diagnostic{severity::error,"'" + qualified + "' not found in any accessible scope.",
                                                 node->line_, node->column_});
@@ -913,6 +943,7 @@ namespace idyl::semantic {
                         if (!p->default_value_) req++;
                     }
                     info.required_arity_ = req;
+                    info.inferred_type_ = inferred_t::function;
                     scope_stack_.define(sym_name, info);
                     break;
                 }
@@ -958,16 +989,25 @@ namespace idyl::semantic {
 
     void analyzer::check_call(const parser::node_ptr& call_node, const symbol_info& callee_info)
     {
-        // Only check function and flow calls
+        // Only check function, flow, builtin, and local_variable calls.
+        // local_variable is allowed because functions are first-class values:
+        // a variable may hold a function reference obtained from a ternary,
+        // assignment, or parameter.  We cannot statically verify arity for
+        // indirect calls, so we skip detailed checks for them.
         if (callee_info.type_ != symbol_t::function && 
             callee_info.type_ != symbol_t::flow &&
-            callee_info.type_ != symbol_t::builtin) {
+            callee_info.type_ != symbol_t::builtin &&
+            callee_info.type_ != symbol_t::local_variable &&
+            callee_info.type_ != symbol_t::parameter) {
             diagnostics_.push_back(diagnostic{severity::error,"Attempting to call non-callable symbol '" + callee_info.name_ + "'.", call_node->line_, call_node->column_});
             return;
         }
 
-        // Builtins don't have param_info_ populated — skip detailed checks
-        if (callee_info.type_ == symbol_t::builtin) return;
+        // Builtins and indirect calls (local variables / parameters) don't
+        // have param_info_ populated — skip detailed arity checks.
+        if (callee_info.type_ == symbol_t::builtin ||
+            callee_info.type_ == symbol_t::local_variable ||
+            callee_info.type_ == symbol_t::parameter) return;
 
         auto call = std::static_pointer_cast<parser::function_call>(call_node);
         const auto& args = call->arguments_;

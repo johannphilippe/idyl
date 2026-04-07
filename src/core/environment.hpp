@@ -44,6 +44,8 @@ namespace idyl::core {
             // Predefined constants
             define("pi", value::number(3.14159265358979323846));
             define("tau", value::number(6.28318530717958647692));
+            define("euler", value::number(2.71828182845904523536));
+
         }
 
         // ── Scope management ───────────────────────────────────────────────────

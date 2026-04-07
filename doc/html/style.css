@@ -1,0 +1,256 @@
+/* Idƴl documentation stylesheet */
+
+:root {
+    --bg: #fdfdfd;
+    --fg: #1a1a1a;
+    --accent: #3a6ea5;
+    --accent-light: #e8f0fa;
+    --border: #d0d7de;
+    --code-bg: #f5f6f8;
+    --code-border: #e1e4e8;
+    --nav-bg: #f0f3f6;
+    --max-width: 52rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0d1117;
+        --fg: #c9d1d9;
+        --accent: #58a6ff;
+        --accent-light: #161b22;
+        --border: #30363d;
+        --code-bg: #161b22;
+        --code-border: #30363d;
+        --nav-bg: #161b22;
+    }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 17px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.7;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+/* Headings */
+h1, h2, h3, h4 {
+    margin-top: 2em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+h1 {
+    font-size: 2rem;
+    margin-top: 0;
+    padding-bottom: 0.4em;
+    border-bottom: 2px solid var(--accent);
+}
+
+h2 {
+    font-size: 1.5rem;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--border);
+}
+
+h3 { font-size: 1.2rem; }
+h4 { font-size: 1rem; }
+
+/* Paragraphs & lists */
+p, ul, ol {
+    margin-bottom: 1em;
+}
+
+ul, ol {
+    padding-left: 1.8em;
+}
+
+li {
+    margin-bottom: 0.3em;
+}
+
+/* Links */
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Horizontal rules */
+hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2em 0;
+}
+
+/* Inline code */
+code {
+    font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 0.15em 0.4em;
+}
+
+/* Code blocks */
+pre {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 6px;
+    padding: 1em 1.2em;
+    overflow-x: auto;
+    margin-bottom: 1.2em;
+    line-height: 1.5;
+}
+
+pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.88em;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.2em;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.6em 1em;
+    border: 1px solid var(--border);
+}
+
+th {
+    background: var(--accent-light);
+    font-weight: 600;
+}
+
+tr:nth-child(even) {
+    background: var(--code-bg);
+}
+
+/* Blockquotes */
+blockquote {
+    border-left: 4px solid var(--accent);
+    padding: 0.5em 1em;
+    margin: 1em 0;
+    background: var(--accent-light);
+    border-radius: 0 4px 4px 0;
+}
+
+blockquote p {
+    margin-bottom: 0.3em;
+}
+
+/* Navigation links (top/bottom of chapters) */
+p:first-of-type a,
+p:last-of-type a {
+    font-weight: 500;
+}
+
+/* Print */
+@media print {
+    body {
+        max-width: 100%;
+        padding: 1cm;
+        font-size: 12pt;
+    }
+
+    pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    a {
+        color: var(--fg);
+        text-decoration: underline;
+    }
+}
+
+/* ============================================================
+   Pandoc syntax highlighting (Kate-style class names)
+   ============================================================ */
+
+/* Container: div.sourceCode > pre.sourceCode > code */
+div.sourceCode {
+    margin-bottom: 1.2em;
+}
+
+div.sourceCode pre {
+    margin-bottom: 0;
+}
+
+/* Language label */
+pre.sourceCode {
+    position: relative;
+}
+
+code span.kw { color: #7c3aed; font-weight: 600; }  /* Keyword */
+code span.bu { color: #0369a1; }                      /* Built-in */
+code span.fu { color: #0369a1; }                      /* Function */
+code span.dt { color: #0369a1; }                      /* DataType */
+code span.dv { color: #b45309; }                      /* DecVal (number) */
+code span.fl { color: #b45309; }                      /* Float */
+code span.bn { color: #b45309; }                      /* BaseN */
+code span.sc { color: #b91c1c; }                      /* SpecialChar (time) */
+code span.st { color: #16803d; }                      /* String */
+code span.ch { color: #16803d; font-weight: 600; }   /* Char (escape) */
+code span.ss { color: #9333ea; font-style: italic; }  /* SpecialString (rest) */
+code span.co { color: #6b7280; font-style: italic; }  /* Comment */
+code span.op { color: #d946ef; }                      /* Operator */
+code span.al { color: #dc2626; font-weight: 700; }   /* Alert (trigger) */
+code span.cn { color: #0e7490; font-weight: 600; }   /* Constant */
+code span.va { color: var(--fg); }                    /* Variable */
+code span.cf { color: #7c3aed; font-weight: 600; }   /* ControlFlow */
+code span.at { color: #7c3aed; }                      /* Attribute */
+code span.ot { color: #7c3aed; }                      /* Other */
+code span.pp { color: #7c3aed; }                      /* Preprocessor */
+code span.do { color: #6b7280; font-style: italic; }  /* Documentation */
+code span.an { color: #6b7280; font-weight: 600; }   /* Annotation */
+code span.wa { color: #d97706; font-weight: 600; }   /* Warning */
+code span.er { color: #dc2626; font-weight: 700;
+               text-decoration: underline; }           /* Error */
+code span.in { color: #6b7280; font-style: italic; }  /* Information */
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+    code span.kw { color: #c084fc; }
+    code span.bu { color: #7dd3fc; }
+    code span.fu { color: #7dd3fc; }
+    code span.dt { color: #7dd3fc; }
+    code span.dv { color: #fbbf24; }
+    code span.fl { color: #fbbf24; }
+    code span.bn { color: #fbbf24; }
+    code span.sc { color: #fb923c; }
+    code span.st { color: #86efac; }
+    code span.ch { color: #86efac; }
+    code span.ss { color: #c084fc; }
+    code span.co { color: #9ca3af; }
+    code span.op { color: #f0abfc; }
+    code span.al { color: #fca5a5; }
+    code span.cn { color: #67e8f9; }
+    code span.cf { color: #c084fc; }
+    code span.er { color: #fca5a5; }
+    code span.wa { color: #fcd34d; }
+}

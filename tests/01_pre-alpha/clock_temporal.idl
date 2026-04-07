@@ -1,0 +1,58 @@
+// ── Clocks driving temporal functions ────────────────────────────
+// Demonstrates how different clock rates drive ADSR-like envelopes
+// and how tempo changes affect running functions.
+
+// ── Simple linear envelope ─────────────────────────────────────
+// Ramps from 0 to peak over attack_steps, then decays toward sustain
+envelope(attack_steps, sustain_level, dt=50ms) = level |> {
+    init: { level = 0  tick = 0  emit stage = "attack" }
+    tick = tick + 1
+    // Attack phase: ramp up.  After attack, hold at sustain.
+    level = (tick / attack_steps); sustain_level ? (tick >= attack_steps)
+    emit stage = "attack"; "sustain" ? (tick >= attack_steps)
+}
+
+// ── Nonlinear exponential decay ────────────────────────────────
+// Starts at 1.0, decays by factor each tick
+exp_decay(factor, dt=50ms) = level |> {
+    init: { level = 1  emit done = _ }
+    level = level * factor
+    emit done = _; ! ? (level < 0.01)
+}
+
+// ── Ramp generator ─────────────────────────────────────────────
+// Goes from start_val to end_val in num_steps ticks
+ramp_gen(start_val, end_val, num_steps, dt=100ms) = value |> {
+    init: { value = start_val  step = 0 }
+    step = step + 1
+    value = start_val + (end_val - start_val) * (step / num_steps)
+}
+
+process: {
+    // ── Create clocks at different rates ────────────────────────
+    slow_clock = clock(60bpm)       // bound to main (120bpm), ratio 0.5
+    fast_clock = clock(240bpm)      // bound to main (120bpm), ratio 2.0
+
+    // ── Run envelopes at different speeds ──────────────────────
+    // Default dt=50ms envelope (10 attack ticks, sustain at 0.6)
+    env_normal = envelope(10, 0.6)
+
+    // Exponential decay — fast
+    decay = exp_decay(0.9, dt=20ms)
+
+    // Ramp from 0 to 100 in 10 steps
+    sweep = ramp_gen(0, 100, 10)
+
+    // Print initial state
+    print("env:", env_normal, "decay:", decay, "sweep:", sweep)
+
+    // Show clock hierarchy
+    print("main bpm:", tempo(), "slow:", bpm(slow_clock), "fast:", bpm(fast_clock))
+
+    // Change main tempo → children scale
+    tempo(180bpm)
+    print("after 180bpm: slow:", bpm(slow_clock), "fast:", bpm(fast_clock))
+
+    // Access emitted stage from the envelope
+    print("stage:", env_normal::stage)
+}

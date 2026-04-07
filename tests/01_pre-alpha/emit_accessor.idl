@@ -1,0 +1,17 @@
+// Test: emit accessor via :: operator
+// A temporal function emits a side-channel value; the process block
+// reads it with the :: accessor.
+
+emitter(dt=100ms) = cnt |> {
+    init: {
+        cnt = 0
+        emit incr = 0
+    }
+    emit incr = rnd(1, 5)
+    cnt = cnt + incr
+}
+
+process: {
+    a = emitter()
+    print("count:", a, "incr:", a::incr)
+}

@@ -1,0 +1,8 @@
+func(x) = x * 2
+
+functional(f) = [i = 0 .. 10 : f(i)]
+
+process: {
+    flow_instance = functional(func) 
+    print(flow_instance[3]) // Should print 6
+}

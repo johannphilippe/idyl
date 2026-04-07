@@ -41,6 +41,46 @@ namespace idyl::core {
         // keep-alive behavior: 1 process = unconditional keep-alive.
         int process_count_ = 0;
 
+        // ── Process filter ──────────────────────────────────────────────────────
+        // When non-empty, only process blocks whose name matches are executed.
+        // Empty string = run all process blocks (default).
+        std::string process_filter_;
+
+        // ── Listen mode ─────────────────────────────────────────────────────────
+        // When true, process blocks are stored rather than executed (unless
+        // they match process_filter_).  OSC messages start/stop them later.
+        bool listen_mode_ = false;
+
+        // Stored process block AST nodes keyed by name (listen mode).
+        std::unordered_map<std::string,
+            std::shared_ptr<parser::process_block>> stored_processes_;
+
+        // Active process subscriptions: process name → instance IDs created
+        // when that process was started.  Used by stop_process().
+        std::unordered_map<std::string, std::vector<uint64_t>>
+            active_process_instances_;
+
+        // ── Process start / stop (listen mode) ─────────────────────────────────
+        bool start_process(const std::string& name);
+        bool stop_process(const std::string& name);
+        std::vector<std::string> list_stored_processes() const;
+
+        // ── Instance bindings ───────────────────────────────────────────────────
+        // Maps variable names to temporal instance IDs.  Populated when a
+        // process block creates temporal segments.  Used by the :: accessor
+        // to resolve emitted values: `a::incr` looks up the instance bound
+        // to variable "a" and reads its emitted_ map for "incr".
+        std::unordered_map<std::string, uint64_t> instance_bindings_;
+
+        // ── Clock hierarchy ────────────────────────────────────────────────────
+        // Global clock tree.  A default "main" clock (120 BPM) is created in
+        // run().  `clock()` creates child clocks; `tempo()` sets BPM with
+        // propagation.  All clocks bind to main unless parent= overrides.
+        clock_registry clocks_;
+
+        // Convenience: current main clock BPM.
+        double main_clock_bpm() const { return clocks_.main_bpm(); }
+
         // ── Retick context ─────────────────────────────────────────────────────
         // During a scheduler retick callback, this points to the instance being
         // reticked.  When set, instantiate_temporal() returns the existing

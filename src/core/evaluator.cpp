@@ -16,6 +16,7 @@ namespace idyl::core {
 
 void evaluator::run(const parser::program& program) {
     env_.init();
+    clocks_.init(120.0);  // main clock at 120 BPM
 
     for (const auto& stmt : program.statements_) {
         if (!stmt) continue;
@@ -45,11 +46,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         }
 
         // Otherwise: true function definition — register for call-time evaluation
-        value fn_val;
-        fn_val.type_ = value_t::function;
-        fn_val.number_ = 0.0;
-        fn_val.trigger_ = false;
-        env_.define(def.name_, std::move(fn_val));
+        env_.define(def.name_, value::function_ref(def.name_));
         // Store the AST node pointer for call-time evaluation
         function_defs_[def.name_] =
             std::static_pointer_cast<parser::function_definition>(
@@ -114,8 +111,34 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         auto& proc = static_cast<const parser::process_block&>(*stmt);
         if (!proc.body_) break;
 
+        // ── Listen mode: store blocks for OSC start, pre-start filtered ones ──
+        if (listen_mode_) {
+            bool pre_start = !process_filter_.empty() && proc.name_ == process_filter_;
+            if (!pre_start) {
+                // Store for later start via OSC
+                if (!proc.name_.empty()) {
+                    stored_processes_[proc.name_] =
+                        std::static_pointer_cast<parser::process_block>(
+                            std::const_pointer_cast<parser::node>(
+                                std::shared_ptr<const parser::node>(stmt, &proc)));
+                }
+                break;
+            }
+            // Fall through to execute pre-started process
+        } else {
+            // Normal mode: apply process filter
+            if (!process_filter_.empty() && proc.name_ != process_filter_) break;
+        }
+
         ++process_count_;
         env_.push_scope();
+
+        // ── Evaluate optional duration ─────────────────────────────────────────
+        double dur_ms = 0.0;   // 0 = run forever
+        if (proc.duration_) {
+            value dv = eval_expr(proc.duration_);
+            dur_ms = dv.as_number();   // time → ms, number → raw
+        }
 
         // ── Catch info: monitors an emitted variable from a temporal instance ──
         struct catch_info {
@@ -160,8 +183,12 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
             if (created_instance) {
                 has_temporal = true;
-                segments.push_back({next_instance_id_ - 1, binding_name, s, {}, {}});
+                uint64_t inst_id = next_instance_id_ - 1;
+                segments.push_back({inst_id, binding_name, s, {}, {}});
                 current_seg = &segments.back();
+                // Register binding so the :: accessor can find this instance
+                if (!binding_name.empty())
+                    instance_bindings_[binding_name] = inst_id;
             } else if (current_seg) {
                 // Statement follows a temporal binding → reaction
                 current_seg->reactions.push_back(s);
@@ -207,8 +234,16 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 auto catches    = std::make_shared<std::vector<catch_info>>(std::move(seg.catches));
 
                 inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
-                    [this, def_ptr, weak_inst, var, binding, reactions, catches]
-                    (double /*t*/, double /*dt*/) -> bool {
+                    [this, def_ptr, weak_inst, var, binding, reactions, catches,
+                     dur_ms, start_t = scheduler_->now_ms()]
+                    (double t, double /*dt*/) -> bool {
+                        // ── Duration check ─────────────────────────────────
+                        if (dur_ms > 0.0 && (t - start_t) >= dur_ms) {
+                            auto si = weak_inst.lock();
+                            if (si) si->active_ = false;
+                            return false;
+                        }
+
                         auto si = weak_inst.lock();
                         if (!si || !si->active_) return false;
 
@@ -239,6 +274,13 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         return !should_end;
                     });
             }
+        }
+
+        // Track which instances belong to this process (for stop_process)
+        if (!proc.name_.empty() && has_temporal) {
+            auto& ids = active_process_instances_[proc.name_];
+            for (const auto& seg : segments)
+                ids.push_back(seg.instance_id);
         }
 
         // Keep scope alive for tick callbacks if temporal instances exist
@@ -366,10 +408,18 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
         if (!id_expr.identifier_) return value::nil();
         const std::string& name = id_expr.identifier_->name_;
 
-        // Check scope chain
+        // Check scope chain first (variables, parameters, etc.)
         if (auto* val = env_.lookup(name)) {
             return *val;
         }
+
+        // If the identifier names a known function, return a first-class
+        // function reference value.  This allows functions to be passed
+        // around, stored in flows, and called indirectly.
+        if (env_.lookup_builtin(name))      return value::function_ref(name);
+        if (env_.lookup_module_fn(name))    return value::function_ref(name);
+        if (function_defs_.count(name))     return value::function_ref(name);
+
         warn(expr->line_, expr->column_, "undefined identifier '" + name + "'");
         return value::number(0.0); // safe default
     }
@@ -565,8 +615,73 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
 
     // ── Module access → Phase 2+ stub ──────────────────────────────────────
     case parser::node_t::module_access_expr: {
-        warn(expr->line_, expr->column_, "module calls not yet supported");
-        return value::number(0.0);
+        auto& mae = static_cast<const parser::module_access_expr&>(*expr);
+        if (!mae.access_) return value::nil();
+        auto& acc = *mae.access_;
+
+        // Resolve the left-hand side to a variable name for instance lookup
+        std::string source_var;
+        if (acc.module_ && acc.module_->type_ == parser::node_t::identifier_expr) {
+            auto& ie = static_cast<const parser::identifier_expr&>(*acc.module_);
+            if (ie.identifier_) source_var = ie.identifier_->name_;
+        }
+
+        // ── Emit accessor: var::emitted_name ───────────────────────────
+        // If the left-hand side is a variable bound to a temporal instance,
+        // look up the emitted value from that instance.
+        if (!source_var.empty()) {
+            auto bind_it = instance_bindings_.find(source_var);
+            if (bind_it != instance_bindings_.end()) {
+                auto inst_it = instances_.find(bind_it->second);
+                if (inst_it != instances_.end()) {
+                    auto& inst = *inst_it->second;
+                    auto emit_it = inst.emitted_.find(acc.function_);
+                    if (emit_it != inst.emitted_.end()) {
+                        return emit_it->second;
+                    }
+                    // Not emitted yet — return nil (first tick hasn't happened)
+                    return value::nil();
+                }
+            }
+
+            // ── Namespaced function call: ns::func(...) ────────────────
+            // If it's not an instance binding, try as namespace::function
+            std::string qualified = source_var + "::" + acc.function_;
+            if (!acc.arguments_.empty()) {
+                // Evaluate as a namespaced function call
+                std::vector<value> args;
+                named_args_t named;
+                for (const auto& arg : acc.arguments_) {
+                    if (arg && arg->value_) {
+                        value v = eval_expr(arg->value_);
+                        if (!arg->name_.empty())
+                            named[arg->name_] = std::move(v);
+                        else
+                            args.push_back(std::move(v));
+                    }
+                }
+                if (auto* bi = env_.lookup_builtin(qualified))
+                    return eval_builtin(*bi, args);
+                if (auto* mf = env_.lookup_module_fn(qualified))
+                    return eval_module_fn(*mf, args, expr->line_, expr->column_);
+                auto it = function_defs_.find(qualified);
+                if (it != function_defs_.end() && it->second)
+                    return eval_user_function(*it->second, args, named);
+            } else {
+                // No args — could be a namespaced function ref or value
+                if (auto* val = env_.lookup(qualified))
+                    return *val;
+                if (env_.lookup_builtin(qualified))
+                    return value::function_ref(qualified);
+                if (env_.lookup_module_fn(qualified))
+                    return value::function_ref(qualified);
+                if (function_defs_.count(qualified))
+                    return value::function_ref(qualified);
+            }
+        }
+
+        warn(expr->line_, expr->column_, "cannot resolve '::' access");
+        return value::nil();
     }
 
     default:
@@ -608,10 +723,11 @@ value evaluator::eval_literal(const parser::literal_expr& lit) {
 
 double evaluator::parse_time_to_ms(const std::string& val, const std::string& unit) {
     double v = std::stod(val);
-    if (unit == "ms") return v;
-    if (unit == "s")  return v * 1000.0;
-    if (unit == "hz") return (v > 0.0) ? (1000.0 / v) : 0.0;
-    if (unit == "b")  return v * 500.0; // default: 120 BPM → 1 beat = 500ms
+    if (unit == "ms")  return v;
+    if (unit == "s")   return v * 1000.0;
+    if (unit == "hz")  return (v > 0.0) ? (1000.0 / v) : 0.0;
+    if (unit == "bpm") return (v > 0.0) ? (60000.0 / v) : 0.0;
+    if (unit == "b")   return v * (60000.0 / main_clock_bpm()); // beat duration from main clock
     return v;
 }
 
@@ -643,6 +759,7 @@ value evaluator::apply_binop(const std::string& op, const value& lhs, const valu
                 case value_t::time:    return std::to_string(v.number_) + "ms";
                 case value_t::trigger: return v.trigger_ ? "trigger" : "rest";
                 case value_t::handle:  return v.as_string();
+                case value_t::function: return v.as_string();
                 default:               return "nil";
             }
         };
@@ -766,6 +883,14 @@ value evaluator::eval_call(const parser::function_call& call) {
         return value::number(0.0);
     }
 
+    // ── Indirect call: if the name refers to a variable holding a function
+    //    reference, resolve through the ref to get the actual function name.
+    if (auto* var = env_.lookup(fn_name)) {
+        if (var->type_ == value_t::function && var->string_) {
+            fn_name = *var->string_;
+        }
+    }
+
     // Evaluate arguments — split positional from named
     std::vector<value> args;
     named_args_t named;
@@ -779,6 +904,59 @@ value evaluator::eval_call(const parser::function_call& call) {
                 args.push_back(std::move(v));
             }
         }
+    }
+
+    // ── Clock / tempo intrinsics ────────────────────────────────────────────
+    // These need access to named args and evaluator state, so they are
+    // handled before generic builtin dispatch.
+    if (fn_name == "clock") {
+        // clock(bpm_value)  or  clock(bpm_value, parent=handle)
+        if (args.empty()) {
+            warn(call.line_, call.column_, "clock() requires a BPM argument (e.g. clock(120bpm))");
+            return value::nil();
+        }
+        double period_ms = args[0].as_number();  // bpm literal → period in ms
+        double bpm = (period_ms > 0.0) ? (60000.0 / period_ms) : 120.0;
+
+        // Determine parent: default = main clock
+        uint64_t parent_id = clocks_.main_id_;
+        auto pit = named.find("parent");
+        if (pit != named.end()) {
+            intptr_t h = pit->second.as_handle();
+            parent_id = (h > 0) ? static_cast<uint64_t>(h) : 0;  // 0 = free
+        }
+
+        uint64_t id = clocks_.create(bpm, parent_id);
+        return value::handle(static_cast<intptr_t>(id));
+    }
+
+    if (fn_name == "tempo") {
+        // tempo()              → return main clock BPM
+        // tempo(bpm)           → set main clock BPM, propagate
+        // tempo(handle, bpm)   → set specific clock BPM, propagate
+        if (args.empty()) {
+            return value::number(clocks_.main_bpm());
+        } else if (args.size() == 1) {
+            double period_ms = args[0].as_number();
+            double bpm = (period_ms > 0.0) ? (60000.0 / period_ms) : 120.0;
+            clocks_.set_bpm(clocks_.main_id_, bpm);
+            return value::number(bpm);
+        } else {
+            uint64_t clock_id = static_cast<uint64_t>(args[0].as_handle());
+            double period_ms = args[1].as_number();
+            double bpm = (period_ms > 0.0) ? (60000.0 / period_ms) : 120.0;
+            clocks_.set_bpm(clock_id, bpm);
+            return value::number(bpm);
+        }
+    }
+
+    if (fn_name == "bpm") {
+        // bpm(handle) → query BPM of a clock
+        if (args.empty()) {
+            return value::number(clocks_.main_bpm());
+        }
+        uint64_t clock_id = static_cast<uint64_t>(args[0].as_handle());
+        return value::number(clocks_.bpm(clock_id));
     }
 
     // ── Check builtins first ───────────────────────────────────────────────
@@ -960,19 +1138,27 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
         env_.pop_scope();
     }
 
-    // ── Seed initial output from init state (without running update) ──────
-    // Evaluate only the output expression with the initial state so that
-    // init values are the first values seen (e.g. counter starts at 0,
-    // not 1).  The update block runs on the first scheduler tick.
+    // ── Seed initial output ──────────────────────────────────────────────
+    // With init block: evaluate only the output expression with the initial
+    // state so init values are the first values seen (e.g. counter starts
+    // at 0, not 1).  The update block runs on the first scheduler tick.
+    // Without init block: run the first update tick immediately — there is
+    // no init state to show, so the function starts computing at step 0.
     if (def.lambda_block_ && def.body_) {
-        env_.push_scope();
-        for (auto& [name, val] : inst->params_)
-            env_.define(name, val);
-        for (auto& [name, val] : inst->current_)
-            env_.define(name, val);
-        value output = eval_expr(def.body_);
-        inst->write_output(std::move(output));
-        env_.pop_scope();
+        if (def.lambda_block_->init_) {
+            // Has init: seed output from init state, first update after dt
+            env_.push_scope();
+            for (auto& [name, val] : inst->params_)
+                env_.define(name, val);
+            for (auto& [name, val] : inst->current_)
+                env_.define(name, val);
+            value output = eval_expr(def.body_);
+            inst->write_output(std::move(output));
+            env_.pop_scope();
+        } else {
+            // No init: run first update immediately (no dt delay)
+            tick_instance(*inst, def);
+        }
     }
 
     // Constant temporal (no lambda block): evaluate body for initial output
@@ -1109,6 +1295,58 @@ void evaluator::print_warnings() const {
         std::cerr << w.line_ << "." << w.column_ << ": runtime warning: "
                   << w.message_ << "\n";
     }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Process start / stop (listen mode)
+// ════════════════════════════════════════════════════════════════════════════════
+
+bool evaluator::start_process(const std::string& name) {
+    auto it = stored_processes_.find(name);
+    if (it == stored_processes_.end()) return false;
+
+    // If already running, stop first
+    if (active_process_instances_.count(name))
+        stop_process(name);
+
+    // Temporarily disable listen mode so exec_stmt actually runs the block
+    auto saved_filter = process_filter_;
+    auto saved_listen = listen_mode_;
+    process_filter_ = name;
+    listen_mode_ = false;
+
+    exec_stmt(std::static_pointer_cast<parser::statement>(it->second));
+
+    process_filter_ = saved_filter;
+    listen_mode_ = saved_listen;
+    return true;
+}
+
+bool evaluator::stop_process(const std::string& name) {
+    auto it = active_process_instances_.find(name);
+    if (it == active_process_instances_.end()) return false;
+
+    for (uint64_t inst_id : it->second) {
+        auto inst_it = instances_.find(inst_id);
+        if (inst_it == instances_.end()) continue;
+
+        auto& inst = inst_it->second;
+        inst->active_ = false;
+
+        if (scheduler_ && inst->subscription_id_ != 0)
+            scheduler_->unsubscribe(inst->subscription_id_);
+    }
+
+    active_process_instances_.erase(it);
+    return true;
+}
+
+std::vector<std::string> evaluator::list_stored_processes() const {
+    std::vector<std::string> names;
+    names.reserve(stored_processes_.size());
+    for (const auto& [name, _] : stored_processes_)
+        names.push_back(name);
+    return names;
 }
 
 } // --- idyl::core ---

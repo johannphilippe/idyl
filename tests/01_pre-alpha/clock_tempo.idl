@@ -1,0 +1,44 @@
+// ── Clock & Tempo System ────────────────────────────────────────
+// Tests: bpm literal, clock(), tempo(), parent hierarchy, propagation
+
+process: {
+    // 1. Check default main tempo
+    print("main tempo:", tempo())
+
+    // 2. bpm literal → time value (period in ms)
+    //    120bpm → 500ms period,  60bpm → 1000ms period
+    print("120bpm period:", 120bpm)
+    print("60bpm period:", 60bpm)
+
+    // 3. Create clocks bound to main (default parent)
+    c1 = clock(60bpm)
+    c2 = clock(90bpm)
+    print("c1 handle:", c1)
+    print("c2 handle:", c2)
+
+    // 4. Query tempo of main
+    print("main bpm:", tempo())
+
+    // 5. Set main to 120bpm → c1 should scale to 60, c2 to 90
+    //    (they were created when main was 120, so ratios are 0.5 and 0.75)
+    tempo(120bpm)
+    print("after tempo(120bpm):", tempo())
+
+    // 6. Now change main to 240bpm
+    //    c1 ratio = 60/120 = 0.5 → new c1 = 240*0.5 = 120
+    //    c2 ratio = 90/120 = 0.75 → new c2 = 240*0.75 = 180
+    tempo(240bpm)
+    print("after tempo(240bpm):", tempo())
+
+    // 7. Create a clock with explicit parent
+    c3 = clock(45bpm, parent=c1)
+    print("c3 handle:", c3)
+
+    // 8. Create a free-running clock (parent=0)
+    c4 = clock(100bpm, parent=0)
+    print("c4 handle:", c4)
+
+    // 9. Set tempo on a specific clock
+    tempo(c1, 60bpm)
+    print("after tempo(c1, 60bpm):", tempo())
+}

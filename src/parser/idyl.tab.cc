@@ -2404,6 +2404,9 @@ namespace yy {
         } else if (str.find("hz") != std::string::npos) {
             time->value_ = str.substr(0, str.length() - 2);
             time->unit_ = "hz";
+        } else if (str.find("bpm") != std::string::npos) {
+            time->value_ = str.substr(0, str.length() - 3);
+            time->unit_ = "bpm";
         } else if (str.find("b") != std::string::npos) {
             time->value_ = str.substr(0, str.length() - 1);
             time->unit_ = "b";
@@ -2419,11 +2422,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2423 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2426 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 110: // primary_expression: TRIGGER
-#line 1180 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1183 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto trigger = std::make_shared<idyl::parser::trigger_literal>();
         trigger->line_ = yystack_[0].location.begin.line;
@@ -2434,11 +2437,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2438 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2441 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 111: // primary_expression: REST
-#line 1191 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1194 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto rest = std::make_shared<idyl::parser::rest_literal>();
         rest->line_ = yystack_[0].location.begin.line;
@@ -2449,11 +2452,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2453 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2456 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 112: // primary_expression: DT
-#line 1202 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1205 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dt";
@@ -2465,11 +2468,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2469 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2472 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 113: // primary_expression: DUR
-#line 1214 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1217 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dur";
@@ -2481,11 +2484,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2485 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2488 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 114: // primary_expression: STRING_LITERAL
-#line 1226 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1229 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto str = std::make_shared<idyl::parser::string_literal>();
         str->value_ = yystack_[0].value.as < std::string > ();
@@ -2497,11 +2500,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2501 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2504 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 115: // primary_expression: LPAREN expression RPAREN
-#line 1238 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1241 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto paren = std::make_shared<idyl::parser::parenthesized_expr>();
         paren->expr_ = yystack_[1].value.as < idyl::parser::expr_ptr > ();
@@ -2509,38 +2512,38 @@ namespace yy {
         paren->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = paren;
     }
-#line 2513 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2516 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 116: // primary_expression: flow_literal
-#line 1245 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1248 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                    { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2519 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2522 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 117: // primary_expression: generator_expression
-#line 1246 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1249 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                            { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2525 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2528 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 118: // argument_list: argument_list COMMA argument
-#line 1251 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1254 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > () = yystack_[2].value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > ();
         if (yystack_[0].value.as < std::shared_ptr<idyl::parser::argument> > ()) yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > ().push_back(yystack_[0].value.as < std::shared_ptr<idyl::parser::argument> > ());
     }
-#line 2534 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2537 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 119: // argument_list: argument
-#line 1255 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1258 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                { yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > () = {yystack_[0].value.as < std::shared_ptr<idyl::parser::argument> > ()}; }
-#line 2540 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2543 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 120: // argument: expression
-#line 1260 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1263 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = "";
@@ -2549,11 +2552,11 @@ namespace yy {
         arg->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 2553 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2556 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 121: // argument: IDENTIFIER ASSIGN expression
-#line 1269 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1272 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = yystack_[2].value.as < std::string > ();
@@ -2562,11 +2565,11 @@ namespace yy {
         arg->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 2566 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2569 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 122: // argument: DT ASSIGN expression
-#line 1278 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1281 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = "dt";
@@ -2575,11 +2578,11 @@ namespace yy {
         arg->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 2579 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2582 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
 
-#line 2583 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2586 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
 
             default:
               break;
@@ -3260,8 +3263,8 @@ namespace yy {
      807,   821,   835,   849,   866,   867,   881,   898,   899,   913,
      930,   931,   945,   959,   976,   977,   990,  1003,  1015,  1031,
     1032,  1045,  1058,  1071,  1085,  1099,  1113,  1129,  1141,  1153,
-    1179,  1190,  1201,  1213,  1225,  1237,  1245,  1246,  1250,  1255,
-    1259,  1268,  1277
+    1182,  1193,  1204,  1216,  1228,  1240,  1248,  1249,  1253,  1258,
+    1262,  1271,  1280
   };
 
   void
@@ -3293,9 +3296,9 @@ namespace yy {
 
 
 } // yy
-#line 3297 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 3300 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
 
-#line 1288 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1291 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
 
 
 void yy::parser::error(const location_type& l, const std::string& m) {

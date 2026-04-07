@@ -1,0 +1,6 @@
+# Map Idyl source files for GitHub Linguist
+*.idl linguist-language=Idyl
+
+# Use the TextMate grammar in the VS Code extension for highlighting
+# (GitHub will not highlight unknown languages in fenced blocks, but
+#  .idl files viewed on GitHub will be classified correctly.)

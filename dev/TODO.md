@@ -80,6 +80,35 @@ Implementation:
 
 ## Catch 
 
+Catch will actually catch values emitted from a function with emit statement. 
+There should be several syntax allowed : 
+1. Simple catch
+```idyl
+process: {
+    a = some_function()
+    a catch stop : {
+    // This block is executed when stop is triggered 
+    }
+}
+```
+
+```idyl
+some_other_function() = cnt |> {
+    init: {
+        cnt = 0 
+        emit incr = rnd(int(1), int(10))
+        }
+    cnt = cnt + incr
+
+}
+some_function() = some_other_function() * catch (incr)
+again_another_function() = some_other_function() catch (incr as i) / myrand
+|> {
+    init: {myrand = rnd(0, i)}
+}
+```
+
+
 Several catches should be implemented. 
 Catch system will be used to catch special events (end, trigger, anything)
 They will also be able to capture emitted values (from emit statement)

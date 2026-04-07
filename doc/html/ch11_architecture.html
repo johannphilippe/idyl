@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Idƴl Documentation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        background-color: #ffffff;
+        color: #a0a0a0;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #a0a0a0;  padding-left: 4px; }
+    div.sourceCode
+      { color: #1f1c1b; background-color: #ffffff; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span { color: #1f1c1b; } /* Normal */
+    code span.al { color: #bf0303; background-color: #f7e6e6; font-weight: bold; } /* Alert */
+    code span.an { color: #ca60ca; } /* Annotation */
+    code span.at { color: #0057ae; } /* Attribute */
+    code span.bn { color: #b08000; } /* BaseN */
+    code span.bu { color: #644a9b; font-weight: bold; } /* BuiltIn */
+    code span.cf { color: #1f1c1b; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #924c9d; } /* Char */
+    code span.cn { color: #aa5500; } /* Constant */
+    code span.co { color: #898887; } /* Comment */
+    code span.cv { color: #0095ff; } /* CommentVar */
+    code span.do { color: #607880; } /* Documentation */
+    code span.dt { color: #0057ae; } /* DataType */
+    code span.dv { color: #b08000; } /* DecVal */
+    code span.er { color: #bf0303; text-decoration: underline; } /* Error */
+    code span.ex { color: #0095ff; font-weight: bold; } /* Extension */
+    code span.fl { color: #b08000; } /* Float */
+    code span.fu { color: #644a9b; } /* Function */
+    code span.im { color: #ff5500; } /* Import */
+    code span.in { color: #b08000; } /* Information */
+    code span.kw { color: #1f1c1b; font-weight: bold; } /* Keyword */
+    code span.op { color: #1f1c1b; } /* Operator */
+    code span.ot { color: #006e28; } /* Other */
+    code span.pp { color: #006e28; } /* Preprocessor */
+    code span.re { color: #0057ae; background-color: #e0e9f8; } /* RegionMarker */
+    code span.sc { color: #3daee9; } /* SpecialChar */
+    code span.ss { color: #ff5500; } /* SpecialString */
+    code span.st { color: #bf0303; } /* String */
+    code span.va { color: #0057ae; } /* Variable */
+    code span.vs { color: #bf0303; } /* VerbatimString */
+    code span.wa { color: #bf0303; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Idƴl Documentation</h1>
+</header>
+<h1 id="architecture">11 — Architecture</h1>
+<p><a href="idyl_documentation.md">← Back to index</a> · <a
+href="ch10_modules_libraries.md">Previous: Modules &amp;
+libraries</a></p>
+<hr />
+<p>This chapter describes the internal pipeline of the Idƴl
+implementation. It is intended for contributors and anyone interested in
+how the language works under the hood.</p>
+<hr />
+<h2 id="pipeline-overview">Pipeline overview</h2>
+<pre><code>Source (.idl)
+    │
+    ▼
+┌─────────┐
+│  Lexer   │   Flex — tokenises input
+└────┬─────┘
+     │ tokens
+     ▼
+┌─────────┐
+│  Parser  │   Bison — builds AST
+└────┬─────┘
+     │ AST
+     ▼
+┌──────────────────┐
+│ Semantic Analyzer │   7 passes over the AST
+└────┬─────────────┘
+     │ validated AST
+     ▼
+┌───────────┐
+│ Evaluator  │   Tree-walking interpreter + scheduler
+└───────────┘</code></pre>
+<hr />
+<h2 id="lexer-flex">Lexer (Flex)</h2>
+<p>The lexer is defined in <code>src/parser/idyl.l</code>. It
+recognises:</p>
+<ul>
+<li>Keywords: <code>process</code>, <code>init</code>,
+<code>emit</code>, <code>catch</code>, <code>lib</code>,
+<code>module</code>, <code>clock</code>, <code>tempo</code></li>
+<li>Literals: numbers, time suffixes (<code>ms</code>, <code>s</code>,
+<code>hz</code>, <code>b</code>, <code>bpm</code>), strings, triggers
+(<code>!</code>), rest (<code>_</code>)</li>
+<li>Operators: <code>|&gt;</code>, <code>::</code>, arithmetic,
+comparison, bitwise</li>
+<li>Structural tokens: braces, brackets, commas, colons, equals</li>
+</ul>
+<p>The lexer produces tokens consumed by the Bison parser.</p>
+<hr />
+<h2 id="parser-bison">Parser (Bison)</h2>
+<p>The parser is defined in <code>src/parser/idyl.y</code>. It builds an
+<strong>Abstract Syntax Tree</strong> (AST) from token streams. Key AST
+node types (defined in <code>src/parser/ast.hpp</code>):</p>
+<table>
+<thead>
+<tr class="header">
+<th>Node type</th>
+<th>Represents</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>NumberLiteral</code></td>
+<td>Numeric value</td>
+</tr>
+<tr class="even">
+<td><code>TimeLiteral</code></td>
+<td>Time value with unit</td>
+</tr>
+<tr class="odd">
+<td><code>StringLiteral</code></td>
+<td>Quoted string</td>
+</tr>
+<tr class="even">
+<td><code>TriggerLiteral</code></td>
+<td><code>!</code> trigger value</td>
+</tr>
+<tr class="odd">
+<td><code>RestLiteral</code></td>
+<td><code>_</code> rest value</td>
+</tr>
+<tr class="even">
+<td><code>Identifier</code></td>
+<td>Variable reference</td>
+</tr>
+<tr class="odd">
+<td><code>BinaryExpr</code></td>
+<td>Binary operation</td>
+</tr>
+<tr class="even">
+<td><code>UnaryExpr</code></td>
+<td>Unary operation</td>
+</tr>
+<tr class="odd">
+<td><code>TernaryExpr</code></td>
+<td>2-way ternary</td>
+</tr>
+<tr class="even">
+<td><code>MultiTernaryExpr</code></td>
+<td>Multi-way ternary</td>
+</tr>
+<tr class="odd">
+<td><code>FunctionCall</code></td>
+<td><code>f(args)</code></td>
+</tr>
+<tr class="even">
+<td><code>FunctionDef</code></td>
+<td><code>f(params) = body</code></td>
+</tr>
+<tr class="odd">
+<td><code>TemporalLambda</code></td>
+<td><code>f(dt=...) = v \|&gt; { ... }</code></td>
+</tr>
+<tr class="even">
+<td><code>FlowLiteral</code></td>
+<td><code>[1, 2, 3]</code></td>
+</tr>
+<tr class="odd">
+<td><code>GeneratorExpr</code></td>
+<td><code>[x = 0..n : expr]</code></td>
+</tr>
+<tr class="even">
+<td><code>ProcessBlock</code></td>
+<td><code>process name: { ... }</code></td>
+</tr>
+<tr class="odd">
+<td><code>InitBlock</code></td>
+<td><code>init: { ... }</code></td>
+</tr>
+<tr class="even">
+<td><code>EmitStmt</code></td>
+<td><code>emit name = expr</code></td>
+</tr>
+<tr class="odd">
+<td><code>CatchBlock</code></td>
+<td><code>instance catch name: { ... }</code></td>
+</tr>
+<tr class="even">
+<td><code>EmitAccess</code></td>
+<td><code>instance::name</code></td>
+</tr>
+<tr class="odd">
+<td><code>Assignment</code></td>
+<td><code>x = expr</code></td>
+</tr>
+<tr class="even">
+<td><code>LibImport</code></td>
+<td><code>lib("path")</code></td>
+</tr>
+<tr class="odd">
+<td><code>ModuleImport</code></td>
+<td><code>module("name")</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="semantic-analyzer">Semantic analyzer</h2>
+<p>The semantic analyzer (<code>src/semantic/analyzer.cpp</code>)
+performs <strong>7 ordered passes</strong>:</p>
+<h3 id="pass-1-library-collection">Pass 1 — Library collection</h3>
+<p>Collects all <code>lib()</code> imports, resolves paths, detects
+circular dependencies.</p>
+<h3 id="pass-2-module-collection">Pass 2 — Module collection</h3>
+<p>Collects <code>module()</code> imports, validates module names.</p>
+<h3 id="pass-3-top-level-binding">Pass 3 — Top-level binding</h3>
+<p>Registers all top-level names (functions, constants, process blocks)
+into the global scope.</p>
+<h3 id="pass-4-function-analysis">Pass 4 — Function analysis</h3>
+<p>Validates function definitions: parameter counts, default values,
+return types. Checks for recursion and undefined references.</p>
+<h3 id="pass-5-temporal-analysis">Pass 5 — Temporal analysis</h3>
+<p>Validates temporal lambdas: ensures <code>dt=</code> or trigger
+parameters are present, checks init blocks, validates state variable
+usage.</p>
+<h3 id="pass-6-flow-analysis">Pass 6 — Flow analysis</h3>
+<p>Validates flow literals and generators: checks bounds, member names,
+access patterns.</p>
+<h3 id="pass-7-process-block-analysis">Pass 7 — Process block
+analysis</h3>
+<p>Validates process block contents: ensures temporal functions are
+properly instantiated, checks emit/catch consistency, validates duration
+expressions.</p>
+<p>Each pass uses the <strong>scope system</strong>
+(<code>src/semantic/scope.hpp</code>) and <strong>symbol table</strong>
+(<code>src/semantic/symbol.hpp</code>) to track declarations and detect
+errors before evaluation begins.</p>
+<hr />
+<h2 id="evaluator">Evaluator</h2>
+<p>The evaluator (<code>src/core/core.hpp</code>) is a
+<strong>tree-walking interpreter</strong>. It traverses the AST and
+executes nodes directly.</p>
+<h3 id="key-components">Key components</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Environment</code></td>
+<td>Scope chain for variable lookup</td>
+</tr>
+<tr class="even">
+<td><code>Scheduler</code></td>
+<td>Drift-free timer management</td>
+</tr>
+<tr class="odd">
+<td><code>ClockRegistry</code></td>
+<td>Clock hierarchy and tempo propagation</td>
+</tr>
+<tr class="even">
+<td><code>ModuleRegistry</code></td>
+<td>Loaded module handles</td>
+</tr>
+<tr class="odd">
+<td><code>ProcessStore</code></td>
+<td>Named process blocks for listen mode</td>
+</tr>
+</tbody>
+</table>
+<h3 id="evaluation-model">Evaluation model</h3>
+<ol type="1">
+<li><strong>Constants and functions</strong> are evaluated once and
+stored in the environment</li>
+<li><strong>Temporal lambdas</strong> are instantiated: their init
+blocks run, then they are registered with the scheduler at their
+<code>dt</code> interval</li>
+<li><strong>Reactive bindings</strong>
+(<code>osc_send(osc, addr, temporal_fn)</code>) subscribe to the
+temporal function’s output — each time the scheduler ticks the function,
+downstream consumers see the new value</li>
+<li><strong>Process blocks</strong> orchestrate the above — each block
+is an independent execution context</li>
+</ol>
+<h3 id="temporal-instantiation">Temporal instantiation</h3>
+<p>When the evaluator encounters a temporal lambda:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">freq</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> v <span class="op">|&gt;</span> {</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { v <span class="op">=</span> <span class="dv">440</span> }</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> v <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>It performs these steps:</p>
+<ol type="1">
+<li>Evaluate the <code>dt</code> expression → 10ms</li>
+<li>Run the <code>init</code> block → set <code>v = 440</code> in the
+lambda’s local scope</li>
+<li>Register the lambda with the scheduler at 10ms intervals</li>
+<li>Return a <strong>handle</strong> that downstream expressions can
+read</li>
+</ol>
+<h3 id="the-scheduler">The scheduler</h3>
+<p>The scheduler is <strong>drift-free</strong>: it tracks elapsed time
+against the system clock rather than accumulating intervals. This
+prevents timing drift over long runs.</p>
+<p>Each tick:</p>
+<ol type="1">
+<li>Compute actual elapsed time since start</li>
+<li>For each registered lambda, check if its next fire time has
+passed</li>
+<li>If so, execute the lambda body and advance its next fire time</li>
+<li>Collect outputs for reactive consumers</li>
+</ol>
+<p>The scheduler runs in a tight loop with a configurable sleep
+granularity to balance CPU usage against timing precision.</p>
+<hr />
+<h2 id="trace-mode">Trace mode</h2>
+<p>The <code>--trace</code> flag enables diagnostic output during
+evaluation:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> program.idl <span class="at">--trace</span></span></code></pre></div>
+<p>This prints: - Each scheduler tick with timestamps - Temporal
+function evaluations and their outputs - OSC messages sent - Clock tempo
+changes</p>
+<p>Useful for debugging timing issues and understanding program
+behavior.</p>
+<hr />
+<h2 id="comparable-systems">Comparable systems</h2>
+<p>Idƴl draws inspiration from several domains:</p>
+<table>
+<thead>
+<tr class="header">
+<th>System</th>
+<th>Shared concept</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>ChucK</strong></td>
+<td>Strongly-timed audio programming</td>
+</tr>
+<tr class="even">
+<td><strong>SuperCollider</strong></td>
+<td>OSC integration, server architecture</td>
+</tr>
+<tr class="odd">
+<td><strong>Tidal Cycles</strong></td>
+<td>Pattern-based temporal sequencing</td>
+</tr>
+<tr class="even">
+<td><strong>Faust</strong></td>
+<td>Functional signal processing</td>
+</tr>
+<tr class="odd">
+<td><strong>Max/MSP</strong></td>
+<td>Dataflow, real-time scheduling</td>
+</tr>
+</tbody>
+</table>
+<p>The key differentiator is Idƴl’s approach to <strong>temporal
+functions as first-class values</strong> — time is embedded in the
+function definition itself, not managed externally.</p>
+<hr />
+<p><a href="idyl_documentation.md">← Back to index</a></p>
+</body>
+</html>

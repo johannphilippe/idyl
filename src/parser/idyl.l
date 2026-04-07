@@ -80,6 +80,7 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 {NUMBER}"ms"    { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 {NUMBER}"s"     { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 {NUMBER}"hz"    { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
+{NUMBER}"bpm"   { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 {NUMBER}"b"     { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 
 "\""[^"]*"\""   {

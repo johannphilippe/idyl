@@ -1161,6 +1161,9 @@ primary_expression
         } else if (str.find("hz") != std::string::npos) {
             time->value_ = str.substr(0, str.length() - 2);
             time->unit_ = "hz";
+        } else if (str.find("bpm") != std::string::npos) {
+            time->value_ = str.substr(0, str.length() - 3);
+            time->unit_ = "bpm";
         } else if (str.find("b") != std::string::npos) {
             time->value_ = str.substr(0, str.length() - 1);
             time->unit_ = "b";
