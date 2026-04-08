@@ -1,14 +1,10 @@
 # ⟡ Idƴl
 
-A language for moments, intervals, and motion.
+A programming language for time description.
 
 Idƴl is a functional, time-aware language designed for scheduling, composition, and reactive behavior. Time is not an afterthought bolted onto a general-purpose runtime — it is the material the language is made of. Functions describe shape, temporal functions describe change, and process blocks set them in motion.
 
 The engine underneath is a high-accuracy system-clock scheduler that drives temporal functions at precise intervals. Idƴl describes time. The scheduler executes it.
-
-> Somewhere between a programming language and a score,  
-> Idƴl is a quiet place to think about signals and durations,  
-> about things that rise and decay, and the spaces between them.
 
 ---
 
