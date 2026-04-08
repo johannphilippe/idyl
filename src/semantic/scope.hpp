@@ -74,18 +74,9 @@ namespace idyl::semantic {
                 define(name, symbol_info{symbol_t::local_variable, name});
             }
 
-            // Register module functions so the analyzer recognizes them
-            if (module_registry_) {
-                for (const auto& [name, entry] : module_registry_->all()) {
-                    symbol_info si;
-                    si.type_ = symbol_t::builtin;
-                    si.name_ = name;
-                    si.arity_ = entry.max_arity_;
-                    si.required_arity_ = entry.min_arity_;
-                    si.inferred_type_ = inferred_t::function;
-                    define(name, std::move(si));
-                }
-            }
+            // Module functions are no longer pre-registered here.
+            // They are registered during global_scope_pass when the program
+            // calls module("name"), via analyzer.cpp module_import handling.
         }
 
         // Global lookup: search from innermost to outermost scope

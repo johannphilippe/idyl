@@ -1,5 +1,6 @@
 #include "semantic/analyzer.hpp"
 #include "parser/ast.hpp"
+#include "core/core.hpp"
 #include <iostream>
 #include <string>
 
@@ -90,6 +91,20 @@ namespace idyl {
             case semantic::inferred_t::module:   return "module";
         }
         return "unknown";
+    }
+
+    inline std::string resolve_value_t(core::value_t type) {
+        switch (type) {
+            case core::value_t::number: return "number";
+            case core::value_t::time: return "time";
+            case core::value_t::trigger: return "trigger";
+            case core::value_t::string: return "string";
+            case core::value_t::flow: return "flow";
+            case core::value_t::function: return "function";
+            case core::value_t::module: return "module";
+            case core::value_t::handle: return "handle";
+            default: return "unknown";
+        }
     }
 
     inline void print_diagnostic(const idyl::semantic::analyzer::diagnostic& d) 

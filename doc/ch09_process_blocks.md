@@ -46,9 +46,9 @@ process lead: {
 Run only one:
 
 ```bash
-idyl song.idl --process drums
+idyl song.idyl --process drums
 # or
-idyl song.idl -p drums
+idyl song.idyl -p drums
 ```
 
 When `--process` is not specified, **all** process blocks run.
@@ -85,10 +85,10 @@ When the elapsed time exceeds the duration, the evaluator automatically unsubscr
 The `--listen` flag starts the program without running any process blocks. Instead, it waits for **OSC commands** to start and stop them on demand.
 
 ```bash
-idyl song.idl --listen          # default port 7771
-idyl song.idl --listen 9090     # custom port
-idyl song.idl -l                # short form
-idyl song.idl -l 9090
+idyl song.idyl --listen          # default port 7771
+idyl song.idyl --listen 9090     # custom port
+idyl song.idyl -l                # short form
+idyl song.idyl -l 9090
 ```
 
 ### OSC commands
@@ -104,7 +104,7 @@ idyl song.idl -l 9090
 Terminal 1:
 
 ```bash
-idyl song.idl --listen 7771
+idyl song.idyl --listen 7771
 # Output:
 # idyl: listening on port 7771
 # Stored process blocks: drums, bass, lead
@@ -124,7 +124,7 @@ oscsend localhost 7771 /idyl/process/list
 You can pre-start specific process blocks while in listen mode:
 
 ```bash
-idyl song.idl --listen --process drums
+idyl song.idyl --listen --process drums
 ```
 
 This starts `drums` immediately and waits for OSC commands to start/stop others.

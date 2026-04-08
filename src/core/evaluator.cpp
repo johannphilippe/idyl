@@ -3,6 +3,7 @@
 #include "utilities/safety.hpp"
 #include "utilities/filesystem.hpp"
 #include "parser/parse.hpp"
+#include "debug.hpp"
 
 #include <cmath>
 #include <algorithm>
@@ -215,6 +216,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
         // Subscribe each segment's temporal source to the scheduler.
         // On each tick: update instance → update bound variable → re-run reactions → check catches.
+        // Also, update parameters of temporal instances on each tick so they can be used in reactions and catches.
         if (scheduler_ && has_temporal) {
             for (auto& seg : segments) {
                 auto inst_it = instances_.find(seg.instance_id);
@@ -331,22 +333,49 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
         // Execute every statement in the library (registers functions, flows, etc.)
         const std::string& ns = li.namespace_;
+
+        // When a namespace is given, build a library-local scope: a map from
+        // each original (unqualified) function name to a function_ref pointing
+        // at the qualified name (ns::name).  This scope is pushed around tick
+        // and body evaluation so that library-internal cross-calls (e.g. lfo
+        // calling sine_shape) resolve correctly without leaking bare names into
+        // global scope.
+        lib_scope_ptr lib_scope;
+        if (!ns.empty()) {
+            lib_scope = std::make_shared<lib_scope_t>();
+            for (const auto& s : lib_program->statements_) {
+                if (!s) continue;
+                if (s->type_ == parser::node_t::function_definition) {
+                    auto fn = std::static_pointer_cast<parser::function_definition>(s);
+                    std::string qname = ns + "::" + fn->name_;
+                    (*lib_scope)[fn->name_] = value::function_ref(qname);
+                } else if (s->type_ == parser::node_t::flow_definition) {
+                    auto fl = std::static_pointer_cast<parser::flow_definition>(s);
+                    std::string qname = ns + "::" + fl->name_;
+                    (*lib_scope)[fl->name_] = value::function_ref(qname);
+                }
+            }
+        }
+
         for (const auto& lib_stmt : lib_program->statements_) {
             if (!lib_stmt) continue;
 
-            // If namespaced, we need to prefix function names
             if (!ns.empty() && lib_stmt->type_ == parser::node_t::function_definition) {
                 auto def_ptr = std::static_pointer_cast<parser::function_definition>(lib_stmt);
                 std::string original_name = def_ptr->name_;
-                def_ptr->name_ = ns + "::" + original_name;
+                std::string qname = ns + "::" + original_name;
+                // Register under qualified name; restore AST node name after.
+                def_ptr->name_ = qname;
                 exec_stmt(lib_stmt);
-                def_ptr->name_ = original_name; // restore
+                def_ptr->name_ = original_name;
+                // Record the lib scope so instantiate_temporal can attach it.
+                fn_library_scope_[qname] = lib_scope;
             } else if (!ns.empty() && lib_stmt->type_ == parser::node_t::flow_definition) {
                 auto def_ptr = std::static_pointer_cast<parser::flow_definition>(lib_stmt);
                 std::string original_name = def_ptr->name_;
                 def_ptr->name_ = ns + "::" + original_name;
                 exec_stmt(lib_stmt);
-                def_ptr->name_ = original_name; // restore
+                def_ptr->name_ = original_name;
             } else {
                 exec_stmt(lib_stmt);
             }
@@ -354,31 +383,33 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         break;
     }
 
-    // ── External module imports → dlopen + register at runtime ─────────────
+    // ── Module imports → built-in catalog or external dlopen ───────────────
     case parser::node_t::module_import: {
         auto& mi = static_cast<const parser::module_import&>(*stmt);
-        std::string path = mi.path_;
+        if (!env_.module_registry_) break;
 
-        // Resolve module path (expands to ~/.idyl/modules/<name>.so etc.)
+        // ── Built-in module (catalog) ──────────────────────────────────────
+        if (env_.module_registry_->has_builtin(mi.path_)) {
+            std::string err = env_.module_registry_->load_builtin(mi.path_, mi.namespace_);
+            if (!err.empty())
+                warnings_.push_back({mi.line_, mi.column_, err});
+            break;
+        }
+
+        // ── External (.so) module ──────────────────────────────────────────
+        std::string path = mi.path_;
         if (!idyl::utilities::get_module_path(path)) {
             warnings_.push_back({mi.line_, mi.column_,
                 "Module '" + mi.path_ + "' not found — skipping."});
             break;
         }
+        if (env_.module_registry_->is_loaded(path)) break;
 
-        // Already loaded? Skip (idempotent)
-        if (env_.module_registry_ && env_.module_registry_->is_loaded(path)) {
-            break;
-        }
-
-        if (env_.module_registry_) {
-            std::string err = env_.module_registry_->load_external(path, mi.namespace_);
-            if (!err.empty()) {
-                warnings_.push_back({mi.line_, mi.column_, err});
-            } else {
-                env_.module_registry_->mark_loaded(path);
-            }
-        }
+        std::string err = env_.module_registry_->load_external(path, mi.namespace_);
+        if (!err.empty())
+            warnings_.push_back({mi.line_, mi.column_, err});
+        else
+            env_.module_registry_->mark_loaded(path);
         break;
     }
 
@@ -666,7 +697,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     return eval_module_fn(*mf, args, expr->line_, expr->column_);
                 auto it = function_defs_.find(qualified);
                 if (it != function_defs_.end() && it->second)
-                    return eval_user_function(*it->second, args, named);
+                    return eval_user_function(*it->second, args, named, qualified);
             } else {
                 // No args — could be a namespaced function ref or value
                 if (auto* val = env_.lookup(qualified))
@@ -972,7 +1003,9 @@ value evaluator::eval_call(const parser::function_call& call) {
     // ── Check user-defined functions ───────────────────────────────────────
     auto it = function_defs_.find(fn_name);
     if (it != function_defs_.end() && it->second) {
-        return eval_user_function(*it->second, args, named);
+        // Pass fn_name as the qualified_key so temporal instances get the right
+        // def_name_ (the key that function_defs_ and fn_library_scope_ use).
+        return eval_user_function(*it->second, args, named, fn_name);
     }
 
     warn(call.line_, call.column_, "undefined function '" + fn_name + "'");
@@ -1013,10 +1046,11 @@ value evaluator::eval_module_fn(const module::function_entry& fn,
 
 value evaluator::eval_user_function(const parser::function_definition& def,
                                     const std::vector<value>& args,
-                                    const named_args_t& named) {
+                                    const named_args_t& named,
+                                    const std::string& qualified_key) {
     // Temporal function: has |> lambda block → instantiate with scheduler
     if (def.lambda_block_) {
-        return instantiate_temporal(def, args, named);
+        return instantiate_temporal(def, args, named, qualified_key);
     }
 
     // Constant temporal: no lambda block but has a dt parameter
@@ -1026,7 +1060,7 @@ value evaluator::eval_user_function(const parser::function_definition& def,
         if (p && (p->name_ == "dt" || p->has_default_time_)) { has_dt = true; break; }
     }
     if (has_dt) {
-        return instantiate_temporal(def, args, named);
+        return instantiate_temporal(def, args, named, qualified_key);
     }
 
     if (!def.body_) return value::nil();
@@ -1066,19 +1100,32 @@ value evaluator::eval_user_function(const parser::function_definition& def,
 
 value evaluator::instantiate_temporal(const parser::function_definition& def,
                                       const std::vector<value>& args,
-                                      const named_args_t& named) {
+                                      const named_args_t& named,
+                                      const std::string& qualified_key) {
     // ── Retick mode: return existing instance output ────────────────────
     // During a scheduler callback, the binding expression is re-evaluated.
     // The temporal call (e.g. lfo(1hz)) must return the already-ticked
     // instance output rather than creating a duplicate instance.
-    if (retick_instance_ && retick_instance_->def_name_ == def.name_) {
+    // The canonical key for this function in function_defs_ is the qualified
+    // name when loaded from a namespaced library, otherwise def.name_.
+    const std::string& canon_key = qualified_key.empty() ? def.name_ : qualified_key;
+
+    if (retick_instance_ && retick_instance_->def_name_ == canon_key) {
         return retick_instance_->read_output();
     }
 
     auto inst = std::make_shared<function_instance>();
     inst->id_ = next_instance_id_++;
     inst->active_ = true;
-    inst->def_name_ = def.name_;
+    // Store the qualified key so the process-block subscription lookup finds
+    // the right entry in function_defs_ even for namespaced library functions.
+    inst->def_name_ = canon_key;
+    // Attach library-local scope if this function came from a namespaced lib.
+    {
+        auto it = fn_library_scope_.find(canon_key);
+        if (it != fn_library_scope_.end())
+            inst->library_scope_ = it->second;
+    }
 
     // ── Bind parameters: positional first, then named, then defaults ───
     double dt_ms = 0.0;
@@ -1112,8 +1159,11 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
 
     // ── Run init block ─────────────────────────────────────────────────────
     if (def.lambda_block_ && def.lambda_block_->init_) {
-        // Push a temporary scope to evaluate init expressions with
-        // access to parameters
+        if (inst->library_scope_) {
+            env_.push_scope();
+            for (auto& [name, val] : *inst->library_scope_)
+                env_.define(name, val);
+        }
         env_.push_scope();
         for (auto& [name, val] : inst->params_) {
             env_.define(name, val);
@@ -1136,25 +1186,73 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
         }
 
         env_.pop_scope();
+        if (inst->library_scope_) env_.pop_scope();
     }
 
     // ── Seed initial output ──────────────────────────────────────────────
-    // With init block: evaluate only the output expression with the initial
-    // state so init values are the first values seen (e.g. counter starts
-    // at 0, not 1).  The update block runs on the first scheduler tick.
-    // Without init block: run the first update tick immediately — there is
-    // no init state to show, so the function starts computing at step 0.
+    // With init block: run a "first pass" of the update block, but skip
+    // any statement whose LHS variable was set by init.  This lets the
+    // init block establish the starting values for those variables, while
+    // still computing any output variables that were not initialised
+    // (e.g. `out` in oscillators).  Init'd variables start their first
+    // scheduler tick from the init value on the second tick.
+    // Without init block: run the full first update tick immediately.
     if (def.lambda_block_ && def.body_) {
         if (def.lambda_block_->init_) {
-            // Has init: seed output from init state, first update after dt
+            if (inst->library_scope_) {
+                env_.push_scope();
+                for (auto& [name, val] : *inst->library_scope_)
+                    env_.define(name, val);
+            }
             env_.push_scope();
             for (auto& [name, val] : inst->params_)
                 env_.define(name, val);
             for (auto& [name, val] : inst->current_)
                 env_.define(name, val);
+
+            // Collect variable names set by the init block so we can skip
+            // their update statements on this first pass.
+            std::set<std::string> init_names;
+            for (const auto& s : def.lambda_block_->init_->statements_) {
+                if (!s) continue;
+                if (s->type_ == parser::node_t::function_definition) {
+                    auto& idef = static_cast<const parser::function_definition&>(*s);
+                    if (idef.parameters_.empty()) init_names.insert(idef.name_);
+                } else if (s->type_ == parser::node_t::assignment) {
+                    init_names.insert(
+                        static_cast<const parser::assignment&>(*s).name_);
+                }
+            }
+
+            // First pass: run update statements for variables NOT in init
+            inst->next_.clear();
+            for (const auto& stmt : def.lambda_block_->update_statements_) {
+                if (!stmt) continue;
+                if (stmt->type_ == parser::node_t::function_definition) {
+                    auto& upd = static_cast<const parser::function_definition&>(*stmt);
+                    if (upd.parameters_.empty() && upd.body_ &&
+                            !init_names.count(upd.name_)) {
+                        value v = eval_expr(upd.body_);
+                        inst->next_[upd.name_] = v;
+                        env_.define(upd.name_, v);
+                    }
+                } else if (stmt->type_ == parser::node_t::assignment) {
+                    auto& assign = static_cast<const parser::assignment&>(*stmt);
+                    if (!init_names.count(assign.name_)) {
+                        value v = eval_expr(assign.value_);
+                        inst->next_[assign.name_] = v;
+                        env_.define(assign.name_, v);
+                        if (assign.is_emit_)
+                            inst->emitted_[assign.name_] = v;
+                    }
+                }
+            }
+            inst->commit();
+
             value output = eval_expr(def.body_);
             inst->write_output(std::move(output));
             env_.pop_scope();
+            if (inst->library_scope_) env_.pop_scope();
         } else {
             // No init: run first update immediately (no dt delay)
             tick_instance(*inst, def);
@@ -1190,13 +1288,22 @@ void evaluator::tick_instance(function_instance& inst,
                               const parser::function_definition& def) {
     if (!def.lambda_block_) return;
 
+    // If this function came from a namespaced library, push its library-local
+    // scope first so internal cross-calls (e.g. lfo → sine_shape) resolve
+    // without leaking bare names into global scope.
+    if (inst.library_scope_) {
+        env_.push_scope();
+        for (auto& [name, val] : *inst.library_scope_)
+            env_.define(name, val);
+    }
+
     // Build a scope with: parameters + current state
     env_.push_scope();
 
-    for (auto& [name, val] : inst.params_) {
+    for(auto& [name, val] : inst.params_) {
         env_.define(name, val);
     }
-    for (auto& [name, val] : inst.current_) {
+    for(auto& [name, val] : inst.current_) {
         env_.define(name, val);
     }
 
@@ -1237,6 +1344,10 @@ void evaluator::tick_instance(function_instance& inst,
     }
 
     env_.pop_scope();
+
+    // Pop library-local scope if it was pushed.
+    if (inst.library_scope_)
+        env_.pop_scope();
 
     // ── Commit: next → current ─────────────────────────────────────────────
     inst.commit();

@@ -1,4 +1,4 @@
-// eval_07_strings.idl — string type tests
+// eval_07_strings.idyl — string type tests
 
 // String constant bindings
 greeting = "hello world"

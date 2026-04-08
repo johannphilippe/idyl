@@ -120,9 +120,9 @@ Functions that carry state across time. The `|>` operator introduces a lambda bl
 ```idyl
 // LFO: outputs a sine wave, updates every 10ms
 lfo(freq, amplitude, dt=10ms) = modulation |> {
-    init: { phase = 0  modulation = 0 }
+    init: { phase = 0 }
     modulation = amplitude * sin(phase * 2 * pi)
-    phase = fmod(phase + 1 / (freq * (dt / 1000)), 1)
+    phase = fmod(phase + dt / freq, 1)
 }
 
 // Counter: increments on trigger, no clock
@@ -213,6 +213,8 @@ process flow_ops: {
 Built-in OSC module for sending and receiving messages over UDP:
 
 ```idyl
+module("osc")
+
 process: {
     handle = osc_out("127.0.0.1", 9000)
     osc_send(handle, "/synth/freq", 440)
@@ -227,7 +229,7 @@ Import `.idyl` files with optional namespacing:
 
 ```idyl
 lib("scales.idyl")
-lib("utils.idyl", as="util")
+util = lib("utils.idyl")
 
 process: {
     scale = util::major_scale(440)

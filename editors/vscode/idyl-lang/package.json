@@ -1,7 +1,7 @@
 {
   "name": "idyl-lang",
   "displayName": "Idyl Language",
-  "description": "Syntax highlighting for the Idyl programming language (.idl files)",
+  "description": "Syntax highlighting for the Idyl programming language (.idyl files)",
   "version": "0.0.1",
   "publisher": "idyl",
   "engines": {
@@ -19,7 +19,7 @@
           "idyl"
         ],
         "extensions": [
-          ".idl"
+          ".idyl"
         ],
         "configuration": "./language-configuration.json"
       }

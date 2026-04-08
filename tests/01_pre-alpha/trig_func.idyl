@@ -1,0 +1,10 @@
+lib("stdlib")
+
+fun(spike!) = !;_ ? spike
+
+trig(dt=100ms) = !
+
+process: {
+    a = fun(trig())
+    print(a)
+}

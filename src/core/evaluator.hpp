@@ -36,6 +36,11 @@ namespace idyl::core {
         // Loaded library paths (canonical) — prevents duplicate loading
         std::set<std::string> loaded_libraries_;
 
+        // Library-local scope map: qualified function name → lib_scope_ptr.
+        // Populated when a namespaced library is loaded.  Looked up in eval_call
+        // and pushed around function body / tick evaluation.
+        std::unordered_map<std::string, lib_scope_ptr> fn_library_scope_;
+
         // ── Process tracking ───────────────────────────────────────────────────
         // Number of process blocks encountered during evaluation. Controls
         // keep-alive behavior: 1 process = unconditional keep-alive.
@@ -71,6 +76,11 @@ namespace idyl::core {
         // to resolve emitted values: `a::incr` looks up the instance bound
         // to variable "a" and reads its emitted_ map for "incr".
         std::unordered_map<std::string, uint64_t> instance_bindings_;
+        
+        // ── Dependency Graph ────────────────────────────────────────────────────
+        // Maps a temporal instance ID to the set of instance IDs that depend on it (i.e. read its emitted values).  
+        // Used for change propagation: when an instance's emitted value changes, all dependent instances are re-ticked to update their outputs.
+        std::unordered_map<std::string, std::unordered_set<std::string>> dependency_graph_;
 
         // ── Clock hierarchy ────────────────────────────────────────────────────
         // Global clock tree.  A default "main" clock (120 BPM) is created in
@@ -120,14 +130,18 @@ namespace idyl::core {
         value eval_module_fn(const module::function_entry& fn,
                              const std::vector<value>& args,
                              int line = 0, int col = 0);
+        // qualified_key: the key under which the function is stored in
+        // function_defs_ (may differ from def.name_ for namespaced library fns).
         value eval_user_function(const parser::function_definition& def,
                                  const std::vector<value>& args,
-                                 const named_args_t& named = {});
+                                 const named_args_t& named = {},
+                                 const std::string& qualified_key = {});
 
         // ── Temporal function instantiation ────────────────────────────────────
         value instantiate_temporal(const parser::function_definition& def,
                                    const std::vector<value>& args,
-                                   const named_args_t& named = {});
+                                   const named_args_t& named = {},
+                                   const std::string& qualified_key = {});
         void tick_instance(function_instance& inst,
                            const parser::function_definition& def);
 

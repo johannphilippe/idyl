@@ -9,7 +9,8 @@
 #   1. Add a header file in this directory (e.g. my_module.hpp)
 #   2. Subclass idyl::module::base_module
 #   3. Override name() and functions()
-#   4. Register in idyl.cpp via registry.add(std::make_unique<my_module>())
+#   4. In idyl.cpp, call registry.register_builtin("name", factory)
+#      The module is loaded lazily when the program calls module("name")
 #
 # Modules are header-only — no .cpp files needed.
 # =============================================================================

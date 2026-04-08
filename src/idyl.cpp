@@ -54,11 +54,19 @@ int main(int argc, char** argv) {
     idyl::semantic::analyzer analyzer; 
 
     // ── Module registry ─────────────────────────────────────────────────
-    // Native modules are compiled-in and auto-registered (no import keyword).
-    // Each module's available() is checked — disabled modules are skipped.
+    // Built-in modules are registered in the catalog but NOT loaded until
+    // the program explicitly calls module("osc"), module("csound"), etc.
+    // This keeps the global namespace clean.
     idyl::module::registry module_registry;
     #ifdef IDYL_MODULE_OSC
-    module_registry.try_add(std::make_unique<idyl::modules::osc_module>());
+    module_registry.register_builtin("osc", []() {
+        return std::make_unique<idyl::modules::osc_module>();
+    });
+    #endif
+    #ifdef IDYL_MODULE_CSOUND
+    module_registry.register_builtin("csound", []() {
+        return std::make_unique<idyl::module::csound_module>();
+    });
     #endif
 
     std::string process_filter;

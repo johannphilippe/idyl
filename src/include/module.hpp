@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 #include <dlfcn.h>
 
@@ -118,9 +119,74 @@ namespace idyl::module {
         size_t module_count() const { return modules_.size(); }
 
         // Provide the scheduler to every registered module that needs it.
+        // Also caches the pointer so modules loaded later (via load_builtin)
+        // receive the scheduler immediately.
         void provide_scheduler(time::sys_clock_scheduler* sched) {
+            sched_ = sched;
             for (auto& m : modules_)
                 m->set_scheduler(sched);
+        }
+
+        // ── Built-in module catalog ────────────────────────────────────────
+        // Modules in the catalog are available by name but not loaded until
+        // the program calls `module("name")`.  This keeps the global function
+        // namespace clean and avoids loading modules the program doesn't use.
+
+        using module_factory = std::function<std::unique_ptr<base_module>()>;
+
+        // Register a built-in module factory.  Does not load or activate it.
+        void register_builtin(const std::string& name, module_factory factory) {
+            catalog_.emplace(name, std::move(factory));
+        }
+
+        bool has_builtin(const std::string& name) const {
+            return catalog_.count(name) > 0;
+        }
+
+        // Return the function entries exported by a built-in module without
+        // activating it.  Used by the semantic analyzer to register symbols
+        // with correct arity info.
+        std::vector<function_entry> list_builtin_entries(const std::string& name) const {
+            auto it = catalog_.find(name);
+            if (it == catalog_.end()) return {};
+            return it->second()->functions();
+        }
+
+        // Convenience: return just the function names.
+        std::vector<std::string> list_builtin_functions(const std::string& name) const {
+            auto entries = list_builtin_entries(name);
+            std::vector<std::string> names;
+            names.reserve(entries.size());
+            for (const auto& e : entries) names.push_back(e.name_);
+            return names;
+        }
+
+        // Load a built-in module and register its functions.
+        // `ns` prefixes all function names ("ns::func") when non-empty.
+        // Returns empty string on success or an error message on failure.
+        std::string load_builtin(const std::string& name,
+                                 const std::string& ns = "") {
+            if (loaded_builtins_.count(name)) return "";  // idempotent
+
+            auto it = catalog_.find(name);
+            if (it == catalog_.end()) return "";  // not a builtin — caller handles
+
+            auto mod = it->second();
+            if (!mod->available())
+                return "Module '" + name + "' is not available: "
+                       + mod->unavailable_reason();
+
+            auto fns = mod->functions();
+            for (auto& f : fns) {
+                std::string fn_name = ns.empty() ? f.name_ : (ns + "::" + f.name_);
+                function_entry fe = f;
+                fe.name_ = fn_name;
+                index_.emplace(fn_name, std::move(fe));
+            }
+            if (sched_) mod->set_scheduler(sched_);
+            modules_.push_back(std::move(mod));
+            loaded_builtins_.insert(name);
+            return "";
         }
 
         // ── External module loading (dlopen) ───────────────────────────────
@@ -257,8 +323,11 @@ namespace idyl::module {
     private:
         std::vector<std::unique_ptr<base_module>> modules_;
         std::unordered_map<std::string, function_entry> index_;
-        std::vector<void*> dl_handles_;           // dlopen handles
-        std::vector<std::string> loaded_paths_;   // already-loaded paths
+        std::vector<void*> dl_handles_;                       // dlopen handles
+        std::vector<std::string> loaded_paths_;               // already-loaded .so paths
+        std::unordered_map<std::string, module_factory> catalog_;  // builtin catalog
+        std::unordered_set<std::string> loaded_builtins_;     // loaded builtin names
+        time::sys_clock_scheduler* sched_ = nullptr;          // cached for lazy loads
 
     };
 

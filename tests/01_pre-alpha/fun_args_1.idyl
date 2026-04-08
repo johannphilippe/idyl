@@ -1,3 +1,4 @@
+// expected-fail: top-level function call without process block is not valid syntax
 func(a, b) = a + b
 
 z = func(4, 5.5)

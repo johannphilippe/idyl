@@ -1,9 +1,11 @@
-// eval_08_osc.idl — OSC module tests
+// eval_08_osc.idyl — OSC module tests
 //
 // Sends 4 OSC messages to localhost:9000.
 // Run osc_receiver.rb first to verify receipt:
 //   ruby osc_receiver.rb 9000 4 5 &
-//   ./idyl eval_08_osc.idl
+//   ./idyl eval_08_osc.idyl
+
+o = module("osc")
 
 host = "127.0.0.1"
 port = 9000
@@ -11,15 +13,15 @@ port = 9000
 process: {
     // Open an OSC output (UDP sender)
     print("Opening OSC output...")
-    handle = osc_out(host, port)
+    handle = o::osc_out(host, port)
 
     // Send a few OSC messages with different argument types
-    osc_send(handle, "/synth/freq", 440)
-    osc_send(handle, "/synth/gate", 1)
-    osc_send(handle, "/synth/name", "sine")
-    osc_send(handle, "/control/mix", 0.75, "wet")
+    o::osc_send(handle, "/synth/freq", 440)
+    o::osc_send(handle, "/synth/gate", 1)
+    o::osc_send(handle, "/synth/name", "sine")
+    o::osc_send(handle, "/control/mix", 0.75, "wet")
 
     // Close the connection
-    osc_close(handle)
+    o::osc_close(handle)
     print("OSC test complete.")
 }

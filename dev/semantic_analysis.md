@@ -52,7 +52,7 @@ This step produces **no new data structures**. It operates on the existing AST (
 ## 2. Role in the Pipeline
 
 ```
-Source Code (.idl)
+Source Code (.idyl)
        │
        ▼
    Lexer/Parser (Flex + Bison)
@@ -343,8 +343,8 @@ Idyl has two import keywords with four syntax forms:
 
 | Syntax | AST Node | Behavior |
 |--------|----------|----------|
-| `lib("path.idl")` | `library_import` (namespace empty) | Parse .idl file, merge all definitions into global scope |
-| `ns = lib("path.idl")` | `library_import` (namespace = "ns") | Parse .idl file, definitions accessible via `ns::` |
+| `lib("path.idyl")` | `library_import` (namespace empty) | Parse .idyl file, merge all definitions into global scope |
+| `ns = lib("path.idyl")` | `library_import` (namespace = "ns") | Parse .idyl file, definitions accessible via `ns::` |
 | `module("path")` | `module_import` (namespace empty) | Load binary, register functions at global scope |
 | `ns = module("path")` | `module_import` (namespace = "ns") | Load binary, functions accessible via `ns::` |
 
@@ -403,7 +403,7 @@ resolve_library_import(lib_stmt):
     3. Check circular imports:
        - If path is on the import_stack_ → ERROR: circular import detected
     4. Push path onto import_stack_
-    5. Parse the .idl file → get its AST
+    5. Parse the .idyl file → get its AST
     6. Recursively run Pass 1 on the imported AST (handles transitive imports)
     7. Pop path from import_stack_
     8. Register symbols:
@@ -435,24 +435,24 @@ Note: Module function signatures are not known at analysis time (they come from 
 Circular imports are detected by maintaining an **import stack** — the chain of files currently being processed:
 
 ```
-main.idl imports scales.idl
-  scales.idl imports utils.idl
-    utils.idl imports scales.idl  → ERROR: circular import
+main.idyl imports scales.idyl
+  scales.idyl imports utils.idyl
+    utils.idyl imports scales.idyl  → ERROR: circular import
 ```
 
-The import stack at the point of error: `[main.idl, scales.idl, utils.idl]`
+The import stack at the point of error: `[main.idyl, scales.idyl, utils.idyl]`
 
-When `utils.idl` tries to import `scales.idl`, the analyzer finds `scales.idl` already on the stack and reports:
+When `utils.idyl` tries to import `scales.idyl`, the analyzer finds `scales.idyl` already on the stack and reports:
 
 ```
-3.1: error: circular import detected: utils.idl → scales.idl → utils.idl
+3.1: error: circular import detected: utils.idyl → scales.idyl → utils.idyl
 ```
 
 Circular imports are **always errors** — there is no way to resolve mutual dependencies between files in Idyl.
 
 ### 5.7 Import Deduplication
 
-The same file may be imported multiple times (e.g., two different files both `lib("utils.idl")`). The analyzer deduplicates by canonical path:
+The same file may be imported multiple times (e.g., two different files both `lib("utils.idyl")`). The analyzer deduplicates by canonical path:
 
 | Scenario | Behavior |
 |----------|----------|
@@ -466,20 +466,20 @@ Deduplication prevents re-parsing and re-registering symbols, which matters for 
 ### 5.8 Transitive Import Example
 
 ```idl
-// utils.idl
+// utils.idyl
 clamp(x, lo, hi) = min(max(x, lo), hi)
 
-// scales.idl
-lib("utils.idl")
+// scales.idyl
+lib("utils.idyl")
 major_scale(root) = [root, root+2, root+4, root+5, root+7, root+9, root+11]
 
-// main.idl
-lib("scales.idl")      // also transitively imports utils.idl
-lib("utils.idl")       // already imported — silently skipped
+// main.idyl
+lib("scales.idyl")      // also transitively imports utils.idyl
+lib("utils.idyl")       // already imported — silently skipped
 
 process: {
-    notes = major_scale(60)    // from scales.idl
-    clamped = clamp(x, 0, 127) // from utils.idl (via transitive import)
+    notes = major_scale(60)    // from scales.idyl
+    clamped = clamp(x, 0, 127) // from utils.idyl (via transitive import)
 }
 ```
 
@@ -1134,7 +1134,7 @@ Examples:
 22.10: warning: operator '+' applied to time and trigger — result type is ambiguous
 30.1: info: parameter 'unused' is never used in function 'my_func'
 45.5: error: import must be at global scope (found inside process block)
-48.1: error: circular import detected: main.idl → utils.idl → main.idl
+48.1: error: circular import detected: main.idyl → utils.idyl → main.idyl
 ```
 
 ### 13.2 Severity Levels
@@ -1215,7 +1215,7 @@ The passes should be built incrementally, each one adding value independently:
 6. **Flow validation** — catches flow member errors
 7. **Type inference** — the most complex pass; implement last, start with literal types and propagate upward incrementally
 
-Each pass can be tested independently with small `.idl` files that exercise its rules.
+Each pass can be tested independently with small `.idyl` files that exercise its rules.
 
 ### 14.4 Testing Strategy
 
@@ -1243,7 +1243,7 @@ A complete example showing what each pass does on a small program.
 ### Source Code
 
 ```idl
-lib("scales.idl")
+lib("scales.idyl")
 cs = module("csound")
 
 base_freq = 440hz
@@ -1267,7 +1267,7 @@ process: {
 ### Pass 1: Symbol Collection & Import Resolution
 
 Process imports first:
-- `lib("scales.idl")`: resolve path, check not circular, parse file, merge definitions into global scope
+- `lib("scales.idyl")`: resolve path, check not circular, parse file, merge definitions into global scope
 - `cs = module("csound")`: register `cs` as `symbol_kind::module` in global scope
 
 Global scope after collection:
@@ -1277,7 +1277,7 @@ lfo         → symbol_kind::function, arity=2, required=1, is_temporal=true, ha
 melody      → symbol_kind::flow, arity=0
 cs          → symbol_kind::module, path="csound"
 (builtins)  → sin, cos, fmod, metronome, pow, etc.
-(library)   → scales.idl definitions merged in (e.g. major_scale, minor_scale, etc.)
+(library)   → scales.idyl definitions merged in (e.g. major_scale, minor_scale, etc.)
 ```
 
 ### Pass 2: Name Resolution

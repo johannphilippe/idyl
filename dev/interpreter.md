@@ -69,7 +69,7 @@ Later, if performance demands it, a bytecode VM (like Lua's register-based VM or
 ## 2. Pipeline Summary
 
 ```
-Source Code (.idl)
+Source Code (.idyl)
        │
        ▼
 ┌─────────────┐
@@ -325,7 +325,7 @@ struct environment {
     // Loaded modules (import("csound") → module handle)
     std::unordered_map<std::string, module_handle> modules_;
 
-    // Library imports (lib("scales.idl") → merged definitions)
+    // Library imports (lib("scales.idyl") → merged definitions)
     // These are merged into globals_ after loading
 };
 ```

@@ -1,0 +1,9 @@
+process: {
+    print(1 & 0)
+    print(1 & 1)
+    print(1 | 0)
+    print(0 | 0)
+    print(1 << 8)
+    print(1 << 16)
+    print((1 << 16) & 65535)
+}

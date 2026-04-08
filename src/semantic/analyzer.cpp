@@ -52,11 +52,44 @@ namespace idyl::semantic {
                 case parser::node_t::module_import:
                 {
                     auto mod = std::static_pointer_cast<parser::module_import>(it);
-                    std::string path = mod->path_;
+                    const std::string& ns = mod->namespace_;
 
+                    // ── Built-in module (catalog) ─────────────────────────
+                    if (scope_stack_.module_registry_ &&
+                            scope_stack_.module_registry_->has_builtin(mod->path_)) {
+                        auto entries = scope_stack_.module_registry_
+                                            ->list_builtin_entries(mod->path_);
+                        // Register namespace identifier so bare `ns` resolves
+                        if (!ns.empty()) {
+                            symbol_info ns_info;
+                            ns_info.type_ = symbol_t::module;
+                            ns_info.name_ = ns;
+                            ns_info.line_ = mod->line_;
+                            ns_info.column_ = mod->column_;
+                            scope_stack_.define(ns, ns_info);
+                        }
+                        for (const auto& entry : entries) {
+                            std::string sym_name = ns.empty()
+                                ? entry.name_ : (ns + "::" + entry.name_);
+                            symbol_info info;
+                            info.type_          = symbol_t::builtin;
+                            info.name_          = sym_name;
+                            info.arity_         = entry.max_arity_;
+                            info.required_arity_= entry.min_arity_;
+                            info.inferred_type_ = inferred_t::function;
+                            info.line_          = mod->line_;
+                            info.column_        = mod->column_;
+                            scope_stack_.define(sym_name, info);
+                        }
+                        idyl::debug("Registered built-in module '" + mod->path_ + "' ("
+                            + std::to_string(entries.size()) + " symbols"
+                            + (ns.empty() ? "" : ", namespace: " + ns) + ").");
+                        break;
+                    }
+
+                    // ── External (.so) module ─────────────────────────────
+                    std::string path = mod->path_;
                     if (!idyl::utilities::get_module_path(path)) {
-                        // Module not found — warning, not error.
-                        // The evaluator will skip it gracefully at runtime.
                         diagnostics_.push_back(diagnostic{severity::warning,
                             "Module '" + mod->path_ + "' not found. "
                             "Functions from this module will not be available.",
@@ -72,9 +105,6 @@ namespace idyl::semantic {
                         break;
                     }
 
-                    const std::string& ns = mod->namespace_;
-
-                    // Register namespace identifier itself so the bare name resolves
                     if (!ns.empty()) {
                         symbol_info ns_info;
                         ns_info.type_ = symbol_t::module;
@@ -83,8 +113,6 @@ namespace idyl::semantic {
                         ns_info.column_ = mod->column_;
                         scope_stack_.define(ns, ns_info);
                     }
-
-                    // Register each exported symbol as a flat qualified name in global scope
                     for (const auto& sym : symbols) {
                         std::string sym_name = ns.empty() ? sym : (ns + "::" + sym);
                         symbol_info info;
@@ -94,12 +122,9 @@ namespace idyl::semantic {
                         info.column_ = mod->column_;
                         scope_stack_.define(sym_name, info);
                     }
-
-                    if (ns.empty()) {
-                        idyl::debug("Loaded module '" + mod->path_ + "' (merged into global scope, " + std::to_string(symbols.size()) + " symbols).");
-                    } else {
-                        idyl::debug("Loaded module '" + mod->path_ + "' (namespace: " + ns + ", " + std::to_string(symbols.size()) + " symbols).");
-                    }
+                    idyl::debug("Loaded external module '" + mod->path_ + "' ("
+                        + std::to_string(symbols.size()) + " symbols"
+                        + (ns.empty() ? "" : ", namespace: " + ns) + ").");
                     break;
                 }
                 case parser::node_t::function_definition:
@@ -824,6 +849,7 @@ namespace idyl::semantic {
             }
             std::cout << num_errors << " error(s), " << num_warnings << " warning(s), " << num_info << " info(s).\n";
         }
+        std::cout.flush();
     }
 
     // -----------------------------------------------------------------------

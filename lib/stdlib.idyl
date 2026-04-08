@@ -8,6 +8,15 @@
 // §1  Oscillators
 // ────────────────────────────────────────────────────────────────────────────────
 
+// ── Pure waveform shape functions ────────────────────────────────────────────
+// These are stateless (no |> block). They map a phase value (0…1) directly
+// to an amplitude. Used by lfo() for first-class waveform selection.
+
+sine_shape(phase, amplitude=1) = amplitude * sin(phase * tau)
+tri_shape(phase, amplitude=1) = amplitude * (4 * abs(phase - 0.5) - 1)
+square_shape(phase, amplitude=1) = amplitude * (2 * floor(2 * phase) - 1) * -1
+saw_shape(phase, amplitude=1) = amplitude * (2 * phase - 1)
+
 // Phasor — rising ramp 0→1 at given frequency. Foundation for all oscillators.
 phasor(freq, dt=10ms) = phase |> {
     init: { phase = 0 }
@@ -56,14 +65,17 @@ saw(freq, amplitude=1, dt=10ms) = out |> {
     phase = fmod(phase + dt / freq, 1)
 }
 
-// LFO — alias for sine (backward-compatible).
+// LFO — multi-waveform oscillator. waveform: 0=sine 1=tri 2=square 3=saw.
+// Uses pure shape functions so first-class function dispatch works correctly.
 lfo(freq, amplitude=1, waveform=0, dt=10ms) = out |> {
     init: { phase = 0 }
-    func = sine; tri; square; pulse; saw ? waveform
+    out = sine_shape(phase, amplitude); tri_shape(phase, amplitude); square_shape(phase, amplitude); saw_shape(phase, amplitude) ? waveform
     phase = fmod(phase + dt / freq, 1)
-    sig = func(phase, amplitude, dt)
-    out = amplitude * sig 
 }
+wav_sin     = 0
+wav_tri     = 1
+wav_square  = 2
+wav_saw     = 3
 
 // Ramp — alias for saw.
 ramp(freq, amplitude=1, dt=10ms) = out |> {

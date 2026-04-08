@@ -1,0 +1,7 @@
+std = lib("stdlib")
+
+process: {
+    l = std::lfo(1hz, waveform=0, dt=50ms)
+    s = std::sine(2hz, dt=30ms)
+    print(l, s)
+}

@@ -58,7 +58,7 @@ cmake .. -DIDYL_MODULE_OSC=OFF
 ## Running a file
 
 ```bash
-idyl path/to/file.idl
+idyl path/to/file.idyl
 ```
 
 Idƴl reads the source, runs semantic analysis (7 passes), and evaluates. If process blocks contain temporal functions, the scheduler keeps the program alive until they complete.
@@ -74,7 +74,7 @@ echo 'silence = 0' | idyl -
 ## CLI reference
 
 ```
-Usage: idyl [file.idl] [options]
+Usage: idyl [file.idyl] [options]
 
 Options:
   --trace              Enable parser/lexer debug tracing
@@ -89,8 +89,8 @@ Options:
 Run a single named process block and skip all others:
 
 ```bash
-idyl file.idl --process clock_demo
-idyl file.idl -p emit_demo
+idyl file.idyl --process clock_demo
+idyl file.idyl -p emit_demo
 ```
 
 ### `--listen`
@@ -98,7 +98,7 @@ idyl file.idl -p emit_demo
 Enter listen mode: load the file, store all process blocks, and wait for OSC commands to start/stop them.
 
 ```bash
-idyl file.idl --listen 9000
+idyl file.idyl --listen 9000
 ```
 
 The port argument is optional (defaults to 9000). See [Chapter 9 — Process blocks](ch09_process_blocks.md) for the full listen mode protocol.
@@ -107,7 +107,7 @@ The port argument is optional (defaults to 9000). See [Chapter 9 — Process blo
 
 ## Hello, Idƴl
 
-Create a file `hello.idl`:
+Create a file `hello.idyl`:
 
 ```idyl
 greeting = "hello, idyl"
@@ -120,7 +120,7 @@ process: {
 Run it:
 
 ```bash
-$ idyl hello.idl
+$ idyl hello.idyl
 hello, idyl
 ```
 

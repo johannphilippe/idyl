@@ -1,0 +1,19 @@
+lib("stdlib")
+
+another_sine(freq, amp, dt=10ms) = sin(tau * phase) * amp
+|> {
+    init: {phase = 0}
+    phase = fmod(phase + dt / freq, 1)
+}
+
+process: {
+    // Positional argument don't evolve
+    amp = square(0.3hz)
+    s = another_sine(1hz, amp)
+    print(s)
+
+    /* // Named arguments don't evolve either
+    s = sine(1hz, amplitude=amp)
+    print(s)
+    */
+}

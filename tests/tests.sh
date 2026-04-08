@@ -68,9 +68,9 @@ if [[ -n "$SUITE" ]]; then
         echo -e "${C_FAIL}ERROR:${C_RESET} Suite directory not found: $SUITE_DIR"
         exit 1
     fi
-    mapfile -t TEST_FILES < <(find "$SUITE_DIR" -name '*.idl' | sort)
+    mapfile -t TEST_FILES < <(find "$SUITE_DIR" -name '*.idyl' | sort)
 else
-    mapfile -t TEST_FILES < <(find "$SCRIPT_DIR" -name '*.idl' | sort)
+    mapfile -t TEST_FILES < <(find "$SCRIPT_DIR" -name '*.idyl' | sort)
 fi
 
 # Apply filter
@@ -112,7 +112,13 @@ IDX=0
 for TEST_FILE in "${TEST_FILES[@]}"; do
     IDX=$((IDX + 1))
     REL_PATH="${TEST_FILE#"$SCRIPT_DIR/"}"
-    TEST_NAME="$(basename "$TEST_FILE" .idl)"
+    TEST_NAME="$(basename "$TEST_FILE" .idyl)"
+
+    # ── Check for expected-fail marker ──────────────────────────────────────
+    EXPECT_FAIL=0
+    if head -5 "$TEST_FILE" | grep -q "// expected-fail"; then
+        EXPECT_FAIL=1
+    fi
 
     # ── Run with timeout, capture stdout+stderr and exit code ───────────────
     TMPOUT=$(mktemp)
@@ -124,6 +130,31 @@ for TEST_FILE in "${TEST_FILES[@]}"; do
 
     OUTPUT="$(cat "$TMPOUT")"
     rm -f "$TMPOUT"
+
+    # ── Handle expected-fail tests ───────────────────────────────────────────
+    if [[ $EXPECT_FAIL -eq 1 ]]; then
+        if [[ $EXIT_CODE -ne 0 && $EXIT_CODE -ne 137 && $EXIT_CODE -ne 124 ]]; then
+            STATUS="PASS"
+            DETAIL="correctly rejected (expected-fail)"
+            PASSED=$((PASSED + 1))
+            ICON="${C_PASS}✓${C_RESET}"
+            printf " %b  [%2d/%d] %-40s" "$ICON" "$IDX" "$TOTAL" "$REL_PATH"
+            if [[ -n "$DETAIL" ]]; then printf " ${C_DIM}%s${C_RESET}" "$DETAIL"; fi
+            echo ""
+            continue
+        else
+            STATUS="FAIL"
+            DETAIL="expected-fail test did not produce an error"
+            FAILED=$((FAILED + 1))
+            FAIL_NAMES+=("$REL_PATH")
+            FAIL_DETAILS+=("$DETAIL")
+            ICON="${C_FAIL}✗${C_RESET}"
+            printf " %b  [%2d/%d] %-40s" "$ICON" "$IDX" "$TOTAL" "$REL_PATH"
+            printf " ${C_DIM}%s${C_RESET}" "$DETAIL"
+            echo ""
+            continue
+        fi
+    fi
 
     # ── Parse idyl output ───────────────────────────────────────────────────
     ERRORS=0

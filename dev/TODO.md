@@ -322,17 +322,6 @@ When printing an integer-flagged value, display without decimal point: `42` inst
 
 ---
 
-
-## Module extension 
-
-The modules should allow to provide functions, as well as timed functions. 
-This will be useful for the next point.
-
-Also, OSC module should return a handle (to allow several OSC connections opened)
-`handle = osc_out(addr, port)` 
-`handle = osc_in(port)`
-`osc_close(handle)`
-
 ## Scheduler proof 
 
 Write a Csound module that would provide functions : 
@@ -342,3 +331,41 @@ Write a Csound module that would provide functions :
 
 The module should use the standard C++ API of Csound 6.
 
+Module system should provide a way for module functions to emit values in time 
+
+# Bugs 
+
+- [FIXED] Library/module namespacing: the correct syntax is `ns = lib("mylib")` and
+  `ns = module("name")`. Documentation and README updated to match.
+- [FIXED] Standard modules (OSC, CSound) now require explicit `module("osc")` import.
+  Built-in modules register in a catalog and are loaded lazily on first use.
+- [FIXED] First-class functions in lfo: added pure `sine_shape`, `tri_shape`,
+  `square_shape`, `saw_shape` helpers to stdlib. `lfo()` now uses these instead of
+  calling the stateful temporal oscillators as first-class functions.
+
+# Hot reload of process 
+
+For live coding purposes (and some other cases), we should be able to hot reload code of a process. 
+This must be done in a smart way : 
+- It must not "reinit" the currently running stateful objects (keep running, with updated things)
+- 
+
+# Issues : 
+
+- dt parameters should be able to evolve over time (like any parameter of a temporal function). For now, named params don't evolve. Same for positional arguments. 
+    Example :
+    ```idyl
+    amp = pos(square(0.1hz, dt=10ms)) // 0-1 range lfo square
+    s = lfo(1hz, amplitude=amp) // the amplitude is never updated 
+    ```
+
+# Not urgent
+
+- Named parameter expecting number is not working when passing a constant function (which is actually a number in a way). 
+    Example with lfo (stdlib) : 
+    ```idyl 
+    sine_wave = 0 
+    s = lfo(1hz, waveform=sine_wave) // This doesn't work, because sine_wave is treated as a function
+    ```
+
+There is a workaround by calling the function with `int(sine_wave)` or `float(sine_wave)`, thus casting it to a number value.

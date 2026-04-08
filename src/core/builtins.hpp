@@ -212,6 +212,7 @@ namespace idyl::core {
                             break;
                         case value_t::trigger:
                             if(v.trigger_) std::cout << "trigger ! ";
+                            else(std::cout << "rest _");
                             break;
                         case value_t::string:
                             std::cout << (v.string_ ? *v.string_ : "");
@@ -262,6 +263,36 @@ namespace idyl::core {
                 auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
                 return value::time_ms(static_cast<double>(ms));
             }, 0, 1
+        },
+        {
+            "as_ms", [](span<const value> args) -> value {
+                return value::time_ms(args[0].as_number());
+            }, 1, 1
+        },
+        {
+            "as_s", [](span<const value> args) -> value {
+                return value::time_ms(args[0].as_number() * 1000.0);
+            }, 1, 1
+        },
+        {
+            "as_hz", [](span<const value> args) -> value {
+                double ms = args[0].as_number();
+                if (ms > 0.0) {
+                    return value::number(1000.0 / ms);
+                } else {
+                    return value::number(0.0);
+                }
+            }, 1, 1
+        },
+        {
+            "as_bpm", [](span<const value> args) -> value {
+                double ms = args[0].as_number();
+                if (ms > 0.0) {
+                    return value::number(60000.0 / ms);
+                } else {
+                    return value::number(0.0);
+                }
+            }, 1, 1
         },
     };
     constexpr size_t num_builtins = sizeof(builtins) / sizeof(builtin);

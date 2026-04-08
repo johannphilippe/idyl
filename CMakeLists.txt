@@ -35,6 +35,15 @@ else()
     message(STATUS "Native module: OSC [disabled]")
 endif()
 
+# The Csound module is disabled by default since it requires the 
+# Csound library and headers to be installed.
+option(IDYL_MODULE_CSOUND "Enable the built-in Csound module" OFF)
+if(IDYL_MODULE_CSOUND)
+    message(STATUS "Native module: Csound [enabled]")
+else()
+    message(STATUS "Native module: Csound [disabled]")
+endif()
+
 # Sources: use the generated outputs
 set(SOURCES
     ${BISON_IdylParser_OUTPUTS}
@@ -57,6 +66,9 @@ target_link_libraries(idyl PRIVATE idyl_modules)
 if(IDYL_MODULE_OSC)
     target_compile_definitions(idyl PRIVATE IDYL_MODULE_OSC=1)
 endif()
+if(IDYL_MODULE_CSOUND)
+    target_compile_definitions(idyl PRIVATE IDYL_MODULE_CSOUND=1)
+endif()
 
 # Tell the binary where system libraries are installed
 target_compile_definitions(idyl PRIVATE
@@ -76,7 +88,7 @@ add_custom_target(parser-clean
 )
 
 add_custom_target(test
-    COMMAND  cd ${CMAKE_CURRENT_SOURCE_DIR} && ./tests.sh
+    COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && tests/tests.sh
     COMMENT "Running tests"
 )
 

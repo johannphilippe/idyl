@@ -140,13 +140,29 @@ namespace idyl::core {
         }
     };
 
+    // Library-local scope type: maps original (unqualified) function names to
+    // function_ref values pointing at the ns-qualified version.  Pushed into env
+    // while a namespaced library function's body or tick executes so that
+    // internal cross-calls (e.g. lfo calling sine_shape) resolve correctly
+    // without leaking bare names into global scope.
+    using lib_scope_t   = std::unordered_map<std::string, value>;
+    using lib_scope_ptr = std::shared_ptr<lib_scope_t>;
+
     // ── Function instance (temporal) ───────────────────────────────────────────
     // Each call site that invokes a temporal function creates one of these.
     // Owns mutable state (init block vars), bound parameters, and current output.
     // The scheduler ticks this instance at the function's `dt` interval.
     struct function_instance {
         uint64_t id_ = 0;
-        std::string def_name_;   // function definition name (for tick lookup)
+        // The key under which this function lives in function_defs_.
+        // For namespaced library functions this is the qualified name (e.g.
+        // "std::sine"), which is what the process-block subscription lookup uses.
+        std::string def_name_;
+
+        // Library-local scope for namespaced library functions.  Pushed into
+        // the environment before each tick / body evaluation so internal
+        // cross-calls resolve without polluting global scope.
+        lib_scope_ptr library_scope_;
 
         // Instance-local mutable state (init vars + update vars)
         // Reads come from current_, writes go to next_, then swap.
@@ -176,7 +192,8 @@ namespace idyl::core {
 
         value read_output() const {
             std::lock_guard<std::mutex> lock(output_mutex_);
-            return output_;
+            value out = output_;
+            return out;
         }
 
         void write_output(value v) {

@@ -84,7 +84,7 @@ process: {
 
 ### 1.4 Namespace & Module Resolution
 
-- **Idyl libraries** (`.idl` files): Loaded globally via `lib()` keyword (import statements only in global scope)
+- **Idyl libraries** (`.idyl` files): Loaded globally via `lib()` keyword (import statements only in global scope)
 - **External modules** (compiled binaries): Loaded into namespace via `module("path")` (import statements only in global scope)
 - **Function shadowing**: Later definitions override earlier ones (with warning)
 - **Lexical scoping**: Function parameters shadow outer scope naturally
@@ -586,11 +586,11 @@ Modules expose **functions only**—no OOP-style objects or method chains. This 
 
 ### 8.2 Module Import (Global Scope Only)
 
-**Idyl Libraries** (`.idl` files) and **External Modules** (compiled binaries, C libraries, etc.) must be loaded at **global scope**, before any process blocks or function definitions that use them:
+**Idyl Libraries** (`.idyl` files) and **External Modules** (compiled binaries, C libraries, etc.) must be loaded at **global scope**, before any process blocks or function definitions that use them:
 
 ```idl
-lib("scales.idl")
-lib("synth_utils.idl")
+lib("scales.idyl")
+lib("synth_utils.idyl")
 
 cs = module("csound")
 osc = module("osc")
