@@ -1,0 +1,7 @@
+lib("stdlib")
+
+process: {
+    amp = pos(square(0.3hz))
+    s = sine(1hz, amplitude=amp)
+    print(s)
+}

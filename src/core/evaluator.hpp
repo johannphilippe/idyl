@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <set>
+#include <unordered_map>
 
 #include "parser/ast.hpp"
 #include "core/core.hpp"
@@ -76,11 +77,14 @@ namespace idyl::core {
         // to resolve emitted values: `a::incr` looks up the instance bound
         // to variable "a" and reads its emitted_ map for "incr".
         std::unordered_map<std::string, uint64_t> instance_bindings_;
-        
-        // ── Dependency Graph ────────────────────────────────────────────────────
-        // Maps a temporal instance ID to the set of instance IDs that depend on it (i.e. read its emitted values).  
-        // Used for change propagation: when an instance's emitted value changes, all dependent instances are re-ticked to update their outputs.
-        std::unordered_map<std::string, std::unordered_set<std::string>> dependency_graph_;
+
+        // ── Dynamic parameter expressions ────────────────────────────────────
+        // For each temporal instance: maps param name → the AST expression that
+        // was passed as that argument at call time.  Re-evaluated on every tick
+        // so that temporal values used as parameters automatically propagate.
+        // E.g.: lfo(1hz, amplitude=amp) where amp is itself a temporal instance.
+        std::unordered_map<uint64_t,
+            std::unordered_map<std::string, parser::expr_ptr>> instance_param_exprs_;
 
         // ── Clock hierarchy ────────────────────────────────────────────────────
         // Global clock tree.  A default "main" clock (120 BPM) is created in
@@ -122,7 +126,9 @@ namespace idyl::core {
         value apply_unop(const std::string& op, const value& operand);
 
         // Named argument map: parameter name → evaluated value
-        using named_args_t = std::unordered_map<std::string, value>;
+        using named_args_t  = std::unordered_map<std::string, value>;
+        // Named expression map: parameter name → AST expression (for dynamic params)
+        using named_exprs_t = std::unordered_map<std::string, parser::expr_ptr>;
 
         // ── Function / builtin calls ───────────────────────────────────────────
         value eval_call(const parser::function_call& call);
@@ -132,16 +138,22 @@ namespace idyl::core {
                              int line = 0, int col = 0);
         // qualified_key: the key under which the function is stored in
         // function_defs_ (may differ from def.name_ for namespaced library fns).
+        // pos_exprs / named_exprs: raw AST expressions parallel to args/named,
+        // stored on the instance for dynamic re-evaluation each tick.
         value eval_user_function(const parser::function_definition& def,
                                  const std::vector<value>& args,
                                  const named_args_t& named = {},
-                                 const std::string& qualified_key = {});
+                                 const std::string& qualified_key = {},
+                                 const std::vector<parser::expr_ptr>& pos_exprs = {},
+                                 const named_exprs_t& named_exprs = {});
 
         // ── Temporal function instantiation ────────────────────────────────────
         value instantiate_temporal(const parser::function_definition& def,
                                    const std::vector<value>& args,
                                    const named_args_t& named = {},
-                                   const std::string& qualified_key = {});
+                                   const std::string& qualified_key = {},
+                                   const std::vector<parser::expr_ptr>& pos_exprs = {},
+                                   const named_exprs_t& named_exprs = {});
         void tick_instance(function_instance& inst,
                            const parser::function_definition& def);
 

@@ -4,6 +4,6 @@ m(dt=10ms) = !
 
 process: {
     sig = pos(sine(0.1hz)) * 1000 + 10
-    trig = m(dt=as_ms(sig) )
-    print(sig, trig)
+    trig = m( dt=as_ms(sig) )
+    print(trig)
 }

@@ -682,13 +682,18 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 // Evaluate as a namespaced function call
                 std::vector<value> args;
                 named_args_t named;
+                std::vector<parser::expr_ptr> pos_exprs;
+                named_exprs_t named_exprs;
                 for (const auto& arg : acc.arguments_) {
                     if (arg && arg->value_) {
                         value v = eval_expr(arg->value_);
-                        if (!arg->name_.empty())
+                        if (!arg->name_.empty()) {
                             named[arg->name_] = std::move(v);
-                        else
+                            named_exprs[arg->name_] = arg->value_;
+                        } else {
                             args.push_back(std::move(v));
+                            pos_exprs.push_back(arg->value_);
+                        }
                     }
                 }
                 if (auto* bi = env_.lookup_builtin(qualified))
@@ -697,7 +702,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     return eval_module_fn(*mf, args, expr->line_, expr->column_);
                 auto it = function_defs_.find(qualified);
                 if (it != function_defs_.end() && it->second)
-                    return eval_user_function(*it->second, args, named, qualified);
+                    return eval_user_function(*it->second, args, named, qualified, pos_exprs, named_exprs);
             } else {
                 // No args — could be a namespaced function ref or value
                 if (auto* val = env_.lookup(qualified))
@@ -922,17 +927,22 @@ value evaluator::eval_call(const parser::function_call& call) {
         }
     }
 
-    // Evaluate arguments — split positional from named
+    // Evaluate arguments — split positional from named.
+    // Also keep the raw AST expressions for dynamic parameter re-evaluation.
     std::vector<value> args;
     named_args_t named;
+    std::vector<parser::expr_ptr> pos_exprs;
+    named_exprs_t named_exprs;
     args.reserve(call.arguments_.size());
     for (const auto& arg : call.arguments_) {
         if (arg && arg->value_) {
             value v = eval_expr(arg->value_);
             if (!arg->name_.empty()) {
                 named[arg->name_] = std::move(v);
+                named_exprs[arg->name_] = arg->value_;
             } else {
                 args.push_back(std::move(v));
+                pos_exprs.push_back(arg->value_);
             }
         }
     }
@@ -1005,7 +1015,7 @@ value evaluator::eval_call(const parser::function_call& call) {
     if (it != function_defs_.end() && it->second) {
         // Pass fn_name as the qualified_key so temporal instances get the right
         // def_name_ (the key that function_defs_ and fn_library_scope_ use).
-        return eval_user_function(*it->second, args, named, fn_name);
+        return eval_user_function(*it->second, args, named, fn_name, pos_exprs, named_exprs);
     }
 
     warn(call.line_, call.column_, "undefined function '" + fn_name + "'");
@@ -1047,10 +1057,12 @@ value evaluator::eval_module_fn(const module::function_entry& fn,
 value evaluator::eval_user_function(const parser::function_definition& def,
                                     const std::vector<value>& args,
                                     const named_args_t& named,
-                                    const std::string& qualified_key) {
+                                    const std::string& qualified_key,
+                                    const std::vector<parser::expr_ptr>& pos_exprs,
+                                    const named_exprs_t& named_exprs) {
     // Temporal function: has |> lambda block → instantiate with scheduler
     if (def.lambda_block_) {
-        return instantiate_temporal(def, args, named, qualified_key);
+        return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs);
     }
 
     // Constant temporal: no lambda block but has a dt parameter
@@ -1060,7 +1072,7 @@ value evaluator::eval_user_function(const parser::function_definition& def,
         if (p && (p->name_ == "dt" || p->has_default_time_)) { has_dt = true; break; }
     }
     if (has_dt) {
-        return instantiate_temporal(def, args, named, qualified_key);
+        return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs);
     }
 
     if (!def.body_) return value::nil();
@@ -1101,7 +1113,9 @@ value evaluator::eval_user_function(const parser::function_definition& def,
 value evaluator::instantiate_temporal(const parser::function_definition& def,
                                       const std::vector<value>& args,
                                       const named_args_t& named,
-                                      const std::string& qualified_key) {
+                                      const std::string& qualified_key,
+                                      const std::vector<parser::expr_ptr>& pos_exprs,
+                                      const named_exprs_t& named_exprs) {
     // ── Retick mode: return existing instance output ────────────────────
     // During a scheduler callback, the binding expression is re-evaluated.
     // The temporal call (e.g. lfo(1hz)) must return the already-ticked
@@ -1128,34 +1142,48 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
     }
 
     // ── Bind parameters: positional first, then named, then defaults ───
+    // Also record the raw AST expression for each param so tick_instance can
+    // re-evaluate it every tick, picking up changes in dynamic (temporal) inputs.
     double dt_ms = 0.0;
     size_t pos_idx = 0;
+    inst->params_.clear();
+    auto& param_exprs = instance_param_exprs_[inst->id_];
+    param_exprs.clear();
+
     for (size_t i = 0; i < def.parameters_.size(); ++i) {
         if (!def.parameters_[i]) continue;
         const auto& param = *def.parameters_[i];
-
         value val;
+        parser::expr_ptr src_expr;
+
         auto nit = named.find(param.name_);
         if (nit != named.end()) {
             val = nit->second;
+            auto eit = named_exprs.find(param.name_);
+            if (eit != named_exprs.end()) src_expr = eit->second;
         } else if (pos_idx < args.size()) {
-            val = args[pos_idx++];
+            val = args[pos_idx];
+            if (pos_idx < pos_exprs.size()) src_expr = pos_exprs[pos_idx];
+            ++pos_idx;
         } else if (param.default_value_) {
             val = eval_expr(param.default_value_);
+            // Defaults are definition-time constants — no dynamic expr stored.
         } else {
             val = value::number(0.0);
         }
 
+        if (src_expr) param_exprs[param.name_] = src_expr;
         inst->params_[param.name_] = val;
 
         // Detect dt parameter (has_default_time_ flag or name == "dt")
         if (param.name_ == "dt" || param.has_default_time_) {
             dt_ms = val.as_number();
-            // If the value is a time type, it's already in ms
-            // If it's a raw number, treat as ms
         }
     }
     inst->dt_ms_ = dt_ms;
+
+
+
 
     // ── Run init block ─────────────────────────────────────────────────────
     if (def.lambda_block_ && def.lambda_block_->init_) {
@@ -1286,6 +1314,33 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
 
 void evaluator::tick_instance(function_instance& inst,
                               const parser::function_definition& def) {
+    // Re-evaluate dynamic parameter expressions every tick — even for constant
+    // temporal functions (no lambda block).  This lets dt itself evolve.
+    // Collect updates first to avoid modifying the map during iteration.
+    {
+        auto expr_it = instance_param_exprs_.find(inst.id_);
+        if (expr_it != instance_param_exprs_.end() && !expr_it->second.empty()) {
+            std::vector<std::pair<std::string, value>> param_updates;
+            for (const auto& [name, snapshot] : inst.params_) {
+                auto pit = expr_it->second.find(name);
+                if (pit != expr_it->second.end() && pit->second) {
+                    param_updates.push_back({name, eval_expr(pit->second)});
+                }
+            }
+            for (auto& [name, val] : param_updates) {
+                if (name == "dt") {
+                    double new_dt = val.as_number();
+                    if (new_dt != inst.dt_ms_ && new_dt > 0.0) {
+                        inst.dt_ms_ = new_dt;
+                        if (scheduler_ && inst.subscription_id_ != 0)
+                            scheduler_->update_dt(inst.subscription_id_, new_dt);
+                    }
+                }
+                inst.params_[name] = std::move(val);
+            }
+        }
+    }
+
     if (!def.lambda_block_) return;
 
     // If this function came from a namespaced library, push its library-local
@@ -1297,13 +1352,13 @@ void evaluator::tick_instance(function_instance& inst,
             env_.define(name, val);
     }
 
-    // Build a scope with: parameters + current state
+    // Build a scope with: parameters (snapshot after re-eval above) + current state
     env_.push_scope();
 
-    for(auto& [name, val] : inst.params_) {
+    for (const auto& [name, val] : inst.params_) {
         env_.define(name, val);
     }
-    for(auto& [name, val] : inst.current_) {
+    for (const auto& [name, val] : inst.current_) {
         env_.define(name, val);
     }
 
@@ -1322,8 +1377,7 @@ void evaluator::tick_instance(function_instance& inst,
                 value v = eval_expr(upd.body_);
                 inst.next_[upd.name_] = v;
                 // Also update the scope so later statements in the same
-                // tick can see the new value (sequential semantics for now;
-                // true double-buffering can be added later if needed)
+                // tick can see the new value (sequential semantics).
                 env_.define(upd.name_, v);
             }
         } else if (stmt->type_ == parser::node_t::assignment) {

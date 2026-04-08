@@ -127,6 +127,15 @@ struct sys_clock_scheduler {
         }
     }
 
+    // Update the tick interval of an existing subscription.
+    // Takes effect on the next reschedule (after the current tick completes).
+    void update_dt(subscription_id id, double new_dt_ms) {
+        std::lock_guard<std::mutex> lock(subs_mutex_);
+        auto it = subscriptions_.find(id);
+        if (it != subscriptions_.end())
+            it->second.dt_ms_ = new_dt_ms;
+    }
+
     // ── Queries ────────────────────────────────────────────────────────────────
 
     // Elapsed time since start() in milliseconds.
@@ -179,21 +188,25 @@ private:
         ev.member_payload = tick_payload{id};
 
         // Self-rescheduling callback: fires the user tick, then returns
-        // the next drift-free deadline (previous deadline + dt).
-        ev.member_callback = [this, dt_ms, dt_dur, fire_at](tick_payload& payload) mutable
+        // the next drift-free deadline (previous deadline + current dt).
+        // dt is re-read from the subscription record each tick so that
+        // update_dt() takes effect on the very next reschedule.
+        ev.member_callback = [this, dt_ms, fire_at](tick_payload& payload) mutable
             -> std::optional<time_point_t>
         {
             tick_fn cb;
+            double current_dt_ms = dt_ms;
             {
                 std::lock_guard<std::mutex> lock(subs_mutex_);
                 auto it = subscriptions_.find(payload.sub_id);
                 if (it == subscriptions_.end() || !it->second.active_)
                     return std::nullopt;
                 cb = it->second.callback_;
+                current_dt_ms = it->second.dt_ms_;  // read live value
             }
 
             double t = now_ms();
-            bool keep = cb(t, dt_ms);
+            bool keep = cb(t, current_dt_ms);
 
             if (!keep) {
                 std::lock_guard<std::mutex> lock(subs_mutex_);
@@ -201,8 +214,10 @@ private:
                 return std::nullopt;
             }
 
-            // Drift-free: next deadline = previous deadline + dt
-            fire_at += dt_dur;
+            // Drift-free: next deadline = previous deadline + current dt
+            auto current_dt_dur = std::chrono::duration_cast<duration_t>(
+                std::chrono::duration<double, std::milli>(current_dt_ms));
+            fire_at += current_dt_dur;
             return fire_at;
         };
 

@@ -169,7 +169,7 @@ namespace idyl::core {
         std::unordered_map<std::string, value> current_;
         std::unordered_map<std::string, value> next_;
 
-        // Bound parameters (immutable after creation)
+        // Bound parameters (snapshot at instantiation time; updated each tick for dynamic params)
         std::unordered_map<std::string, value> params_;
 
         // Emitted variables (set by `emit x = ...` in lambda blocks)

@@ -8,9 +8,9 @@ another_sine(freq, amp, dt=10ms) = sin(tau * phase) * amp
 
 process: {
     // Positional argument don't evolve
-    amp = square(0.3hz)
-    s = another_sine(1hz, amp)
-    print(s)
+    amp = pos(square(0.3hz)) // square between 0 and 1 
+    s = another_sine(1hz, amp) // This amplitude should switch from 0 to 1 at 0.3hz 
+    print(amp, s)
 
     /* // Named arguments don't evolve either
     s = sine(1hz, amplitude=amp)
