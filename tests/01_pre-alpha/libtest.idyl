@@ -1,0 +1,7 @@
+lib("stdlib")
+
+process: {
+    seed()
+    a = dust(1, dt = 100ms)
+    print(a)
+}

@@ -1,0 +1,12 @@
+init_no_temporal = result 
+|> {
+    init: {
+        az = 1
+        bz = 2 
+        result = az + bz
+    }
+}
+
+process: {
+    print(init_no_temporal())
+}

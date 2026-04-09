@@ -294,6 +294,11 @@ namespace idyl::core {
                 }
             }, 1, 1
         },
+        {
+            "trigger", [](span<const value> args) -> value {
+                return value::trigger(args[0].as_number() != 0.0);
+            }, 1, 1
+        },
     };
     constexpr size_t num_builtins = sizeof(builtins) / sizeof(builtin);
 } // --- idyl::core ---

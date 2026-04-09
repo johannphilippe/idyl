@@ -572,6 +572,16 @@ lambda_statement
         assign->column_ = @1.begin.column;
         $$ = assign;
     }
+    | DT ASSIGN expression 
+    {
+        auto assign = std::make_shared<idyl::parser::assignment>();
+        assign->name_ = "dt";
+        assign->value_ = $3;
+        assign->is_emit_ = false;
+        assign->line_ = @1.begin.line;
+        assign->column_ = @1.begin.column;
+        $$ = assign;
+    }
     | IDENTIFIER LPAREN parameter_list RPAREN ASSIGN expression %prec ASSIGN
     {
         auto func = std::make_shared<idyl::parser::function_definition>();

@@ -90,21 +90,13 @@ ramp(freq, amplitude=1, dt=10ms) = out |> {
 // ────────────────────────────────────────────────────────────────────────────────
 
 // Metro — periodic trigger at a given frequency.
-metro(freq, dt=10ms) = trig |> {
-    init: {
-        phase = 0
-        trig = !
-    }
-    prev = phase
-    phase = fmod(phase + dt / freq, 1)
-    trig = phase < prev
-}
+metro(dt=10ms) = !
 
 // Dust — probabilistic trigger (Poisson-like). `density` = avg triggers/sec.
 dust(density, dt=10ms) = trig |> {
     init: { trig = _ }
     thresh = density * dt / 1000
-    trig = rnd() < thresh
+    trig = trigger(rnd() < thresh)
 }
 
 // Clock divider — emits a trigger every `n`-th input trigger.
@@ -114,7 +106,7 @@ clkdiv(input, n) = trig |> {
         trig = _
     }
     count = count + input
-    trig = count >= n
+    trig = trigger(count >= n)
     count = count * (1 - trig)
 }
 
@@ -129,19 +121,25 @@ euclid(hits, steps, dt=10ms) = trig |> {
     phase = fmod(phase + dt / (steps * dt), 1)
     curr = int(phase * steps)
     onset = fmod(curr * hits, steps) < hits
-    trig = (curr != prev) * onset
+    trig = trigger((curr != prev) * onset)
 }
 
 // Coin — trigger that fires with probability `p` (0…1) on each tick.
 coin(p=0.5, dt=10ms) = trig |> {
     init: { trig = _ }
-    trig = rnd() < p
+    trig = trigger(rnd() < p)
 }
 
 // Counter — free-running integer counter.
 counter(dt=10ms) = cnt |> {
     init: { cnt = 0 }
     cnt = cnt + 1
+}
+
+rcounter(incr!, reset!, dt=10ms) = count |> {
+    init: {count = 0}
+    count = count; count + 1 ? (incr)
+    count = count; reset ? (reset)
 }
 
 // Gate — hold a trigger high for a given `hold` duration, then rest.
@@ -151,7 +149,7 @@ gate(input, hold=100ms, dt=10ms) = out |> {
         out = _
     }
     remaining = max(remaining - dt, 0) + input * hold
-    out = remaining > 0
+    out = trigger(remaining > 0)
 }
 
 

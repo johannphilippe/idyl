@@ -1210,6 +1210,7 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                 auto& assign = static_cast<const parser::assignment&>(*stmt);
                 value v = eval_expr(assign.value_);
                 inst->current_[assign.name_] = v;
+                env_.define(static_cast<const parser::assignment&>(*stmt).name_, v);  // pre-define for self-reference
             }
         }
 
@@ -1383,6 +1384,14 @@ void evaluator::tick_instance(function_instance& inst,
         } else if (stmt->type_ == parser::node_t::assignment) {
             auto& assign = static_cast<const parser::assignment&>(*stmt);
             value v = eval_expr(assign.value_);
+            if(assign.name_ == "dt") {
+                double new_dt = v.as_number();
+                if (new_dt != inst.dt_ms_ && new_dt > 0.0) {
+                    inst.dt_ms_ = new_dt;
+                    if (scheduler_ && inst.subscription_id_ != 0)
+                        scheduler_->update_dt(inst.subscription_id_, new_dt);
+                }
+            }
             inst.next_[assign.name_] = v;
             env_.define(assign.name_, v);
             if (assign.is_emit_) {

@@ -352,7 +352,7 @@ This must be done in a smart way :
 
 # Issues : 
 
-- dt parameters should be able to evolve over time (like any parameter of a temporal function). For now, named params don't evolve. Same for positional arguments. 
+- parameters should be able to evolve over time for temporal functions using parameters issued from temporal functions  (like any parameter of a temporal function). For now, named params don't evolve. Same for positional arguments. 
     Example :
     ```idyl
     amp = pos(square(0.1hz, dt=10ms)) // 0-1 range lfo square

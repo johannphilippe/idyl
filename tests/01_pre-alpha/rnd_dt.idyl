@@ -1,0 +1,10 @@
+counter(dt=300ms) = cnt
+|> {
+    init: {cnt = 0}
+    cnt = cnt + 1
+    dt = as_ms(rnd(100, 1000))
+}
+
+process: {
+    print(counter())
+}
