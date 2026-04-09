@@ -319,6 +319,77 @@ class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb10-1"><a href=
 <p>Generators are declarative, composable, and produce flows
 directly.</p>
 <hr />
+<h2 id="deferred-execution-block"><code>@</code> — deferred execution
+block</h2>
+<p>The <code>@(time_expr): { }</code> block schedules a block of
+statements to run <strong>once</strong>, after a specified delay. It is
+the “fire and forget at time T” primitive.</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;start&quot;</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(<span class="sc">500ms</span>): {</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;this runs 500ms later&quot;</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(<span class="sc">2s</span>): {</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;this runs 2 seconds later&quot;</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="syntax">Syntax</h3>
+<pre><code>@(time_expression): {
+    statement
+    statement
+    ...
+}</code></pre>
+<p>The single-statement form (no braces, no colon) is also valid:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="op">@</span>(<span class="sc">1s</span>) <span class="bu">print</span>(<span class="st">&quot;one second later&quot;</span>)</span></code></pre></div>
+<h3 id="time-expression">Time expression</h3>
+<p>The time expression can be any value that resolves to a duration — a
+literal, a variable, or a computed expression:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    delay <span class="op">=</span> <span class="sc">800ms</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(delay): {</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;fired after delay&quot;</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(delay <span class="op">*</span> <span class="dv">2</span>): {</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;fired after double the delay&quot;</span>)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="scope">Scope</h3>
+<p>The handler block sees the process block’s live scope. Variables
+modified in the handler are visible to subsequent code — including other
+at-blocks that haven’t fired yet:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="dv">10</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(<span class="sc">300ms</span>): {</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> <span class="dv">99</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;x is now:&quot;</span>, x)     /<span class="co">/ prints 99</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(<span class="sc">600ms</span>): {</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;x is still:&quot;</span>, x)   /<span class="co">/ also prints 99</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="use-cases">Use cases</h3>
+<ul>
+<li>Timed releases, fade-outs, or state transitions</li>
+<li>Sequencing one-shot events in a musical timeline</li>
+<li>Triggering another process after a warm-up delay</li>
+<li>Scheduling cleanup after a finite process completes</li>
+</ul>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    osc <span class="op">=</span> <span class="bu">osc_out</span>(<span class="st">&quot;127.0.0.1&quot;</span>, <span class="dv">9000</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_send</span>(osc, <span class="st">&quot;/gate&quot;</span>, <span class="dv">1</span>)</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(<span class="sc">500ms</span>): {</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        <span class="bu">osc_send</span>(osc, <span class="st">&quot;/gate&quot;</span>, <span class="dv">0</span>)    /<span class="co">/ release after 500ms</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
 <p><a href="ch07_emit_catch.html">Next: Emit &amp; catch →</a></p>
 </body>
 </html>

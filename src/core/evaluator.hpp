@@ -91,6 +91,22 @@ namespace idyl::core {
         // run().  `clock()` creates child clocks; `tempo()` sets BPM with
         // propagation.  All clocks bind to main unless parent= overrides.
         clock_registry clocks_;
+        
+        // ── Delay memories  ────────────────────────────────────────────────────
+        // For memory ops (e.g. delay, feedback), maps expression pointer to a
+        // vector of past values (the "memory").  The expression pointer is the
+        // key because the memory is tied to that specific AST node (i.e. the
+        // delay operator in the source code), not to a function instance or
+        // temporal instance.  This allows multiple delay instances to coexist
+        // without interference, and for the memory to persist across function calls
+        // without being tied to a specific temporal instance.
+        struct memory_buffer 
+        {
+            memory_buffer(size_t size = 0) : buffer(size), write_index(0) {}
+            std::vector<value> buffer; // the actual memory buffer
+            size_t write_index = 0;           // current write index for circular buffer behavior
+        };
+        std::unordered_map<const parser::node*, memory_buffer> delay_memories_;
 
         // Convenience: current main clock BPM.
         double main_clock_bpm() const { return clocks_.main_bpm(); }
@@ -119,6 +135,9 @@ namespace idyl::core {
 
         // ── Statement execution ────────────────────────────────────────────────
         void exec_stmt(const parser::stmt_ptr& stmt);
+
+        // ── Memory operation execution ─────────────────────────────────────────
+        value eval_memory_op(const parser::memory_op_expr* moe);
 
         // ── Operator dispatch ──────────────────────────────────────────────────
         value apply_binop(const std::string& op, const value& lhs, const value& rhs,
@@ -154,8 +173,19 @@ namespace idyl::core {
                                    const std::string& qualified_key = {},
                                    const std::vector<parser::expr_ptr>& pos_exprs = {},
                                    const named_exprs_t& named_exprs = {});
+
+        // Instantiate a native temporal module function.  Creates a
+        // function_instance backed by native_init_ / native_update_ callbacks
+        // instead of an AST definition.
+        value instantiate_native_temporal(const module::function_entry& entry,
+                                          const std::vector<value>& args,
+                                          const named_args_t& named = {},
+                                          const std::vector<parser::expr_ptr>& pos_exprs = {},
+                                          const named_exprs_t& named_exprs = {});
+
+        // def is nullable: nullptr when inst is a native temporal instance.
         void tick_instance(function_instance& inst,
-                           const parser::function_definition& def);
+                           const parser::function_definition* def);
 
         // ── Literals ───────────────────────────────────────────────────────────
         value eval_literal(const parser::literal_expr& lit);

@@ -132,6 +132,35 @@ process: {
 | `osc_in(port)` | Open a UDP input listener, return handle |
 | `osc_send(handle, address, value...)` | Send one or more values to an OSC address |
 | `osc_close(handle)` | Close the connection |
+| `osc_stop()` | Stop all scheduled (dt-driven) sends |
+
+### Receiving OSC — `osc_recv`
+
+`osc_recv` is a **native temporal function** — it ticks on a clock and polls a UDP
+input for incoming OSC messages. It integrates naturally with the reactive system:
+
+```idyl
+module("osc")
+
+process: {
+    rx = osc_in(9000)
+    msgs = osc_recv(rx, dt=10ms)   // poll every 10ms
+    print("received:", msgs)
+
+    msgs catch received: {
+        print("new message arrived!")
+    }
+}
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `handle` | A receiver handle from `osc_in()` |
+| `dt` | Poll interval (default `10ms`) |
+
+**Output**: the last received OSC message as a flow `[address, arg0, arg1, ...]`, or unchanged if nothing arrived.
+
+**Emits**: `received` — a trigger that fires whenever a new message arrives. Use with `catch received:` to react only to new messages.
 
 ### Sending multiple values
 
@@ -149,6 +178,121 @@ cmake .. -DIDYL_MODULE_OSC=ON
 
 # Disable
 cmake .. -DIDYL_MODULE_OSC=OFF
+```
+
+---
+
+## Built-in Csound module
+
+The Csound module bridges Idƴl's temporal system with Csound instrument control.
+Each `cs_open()` call creates an independent Csound instance running in a dedicated
+performance thread. Multiple instances can run simultaneously.
+
+Enable at build time:
+
+```bash
+cmake .. -DIDYL_MODULE_CSOUND=ON
+```
+
+Import in your program:
+
+```idyl
+module("csound")
+```
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `cs_open(path)` | Compile and start a `.csd` or `.orc` file; returns a handle |
+| `cs_note(handle, instr, dur_ms, p4, ...)` | Schedule a Csound i-event (fires immediately) |
+| `cs_chnset(handle, channel, value)` | Write a named control channel |
+| `cs_chnget(handle, channel, dt=50ms)` | Temporal: poll a named control channel |
+| `cs_close(handle)` | Stop and destroy the Csound instance |
+
+### `cs_note`
+
+Schedules a Csound instrument event starting at the current moment (p2 = 0):
+
+- `instr` — instrument number (number) or instrument name (string)
+- `dur_ms` — duration in milliseconds (number or time literal)
+- `p4, p5, ...` — additional p-fields passed verbatim
+
+```idyl
+module("csound")
+
+process: {
+    cs = cs_open("my_synth.csd")
+    cs_note(cs, 1, 500ms, 440, 0.8)     // instr 1, 500ms, freq=440, amp=0.8
+    cs_note(cs, "flute", 1s, 523, 0.6)  // named instrument
+}
+```
+
+### `cs_chnset` and `cs_chnget`
+
+Control channels are Csound's named software bus — a fast thread-safe way to pass
+values between the host and running instruments.
+
+```idyl
+module("csound")
+
+process: {
+    cs = cs_open("synth.csd")
+
+    lfo_val = lfo(0.5hz, 1.0, dt=10ms)
+    cs_chnset(cs, "cutoff", 800 + lfo_val * 400)   // modulate cutoff with LFO
+
+    feedback = cs_chnget(cs, "level", dt=20ms)      // read back output level
+    print("level:", feedback)
+
+    feedback catch changed: {
+        print("level changed to:", feedback)
+    }
+}
+```
+
+`cs_chnget` is a native temporal function. It outputs the current channel value on
+every tick and emits `changed` whenever the value differs from the previous tick.
+
+### Full example
+
+```idyl
+module("csound")
+
+process: {
+    cs = cs_open("piano.csd")
+
+    // Play a chord
+    cs_note(cs, 1, 2s, 261, 0.7)    // C4
+    cs_note(cs, 1, 2s, 329, 0.6)    // E4
+    cs_note(cs, 1, 2s, 392, 0.6)    // G4
+
+    @(2s): {
+        cs_close(cs)
+    }
+}
+```
+
+---
+
+## Native temporal module functions
+
+Some module functions are **native temporal** — they behave like temporal functions
+defined with `|>`, but their state and update logic is implemented in C++.
+They are instantiated, ticked by the scheduler, and can emit values just like
+user-defined temporal functions.
+
+Currently:
+- `osc_recv(handle, dt=10ms)` — polls a UDP OSC receiver
+- `cs_chnget(handle, channel, dt=50ms)` — polls a Csound control channel
+
+You call them the same way as any temporal function:
+
+```idyl
+msgs = osc_recv(rx, dt=5ms)
+msgs catch received: {
+    print("got:", msgs)
+}
 ```
 
 ---

@@ -13,6 +13,9 @@
 }
 
 @media (prefers-color-scheme: dark) {
+    code, pre, pre code {
+        color: #c9d1d9;
+    }
     :root {
         --bg: #0d1117;
         --fg: #c9d1d9;
@@ -235,22 +238,22 @@ code span.in { color: #6b7280; font-style: italic; }  /* Information */
 
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
-    code span.kw { color: #c084fc; }
-    code span.bu { color: #7dd3fc; }
-    code span.fu { color: #7dd3fc; }
-    code span.dt { color: #7dd3fc; }
-    code span.dv { color: #fbbf24; }
-    code span.fl { color: #fbbf24; }
-    code span.bn { color: #fbbf24; }
-    code span.sc { color: #fb923c; }
-    code span.st { color: #86efac; }
-    code span.ch { color: #86efac; }
-    code span.ss { color: #c084fc; }
-    code span.co { color: #9ca3af; }
-    code span.op { color: #f0abfc; }
-    code span.al { color: #fca5a5; }
-    code span.cn { color: #67e8f9; }
-    code span.cf { color: #c084fc; }
-    code span.er { color: #fca5a5; }
-    code span.wa { color: #fcd34d; }
+    code span.kw { color: #e0aaff; font-weight: 600; }      /* Keyword: bright violet */
+    code span.bu { color: #38bdf8; }                        /* Built-in: vivid blue */
+    code span.fu { color: #38bdf8; }                        /* Function: vivid blue */
+    code span.dt { color: #f472b6; }                        /* DataType: pink */
+    code span.dv { color: #facc15; }                        /* DecVal: yellow */
+    code span.fl { color: #facc15; }                        /* Float: yellow */
+    code span.bn { color: #facc15; }                        /* BaseN: yellow */
+    code span.sc { color: #fb7185; }                        /* SpecialChar: coral */
+    code span.st { color: #4ade80; }                        /* String: green */
+    code span.ch { color: #4ade80; font-weight: 600; }      /* Char: green bold */
+    code span.ss { color: #a78bfa; font-style: italic; }    /* SpecialString: purple italic */
+    code span.co { color: #a1a1aa; font-style: italic; }    /* Comment: gray italic */
+    code span.op { color: #f472b6; }                        /* Operator: pink */
+    code span.al { color: #f87171; font-weight: 700; }      /* Alert: red bold */
+    code span.cn { color: #38f9d7; font-weight: 600; }      /* Constant: teal bold */
+    code span.cf { color: #e0aaff; font-weight: 600; }      /* ControlFlow: bright violet */
+    code span.er { color: #f87171; font-weight: 700; text-decoration: underline; } /* Error: red underline */
+    code span.wa { color: #fde047; font-weight: 600; }      /* Warning: bright yellow */
 }

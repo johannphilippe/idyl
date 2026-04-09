@@ -74,11 +74,22 @@ namespace idyl::semantic {
                             symbol_info info;
                             info.type_          = symbol_t::builtin;
                             info.name_          = sym_name;
-                            info.arity_         = entry.max_arity_;
-                            info.required_arity_= entry.min_arity_;
                             info.inferred_type_ = inferred_t::function;
                             info.line_          = mod->line_;
                             info.column_        = mod->column_;
+                            // Native temporal functions declare arity via params_
+                            if (entry.is_native_temporal_ && !entry.params_.empty()) {
+                                int req = 0, total = 0;
+                                for (const auto& p : entry.params_) {
+                                    ++total;
+                                    if (!p.has_default_) ++req;
+                                }
+                                info.arity_          = total;
+                                info.required_arity_ = req;
+                            } else {
+                                info.arity_          = entry.max_arity_;
+                                info.required_arity_ = entry.min_arity_;
+                            }
                             scope_stack_.define(sym_name, info);
                         }
                         idyl::debug("Registered built-in module '" + mod->path_ + "' ("
@@ -420,6 +431,7 @@ namespace idyl::semantic {
                         node->line_, node->column_});
                 }
                 scope_stack_.push(scope_t::process_block);
+                scope_stack_.scopes_.back().is_process_block_ = true;
                 for(const auto& stmt : std::static_pointer_cast<parser::process_block>(node)->body_->statements_) {
                     resolve(stmt);
                 }
@@ -723,6 +735,23 @@ namespace idyl::semantic {
                 scope_stack_.pop();
                 break;
             }
+
+            case parser::node_t::at_block:
+            {
+                idyl::debug("Resolving @ block.");
+                auto atb = std::static_pointer_cast<parser::at_block>(node);
+                // Resolve the time expr expression (the watched variable)
+                if (atb->time_expr_) {
+                    resolve(atb->time_expr_);
+                }
+                scope_stack_.push(scope_t::at_block);
+                for(const auto& stmt : atb->handler_) {
+                    resolve(stmt);
+                }
+                scope_stack_.pop();
+                break;
+            }
+
             case parser::node_t::flow_literal_expr:
             {
                 idyl::debug("Resolving flow literal expression.");
@@ -782,7 +811,7 @@ namespace idyl::semantic {
                 auto mem_expr = std::static_pointer_cast<parser::memory_op_expr>(node);
 
                 // Validate @ is only used inside a temporal function
-                if (!scope_stack_.is_in_temporal_context()) {
+                if (!scope_stack_.is_in_temporal_context() && !scope_stack_.is_process_context()) {
                     idyl::warning("Memory operator '@' used outside temporal function — no previous value exists.", node->line_, node->column_);
                     diagnostics_.push_back(diagnostic{severity::warning,
                         "Memory operator '@' used outside temporal function — no previous value exists.",
@@ -1270,6 +1299,20 @@ namespace idyl::semantic {
             case parser::node_t::memory_op: {
                 auto mem = std::static_pointer_cast<parser::memory_op>(node);
                 return infer_expr_type(mem->expr_);
+            }
+            case parser::node_t::stop_statement:
+            {
+                return inferred_t::trigger;
+            }
+            case parser::node_t::start_statement:
+            {
+                if(auto start = std::static_pointer_cast<parser::start_statement>(node); start->target_.empty()) {
+                    // Error, start statement must have a target 
+                        diagnostics_.push_back(diagnostic{severity::error,
+                            "Start statement missing target flow name.",
+                            node->line_, node->column_});
+                }
+                return inferred_t::trigger;
             }
 
             // --- Function call: return type unknown unless we track return types ---

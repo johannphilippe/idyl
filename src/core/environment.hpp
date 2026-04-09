@@ -45,7 +45,9 @@ namespace idyl::core {
             define("pi", value::number(3.14159265358979323846));
             define("tau", value::number(6.28318530717958647692));
             define("euler", value::number(2.71828182845904523536));
-
+            define("catalan", value::number(0.91596559417721901505));
+            define("apery", value::number(1.20205690315959428540));
+            define("phi", value::number(1.61803398874989484820)); // alias for golden_ratio
         }
 
         // ── Scope management ───────────────────────────────────────────────────

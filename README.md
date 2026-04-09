@@ -22,13 +22,16 @@ The engine underneath is a high-accuracy system-clock scheduler that drives temp
 | | |
 |---|---|
 | **Temporal functions** | Clock-driven (`dt=10ms`), trigger-driven (`spike!`), or hybrid. State via `init` + `\|>` lambda blocks. |
+| **Delay operator** | `'(expr)` — one-sample delay. `'(expr, N)` — N-sample delay. Circular buffer, per-expression, independent across call sites. |
+| **Deferred blocks** | `@(500ms): { ... }` — schedules a block to run once after a delay. Time expression can be any value. |
 | **Flows** | Ordered sequences with named members, generator expressions, automatic wrapping. The data structure of the language. |
 | **Emit system** | Side-channel output from temporal functions. Read emitted values with the `::` accessor. |
 | **Catch blocks** | React to events emitted by temporal instances — `timer catch finished: { ... }` |
 | **Clock hierarchy** | Create clocks, bind children to parents, change tempo with automatic proportional propagation. |
 | **First-class functions** | Functions are values. Store them, pass them, select between them with ternary. |
-| **Modules** | Built-in OSC support. External modules via `module()`. Libraries via `lib()` with namespace support. |
-| **Process blocks** | The only executable entry points. Named, with optional duration. Start and stop them via OSC in `--listen` mode. |
+| **Process control** | `start name` / `stop name` (or just `stop`) — start and stop named process blocks from within a running process. |
+| **Modules** | Built-in OSC and Csound support. Native temporal module functions (`osc_recv`, `cs_chnget`) integrate with the reactive system. External modules via `module()`. Libraries via `lib()` with namespace support. |
+| **Process blocks** | The only executable entry points. Named, with optional duration. Start and stop them via OSC in `--listen` mode or from within other processes. |
 | **7-pass semantic analysis** | Symbol collection, name resolution, arity checking, type inference, temporal validation, flow validation, scope validation — all before a single line runs. |
 
 ---
@@ -187,6 +190,53 @@ process: {
 }
 ```
 
+### Delay operator
+
+The prime operator `'` returns the value of an expression from a previous tick — a sample-based circular delay:
+
+```idyl
+process: {
+    a = counter(dt=100ms)
+    b = '(a)        // one sample behind a
+    c = '(a, 4)     // four samples behind a
+    print(a, b, c)
+}
+```
+
+### Deferred execution
+
+`@(time_expr): { }` schedules statements to run once after a delay:
+
+```idyl
+process: {
+    osc_send(out, "/gate", 1)
+
+    @(500ms): {
+        osc_send(out, "/gate", 0)   // release after 500ms
+    }
+}
+```
+
+### Process control
+
+Named processes can be started and stopped from within other processes:
+
+```idyl
+process launcher: {
+    @(2s): {
+        start synth       // start "synth" process after 2 seconds
+        stop launcher     // stop this process
+    }
+}
+
+process synth: {
+    osc = lfo(440hz, 0.8, dt=10ms)
+    print(osc)
+}
+```
+
+`stop` without a name stops the current process.
+
 ### Process blocks
 
 The only code that actually runs. Everything outside a process block is a definition waiting to be called.
@@ -212,10 +262,39 @@ Built-in OSC module for sending and receiving messages over UDP:
 module("osc")
 
 process: {
-    handle = osc_out("127.0.0.1", 9000)
-    osc_send(handle, "/synth/freq", 440)
-    osc_send(handle, "/synth/gate", 1)
-    osc_close(handle)
+    out = osc_out("127.0.0.1", 9000)
+    osc_send(out, "/synth/freq", 440)
+    osc_send(out, "/synth/gate", 1)
+    osc_close(out)
+}
+```
+
+Receive OSC with `osc_recv` — a native temporal function that integrates with the reactive system:
+
+```idyl
+module("osc")
+
+process: {
+    rx = osc_in(9000)
+    msgs = osc_recv(rx, dt=10ms)
+    msgs catch received: {
+        print("incoming:", msgs)
+    }
+}
+```
+
+### Csound
+
+The Csound module connects idyl's scheduler to Csound instruments:
+
+```idyl
+module("csound")
+
+process: {
+    cs = cs_open("piano.csd")
+    cs_note(cs, 1, 500ms, 440, 0.8)       // instr 1, 500ms, freq=440, amp=0.8
+    cs_chnset(cs, "cutoff", 800)           // write a control channel
+    fc = cs_chnget(cs, "feedback", dt=20ms) // poll a control channel (temporal)
 }
 ```
 
@@ -314,6 +393,7 @@ sudo make install    # installs to /usr/local/bin
 
 Optional CMake flags:
 - `-DIDYL_MODULE_OSC=OFF` — disable the built-in OSC module
+- `-DIDYL_MODULE_CSOUND=ON` — enable the Csound module (requires Csound development headers)
 
 ---
 
@@ -325,8 +405,14 @@ What exists:
 - Full parser (Bison/Flex) with location tracking
 - 7-pass semantic analyzer
 - Tree-walking evaluator with temporal function instantiation
-- System-clock scheduler with drift-free ticking
-- Built-in OSC module (send/receive)
+- System-clock scheduler with drift-free ticking and live `dt` updates
+- Sample-based delay operator `'(expr)` / `'(expr, N)` with per-expression circular buffers
+- Deferred execution blocks `@(time): { }` — one-shot scheduler callbacks
+- `start`/`stop` keywords for process-to-process control
+- Dynamic parameter re-evaluation — temporal function parameters can themselves be temporal
+- Built-in OSC module: send, receive, `osc_recv` native temporal poller
+- Built-in Csound module: `cs_open`, `cs_note`, `cs_chnset`, `cs_chnget` (native temporal)
+- Native temporal module function system — C++ module functions that tick with state and emit values
 - Clock hierarchy with proportional tempo propagation
 - Library imports with deduplication and namespacing
 - `--process` filter and `--listen` OSC control mode

@@ -76,6 +76,8 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 "end"           { TRACK_LOCATION(); return yy::parser::token::END; }
 "dt"            { TRACK_LOCATION(); return yy::parser::token::DT; }
 "dur"           { TRACK_LOCATION(); return yy::parser::token::DUR; }
+"stop"          { TRACK_LOCATION(); return yy::parser::token::STOP; }
+"start"         { TRACK_LOCATION(); return yy::parser::token::START; }
 
 {NUMBER}"ms"    { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 {NUMBER}"s"     { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
@@ -105,7 +107,8 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 ">="             { TRACK_LOCATION(); return yy::parser::token::GE; }
 "<<"             { TRACK_LOCATION(); return yy::parser::token::LSHIFT; }
 ">>"             { TRACK_LOCATION(); return yy::parser::token::RSHIFT; }
-"@"             { TRACK_LOCATION(); return yy::parser::token::MEMORY_OP; }
+"'"              { TRACK_LOCATION(); return yy::parser::token::MEMORY_OP; }
+"@"              { TRACK_LOCATION(); return yy::parser::token::AT_OP; }
 
 "+"             { TRACK_LOCATION(); return yy::parser::token::PLUS; }
 "-"             { TRACK_LOCATION(); return yy::parser::token::MINUS; }
@@ -207,6 +210,8 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_RSHIFT(yylloc);
         case yy::parser::token::MEMORY_OP: 
             return yy::parser::make_MEMORY_OP(yylloc);
+        case yy::parser::token::AT_OP:
+            return yy::parser::make_AT_OP(yylloc);
         case yy::parser::token::PLUS: 
             return yy::parser::make_PLUS(yylloc);
         case yy::parser::token::MINUS: 
@@ -257,6 +262,10 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_RBRACE(yylloc);
         case yy::parser::token::YYEOF: 
             return yy::parser::make_YYEOF(yylloc);
+        case yy::parser::token::STOP:
+            return yy::parser::make_STOP(yylloc);
+        case yy::parser::token::START:
+            return yy::parser::make_START(yylloc);
         default: 
             return yy::parser::make_YYEOF(yylloc);
     }

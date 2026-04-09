@@ -20,6 +20,9 @@
 #ifdef IDYL_MODULE_OSC
 #include "modules/osc_module.hpp"
 #endif
+#ifdef IDYL_MODULE_CSOUND
+#include "modules/csound_module.hpp"
+#endif
 #include "utilities/osc.hpp"
 #include "utilities/udp.hpp"
 #include "debug.hpp"

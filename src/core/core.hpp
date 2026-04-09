@@ -1,9 +1,10 @@
 #pragma once 
 
 #include <variant>
-#include <string> 
+#include <string>
 #include <vector>
 #include <memory>
+#include <functional>
 #include <cmath>
 #include <cstdint>
 #include <unordered_map>
@@ -148,6 +149,24 @@ namespace idyl::core {
     using lib_scope_t   = std::unordered_map<std::string, value>;
     using lib_scope_ptr = std::shared_ptr<lib_scope_t>;
 
+    // ── Native temporal callback types ─────────────────────────────────────────
+    // Used by both module::function_entry and function_instance to support
+    // native (C++) temporal functions with state, update, and emit.
+    //
+    // native_state_t: key/value map for params, state, and emitted variables.
+    // native_init_fn: called once at instantiation; populates initial state.
+    // native_update_fn: called every tick; reads params + state, writes next
+    //                   state (in-place), emitted vars, and the output value.
+    using native_state_t = std::unordered_map<std::string, value>;
+    using native_init_fn = std::function<void(
+        const native_state_t& params,
+        native_state_t& state)>;
+    using native_update_fn = std::function<void(
+        const native_state_t& params,
+        native_state_t& state,
+        native_state_t& emitted,
+        value& output)>;
+
     // ── Function instance (temporal) ───────────────────────────────────────────
     // Each call site that invokes a temporal function creates one of these.
     // Owns mutable state (init block vars), bound parameters, and current output.
@@ -178,6 +197,11 @@ namespace idyl::core {
 
         // Current output value (recomputed each tick)
         value output_;
+
+        // Native temporal update callback.  Non-null for module/builtin-backed
+        // temporal instances.  When set, tick_instance calls this instead of
+        // evaluating AST update statements.
+        native_update_fn native_update_;
 
         // dt in ms (0 → trigger-only, no clock subscription)
         double dt_ms_ = 0.0;

@@ -39,8 +39,8 @@
 %token <std::string> TIME_LITERAL
 %token <std::string> STRING_LITERAL
 
-%token FLOW PROCESS LIB MODULE INIT EMIT CATCH END DT DUR
-%token LAMBDA_BLOCK NAMESPACE_DOT RESTART_MARKER MEMORY_OP RANGE REST
+%token FLOW PROCESS LIB MODULE INIT EMIT CATCH END DT DUR STOP START 
+%token LAMBDA_BLOCK NAMESPACE_DOT RESTART_MARKER MEMORY_OP RANGE REST AT_OP
 %token PLUS MINUS MUL DIV MOD
 %token EQ NEQ LT GT LE GE
 %token AND OR XOR NOT LSHIFT RSHIFT
@@ -64,6 +64,8 @@
 %right NOT
 
 %type <idyl::parser::node_ptr> program
+%type <std::shared_ptr<idyl::parser::stop_statement>> stop_statement
+%type <std::shared_ptr<idyl::parser::start_statement>> start_statement
 %type <std::vector<idyl::parser::stmt_ptr>> top_level_statements
 %type <idyl::parser::stmt_ptr> top_level_statement
 %type <idyl::parser::stmt_ptr> function_or_flow_definition
@@ -95,7 +97,6 @@
 %type <std::shared_ptr<idyl::parser::init_block>> init_block
 %type <std::vector<idyl::parser::stmt_ptr>> lambda_statements
 %type <idyl::parser::stmt_ptr> lambda_statement
-%type <std::shared_ptr<idyl::parser::flow_member>> flow_member
 %type <std::vector<std::shared_ptr<idyl::parser::flow_member>>> flow_members
 %type <idyl::parser::expr_ptr> flow_literal
 %type <std::vector<idyl::parser::expr_ptr>> flow_elements
@@ -103,6 +104,7 @@
 %type <std::vector<idyl::parser::stmt_ptr>> process_body_statements
 %type <idyl::parser::stmt_ptr> process_body_statement
 %type <std::shared_ptr<idyl::parser::catch_block>> catch_block
+%type <std::shared_ptr<idyl::parser::at_block>> at_block
 
 %%
 
@@ -461,11 +463,23 @@ process_body_statement
         assign->column_ = @1.begin.column;
         $$ = assign;
     }
+    | stop_statement 
+    {
+        $$ = $1;
+    }
+    | start_statement
+    {
+        $$ = $1;
+    }
     | expression catch_block
     {
         auto catch_b = std::static_pointer_cast<idyl::parser::catch_block>($2);
         catch_b->expression_ = $1;
         $$ = catch_b;
+    }
+    | at_block
+    {
+        $$ = $1;
     }
     | expression
     {
@@ -474,6 +488,57 @@ process_body_statement
         es->line_ = @1.begin.line;
         es->column_ = @1.begin.column;
         $$ = es;
+    }
+    ;
+
+at_block   
+    : AT_OP LPAREN expression RPAREN COLON LBRACE process_body_statements RBRACE
+    {
+        auto at_stmt = std::make_shared<idyl::parser::at_block>();
+        at_stmt->time_expr_ = $3;
+        at_stmt->handler_ = $7;
+        at_stmt->line_ = @1.begin.line;
+        at_stmt->column_ = @1.begin.column;
+        $$ = at_stmt;
+    }
+    | AT_OP LPAREN expression RPAREN COLON process_body_statement
+    {
+        auto at_stmt = std::make_shared<idyl::parser::at_block>();
+        at_stmt->time_expr_ = $3;
+        at_stmt->handler_ = {$6};
+        at_stmt->line_ = @1.begin.line;
+        at_stmt->column_ = @1.begin.column;
+        $$ = at_stmt;
+    }
+    ;
+
+stop_statement
+    : STOP IDENTIFIER 
+    {
+        auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
+        stop_stmt->target_ = $2;
+        stop_stmt->line_ = @1.begin.line;
+        stop_stmt->column_ = @1.begin.column;
+        $$ = stop_stmt;
+    }
+    | STOP 
+    {
+        auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
+        stop_stmt->target_ = "";
+        stop_stmt->line_ = @1.begin.line;
+        stop_stmt->column_ = @1.begin.column;
+        $$ = stop_stmt;
+    }
+    ;
+
+start_statement
+    : START IDENTIFIER  
+    {
+        auto start_stmt = std::make_shared<idyl::parser::start_statement>();
+        start_stmt->target_ = $2;
+        start_stmt->line_ = @1.begin.line;
+        start_stmt->column_ = @1.begin.column;
+        $$ = start_stmt;
     }
     ;
 

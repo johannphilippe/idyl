@@ -105,7 +105,7 @@ implementation. It is intended for contributors and anyone interested in
 how the language works under the hood.</p>
 <hr />
 <h2 id="pipeline-overview">Pipeline overview</h2>
-<pre><code>Source (.idl)
+<pre><code>Source (.idyl)
     │
     ▼
 ┌─────────┐
@@ -282,69 +282,218 @@ expressions.</p>
 errors before evaluation begins.</p>
 <hr />
 <h2 id="evaluator">Evaluator</h2>
-<p>The evaluator (<code>src/core/core.hpp</code>) is a
+<p>The evaluator (<code>src/core/evaluator.cpp</code>) is a
 <strong>tree-walking interpreter</strong>. It traverses the AST and
 executes nodes directly.</p>
 <h3 id="key-components">Key components</h3>
 <table>
+<colgroup>
+<col style="width: 42%" />
+<col style="width: 23%" />
+<col style="width: 34%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>Component</th>
+<th>File</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><code>Environment</code></td>
-<td>Scope chain for variable lookup</td>
+<td><code>src/core/environment.hpp</code></td>
+<td>Runtime scope chain for variable lookup</td>
+</tr>
+<tr class="even">
+<td><code>function_defs_</code></td>
+<td><code>src/core/evaluator.hpp</code></td>
+<td>Map of function name → AST definition node</td>
+</tr>
+<tr class="odd">
+<td><code>fn_library_scope_</code></td>
+<td><code>src/core/evaluator.hpp</code></td>
+<td>Map of qualified name → library-local scope</td>
 </tr>
 <tr class="even">
 <td><code>Scheduler</code></td>
+<td><code>src/time/scheduler.hpp</code></td>
 <td>Drift-free timer management</td>
 </tr>
 <tr class="odd">
 <td><code>ClockRegistry</code></td>
+<td><code>src/core/core.hpp</code></td>
 <td>Clock hierarchy and tempo propagation</td>
 </tr>
 <tr class="even">
 <td><code>ModuleRegistry</code></td>
-<td>Loaded module handles</td>
+<td><code>src/include/module.hpp</code></td>
+<td>Lazy-loaded module catalog and handles</td>
 </tr>
 <tr class="odd">
 <td><code>ProcessStore</code></td>
+<td><code>src/core/evaluator.hpp</code></td>
 <td>Named process blocks for listen mode</td>
 </tr>
 </tbody>
 </table>
+<hr />
+<h3 id="the-scope-system">The scope system</h3>
+<p>At runtime, the environment holds a <strong>stack of scope
+frames</strong> (<code>std::vector&lt;scope_frame&gt;</code>). Each
+frame is a flat name → value map. Lookup walks the stack from innermost
+(top) to outermost (bottom).</p>
+<pre><code>┌─────────────────────────────┐  ← innermost (current function / tick)
+│  phase = 0.0                │
+│  out   = 0.309              │
+├─────────────────────────────┤
+│  [library-local scope]      │  ← pushed for namespaced library functions
+│  sine_shape → std::sine_shape│
+│  lfo        → std::lfo      │
+│  ...                        │
+├─────────────────────────────┤
+│  [process block scope]      │
+│  l = &lt;temporal instance&gt;    │
+├─────────────────────────────┤
+│  [global scope]             │  ← outermost, always present
+│  pi, tau, euler, ...        │
+│  std::sine, std::lfo, ...   │
+└─────────────────────────────┘</code></pre>
+<p>Built-in math functions and module functions are not in the scope
+stack — they are looked up via separate indices
+(<code>builtin_index_</code> and
+<code>module_registry_-&gt;lookup()</code>) only after the scope chain
+is exhausted.</p>
+<h4 id="when-scopes-are-pushed-and-popped">When scopes are pushed and
+popped</h4>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Event</th>
+<th>Scope pushed</th>
+<th>Scope popped</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Process block execution</td>
+<td>once at entry</td>
+<td>when block ends (or never, if temporal)</td>
+</tr>
+<tr class="even">
+<td>Pure function call</td>
+<td>once for parameters</td>
+<td>when call returns</td>
+</tr>
+<tr class="odd">
+<td>Temporal init block</td>
+<td>once for parameters</td>
+<td>after init statements run</td>
+</tr>
+<tr class="even">
+<td>Temporal first-pass</td>
+<td>once for params + init state</td>
+<td>after output expression</td>
+</tr>
+<tr class="odd">
+<td>Scheduler tick (<code>tick_instance</code>)</td>
+<td>once for params + current state</td>
+<td>after output expression</td>
+</tr>
+<tr class="even">
+<td>Namespaced library function (any of the above)</td>
+<td><strong>also</strong> one extra scope for library-local names</td>
+<td>paired with the one above</td>
+</tr>
+</tbody>
+</table>
+<h4 id="library-local-scopes-for-namespaced-imports">Library-local
+scopes for namespaced imports</h4>
+<p>When a library is loaded under a namespace
+(e.g. <code>std = lib("stdlib")</code>), two things happen:</p>
+<ol type="1">
+<li><p><strong>Global registration</strong>: every function is stored in
+<code>function_defs_</code> under its qualified name
+(<code>"std::lfo"</code>, <code>"std::sine"</code>, …). Bare names are
+never added to the global scope.</p></li>
+<li><p><strong>Library-local scope construction</strong>: a shared
+<code>lib_scope</code> map is built, containing every original
+(unqualified) name in the library mapped to a <code>function_ref</code>
+pointing at its qualified counterpart:</p>
+<pre><code>lib_scope = {
+    &quot;lfo&quot;        → function_ref(&quot;std::lfo&quot;),
+    &quot;sine_shape&quot; → function_ref(&quot;std::sine_shape&quot;),
+    &quot;tri_shape&quot;  → function_ref(&quot;std::tri_shape&quot;),
+    ...
+}</code></pre>
+<p>This scope is stored in <code>fn_library_scope_</code> keyed by the
+qualified name, and attached to each <code>function_instance</code> when
+a temporal function from that library is instantiated.</p></li>
+<li><p><strong>Injection at call time</strong>: before evaluating a
+namespaced function’s body or tick, the library-local scope is pushed as
+an extra frame. The function body (e.g. <code>lfo</code>’s update block
+calling <code>sine_shape</code>) finds <code>"sine_shape"</code> in that
+frame, gets back <code>function_ref("std::sine_shape")</code>, and the
+call resolves correctly. The frame is popped immediately after.</p></li>
+</ol>
+<p>This design means: - Internal library cross-calls work without
+qualification. - Bare names never appear in the caller’s global scope. -
+Two libraries loaded under different namespaces can have overlapping
+internal names without conflict.</p>
+<hr />
 <h3 id="evaluation-model">Evaluation model</h3>
 <ol type="1">
 <li><strong>Constants and functions</strong> are evaluated once and
-stored in the environment</li>
+stored in <code>function_defs_</code> and the global scope.</li>
 <li><strong>Temporal lambdas</strong> are instantiated: their init
-blocks run, then they are registered with the scheduler at their
-<code>dt</code> interval</li>
-<li><strong>Reactive bindings</strong>
-(<code>osc_send(osc, addr, temporal_fn)</code>) subscribe to the
-temporal function’s output — each time the scheduler ticks the function,
-downstream consumers see the new value</li>
+blocks run, and they are registered with the scheduler at their
+<code>dt</code> interval.</li>
+<li><strong>Reactive bindings</strong> subscribe to the temporal
+function’s output — each scheduler tick re-evaluates the binding
+expression with the updated value.</li>
 <li><strong>Process blocks</strong> orchestrate the above — each block
-is an independent execution context</li>
+is an independent execution context.</li>
 </ol>
 <h3 id="temporal-instantiation">Temporal instantiation</h3>
-<p>When the evaluator encounters a temporal lambda:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">freq</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> v <span class="op">|&gt;</span> {</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { v <span class="op">=</span> <span class="dv">440</span> }</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> v <span class="op">+</span> <span class="dv">1</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<p>It performs these steps:</p>
+<p>When the evaluator encounters a temporal function call
+(e.g. <code>std::lfo(1hz, dt=50ms)</code>):</p>
 <ol type="1">
-<li>Evaluate the <code>dt</code> expression → 10ms</li>
-<li>Run the <code>init</code> block → set <code>v = 440</code> in the
-lambda’s local scope</li>
-<li>Register the lambda with the scheduler at 10ms intervals</li>
-<li>Return a <strong>handle</strong> that downstream expressions can
-read</li>
+<li>Resolve the call to a <code>function_definition</code> and its
+<strong>qualified key</strong> in <code>function_defs_</code>.</li>
+<li>Create a <code>function_instance</code>. Set <code>def_name_</code>
+to the qualified key (e.g. <code>"std::lfo"</code>) so the process-block
+subscription lookup finds the right definition.</li>
+<li>Attach <code>library_scope_</code> from
+<code>fn_library_scope_["std::lfo"]</code> (if present).</li>
+<li>Bind parameters (positional, named, defaults). Extract
+<code>dt_ms</code>.</li>
+<li>Run the <code>init</code> block in a temporary scope (with
+library-local scope if present) — initialise <code>current_</code>
+state.</li>
+<li>Run a <strong>first pass</strong> of the update statements, skipping
+variables that were set by <code>init</code>. This seeds the output
+(e.g. <code>out = sin(0) = 0</code>) without overwriting init
+values.</li>
+<li>Store the instance in <code>instances_</code>. Return its initial
+output.</li>
+</ol>
+<p>The process block then subscribes the instance to the scheduler. On
+each tick, <code>tick_instance</code> is called, which:</p>
+<ol type="1">
+<li>Pushes the library-local scope (if present) as an extra frame.</li>
+<li>Pushes a scope with the instance’s current parameters and
+state.</li>
+<li>Evaluates each update statement in order; writes go to
+<code>next_</code>.</li>
+<li>Evaluates the output expression against the updated scope.</li>
+<li>Pops both scopes.</li>
+<li>Commits <code>next_</code> → <code>current_</code> (double-buffer
+swap).</li>
 </ol>
 <h3 id="the-scheduler">The scheduler</h3>
 <p>The scheduler is <strong>drift-free</strong>: it tracks elapsed time
@@ -352,11 +501,12 @@ against the system clock rather than accumulating intervals. This
 prevents timing drift over long runs.</p>
 <p>Each tick:</p>
 <ol type="1">
-<li>Compute actual elapsed time since start</li>
+<li>Compute actual elapsed time since start.</li>
 <li>For each registered lambda, check if its next fire time has
-passed</li>
-<li>If so, execute the lambda body and advance its next fire time</li>
-<li>Collect outputs for reactive consumers</li>
+passed.</li>
+<li>If so, call <code>tick_instance</code>, re-evaluate the bound
+variable expression, then run any downstream reactions.</li>
+<li>Advance the next fire time by exactly <code>dt</code>.</li>
 </ol>
 <p>The scheduler runs in a tight loop with a configurable sleep
 granularity to balance CPU usage against timing precision.</p>
@@ -364,8 +514,8 @@ granularity to balance CPU usage against timing precision.</p>
 <h2 id="trace-mode">Trace mode</h2>
 <p>The <code>--trace</code> flag enables diagnostic output during
 evaluation:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> program.idl <span class="at">--trace</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> program.idyl <span class="at">--trace</span></span></code></pre></div>
 <p>This prints: - Each scheduler tick with timestamps - Temporal
 function evaluations and their outputs - OSC messages sent - Clock tempo
 changes</p>

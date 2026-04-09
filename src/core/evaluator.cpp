@@ -171,6 +171,15 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 continue;
             }
 
+            // at_blocks create scheduler subscriptions and must keep the scope alive.
+            // Execute them directly (exec_stmt handles the subscription); mark
+            // has_temporal so the process scope is not popped after the loop.
+            if (s->type_ == parser::node_t::at_block) {
+                has_temporal = true;
+                exec_stmt(s);
+                continue;
+            }
+
             // Extract variable name if this is a binding
             std::string binding_name;
             if (s->type_ == parser::node_t::function_definition)
@@ -216,7 +225,6 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
         // Subscribe each segment's temporal source to the scheduler.
         // On each tick: update instance → update bound variable → re-run reactions → check catches.
-        // Also, update parameters of temporal instances on each tick so they can be used in reactions and catches.
         if (scheduler_ && has_temporal) {
             for (auto& seg : segments) {
                 auto inst_it = instances_.find(seg.instance_id);
@@ -224,10 +232,15 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 auto inst = inst_it->second;
                 if (inst->dt_ms_ <= 0.0) continue;
 
-                auto def_it = function_defs_.find(inst->def_name_);
-                if (def_it == function_defs_.end()) continue;
+                // Native temporal instances have no AST def — def_ptr stays null.
+                // AST temporal instances require a function_def lookup.
+                std::shared_ptr<parser::function_definition> def_ptr;
+                if (!inst->native_update_) {
+                    auto def_it = function_defs_.find(inst->def_name_);
+                    if (def_it == function_defs_.end()) continue;
+                    def_ptr = def_it->second;
+                }
 
-                auto def_ptr   = def_it->second;
                 std::string var = seg.bound_var;
                 auto binding    = seg.binding_stmt;
                 auto reactions  = seg.reactions;
@@ -249,7 +262,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         auto si = weak_inst.lock();
                         if (!si || !si->active_) return false;
 
-                        tick_instance(*si, *def_ptr);
+                        tick_instance(*si, def_ptr.get());
 
                         retick_instance_ = si.get();
                         if (binding)
@@ -296,6 +309,68 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         auto& assign = static_cast<const parser::assignment&>(*stmt);
         value val = eval_expr(assign.value_);
         env_.define(assign.name_, std::move(val));
+        break;
+    }
+
+    // ── @(time_expr): { handler } → one-shot deferred execution ───────────
+    // Evaluates the time expression to get a delay in ms, then schedules
+    // the handler statements to run exactly once after that delay.
+    // If no scheduler is available (or delay <= 0), executes immediately.
+    case parser::node_t::at_block: {
+        auto& atb = static_cast<const parser::at_block&>(*stmt);
+        if (!atb.time_expr_) break;
+
+        value delay_val = eval_expr(atb.time_expr_);
+        double delay_ms = delay_val.number_;  // both time and number store value in number_
+
+        if (!scheduler_ || delay_ms <= 0.0) {
+            // No scheduler or zero/negative delay → execute immediately
+            for (const auto& h : atb.handler_)
+                exec_stmt(h);
+            break;
+        }
+
+        // Capture handler statements and current evaluator reference.
+        // The process scope is kept alive (has_temporal = true in process loop),
+        // so env_ variables remain valid when the callback fires.
+        auto handler = atb.handler_;
+        scheduler_->subscribe(delay_ms,
+            [this, handler](double /*t*/, double /*dt*/) -> bool {
+                for (const auto& h : handler)
+                    exec_stmt(h);
+                return false;  // one-shot: do not reschedule
+            });
+        break;
+    }
+
+    case parser::node_t::stop_statement: {
+        // Iterate through all active processes and stop those matching the target name (or all if target is empty)
+        auto& stop_stmt = static_cast<const parser::stop_statement&>(*stmt);
+        std::string target = stop_stmt.target_;
+        for (auto& [proc_name, instance_ids] : active_process_instances_) {
+            if (target.empty() || proc_name == target) {
+                for (auto& id : instance_ids) {
+                    auto inst_it = instances_.find(id);
+                    if (inst_it != instances_.end()) {
+                        auto& inst = inst_it->second;
+                        if (scheduler_ && inst->subscription_id_ != 0) {
+                            scheduler_->unsubscribe(inst->subscription_id_);
+                            inst->subscription_id_ = 0;
+                        }
+                    }
+                }
+            }
+        }
+        break;
+    }
+
+    case parser::node_t::start_statement: {
+        auto& start_stmt = static_cast<const parser::start_statement&>(*stmt);
+        std::string target = start_stmt.target_;
+        if (!start_process(target)) {
+            warnings_.push_back({start_stmt.line_, start_stmt.column_,
+                "No stored process named '" + target + "' found to start."});
+        }
         break;
     }
 
@@ -485,12 +560,9 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
         return eval_expr(toe.op_->options_[idx]);
     }
 
-    // ── Memory operator (@ delay) → Phase 2 stub ──────────────────────────
+    // ── Memory operator (@ delay / prime notation) ────────────────────────
     case parser::node_t::memory_op_expr: {
-        auto& moe = static_cast<const parser::memory_op_expr&>(*expr);
-        if (!moe.op_ || !moe.op_->expr_) return value::number(0.0);
-        // In Phase 1 with no state, @ just returns the current value
-        return eval_expr(moe.op_->expr_);
+        return eval_memory_op(static_cast<const parser::memory_op_expr*>(expr.get()));
     }
 
     // ── Function call ──────────────────────────────────────────────────────
@@ -698,8 +770,11 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 }
                 if (auto* bi = env_.lookup_builtin(qualified))
                     return eval_builtin(*bi, args);
-                if (auto* mf = env_.lookup_module_fn(qualified))
+                if (auto* mf = env_.lookup_module_fn(qualified)) {
+                    if (mf->is_native_temporal_)
+                        return instantiate_native_temporal(*mf, args, named, pos_exprs, named_exprs);
                     return eval_module_fn(*mf, args, expr->line_, expr->column_);
+                }
                 auto it = function_defs_.find(qualified);
                 if (it != function_defs_.end() && it->second)
                     return eval_user_function(*it->second, args, named, qualified, pos_exprs, named_exprs);
@@ -765,6 +840,43 @@ double evaluator::parse_time_to_ms(const std::string& val, const std::string& un
     if (unit == "bpm") return (v > 0.0) ? (60000.0 / v) : 0.0;
     if (unit == "b")   return v * (60000.0 / main_clock_bpm()); // beat duration from main clock
     return v;
+}
+
+value evaluator::eval_memory_op(const parser::memory_op_expr* moe) {
+    // Key by the inner memory_op node — stable even if memory_op_expr is cloned,
+    // because clone() copies the shared_ptr<memory_op> (same underlying pointer).
+    const parser::node* key = moe->op_.get();
+
+    // Determine buffer size (1-sample by default)
+    size_t size = 1;
+    if (moe->op_->delay_count_) {
+        value count_val = eval_expr(moe->op_->delay_count_);
+        size = std::max(size_t(1), static_cast<size_t>(std::round(count_val.as_number())));
+    }
+
+    // Initialize buffer if missing or size changed
+    auto it = delay_memories_.find(key);
+
+    value v = eval_expr(moe->op_->expr_); // current value for initialization if needed     
+    if (it == delay_memories_.end() || it->second.buffer.size() != size) {
+        memory_buffer buf(size);
+        for (auto& slot : buf.buffer) slot = v; // initialize with current value
+        delay_memories_[key] = std::move(buf);
+        it = delay_memories_.find(key);
+    }
+
+    memory_buffer& mem = it->second;
+
+    // Read the oldest (most delayed) value — this is what we return
+    value out = mem.buffer[mem.write_index];
+
+    // Overwrite that slot with the current value
+    mem.buffer[mem.write_index] = v;
+
+    // Advance write index (circular)
+    mem.write_index = (mem.write_index + 1) % size;
+
+    return out;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1007,6 +1119,8 @@ value evaluator::eval_call(const parser::function_call& call) {
 
     // ── Check module functions ─────────────────────────────────────────────
     if (auto* mf = env_.lookup_module_fn(fn_name)) {
+        if (mf->is_native_temporal_)
+            return instantiate_native_temporal(*mf, args, named, pos_exprs, named_exprs);
         return eval_module_fn(*mf, args, call.line_, call.column_);
     }
 
@@ -1052,6 +1166,75 @@ value evaluator::eval_module_fn(const module::function_entry& fn,
     }
     span<const value> arg_span{args.data(), args.size()};
     return fn.fn_(arg_span);
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Native temporal instantiation — module/builtin-backed temporal functions
+// ════════════════════════════════════════════════════════════════════════════════
+
+value evaluator::instantiate_native_temporal(const module::function_entry& entry,
+                                              const std::vector<value>& args,
+                                              const named_args_t& named,
+                                              const std::vector<parser::expr_ptr>& pos_exprs,
+                                              const named_exprs_t& named_exprs) {
+    // Retick guard: if we're inside a scheduler callback for this instance,
+    // just return its current output.
+    if (retick_instance_ && retick_instance_->def_name_ == entry.name_)
+        return retick_instance_->read_output();
+
+    auto inst = std::make_shared<function_instance>();
+    inst->id_          = next_instance_id_++;
+    inst->active_      = true;
+    inst->def_name_    = entry.name_;
+    inst->native_update_ = entry.native_update_;
+
+    // ── Bind parameters from entry.params_ ────────────────────────────────
+    double dt_ms = 0.0;
+    auto& param_exprs = instance_param_exprs_[inst->id_];
+    param_exprs.clear();
+
+    size_t pos_idx = 0;
+    for (size_t i = 0; i < entry.params_.size(); ++i) {
+        const auto& pd = entry.params_[i];
+        value val;
+        parser::expr_ptr src_expr;
+
+        auto nit = named.find(pd.name_);
+        if (nit != named.end()) {
+            val = nit->second;
+            auto eit = named_exprs.find(pd.name_);
+            if (eit != named_exprs.end()) src_expr = eit->second;
+        } else if (pos_idx < args.size()) {
+            val = args[pos_idx];
+            if (pos_idx < pos_exprs.size()) src_expr = pos_exprs[pos_idx];
+            ++pos_idx;
+        } else if (pd.has_default_) {
+            val = pd.default_value_;
+        } else {
+            val = value::number(0.0);
+        }
+
+        if (src_expr) param_exprs[pd.name_] = src_expr;
+        inst->params_[pd.name_] = val;
+
+        if (pd.name_ == "dt") dt_ms = val.as_number();
+    }
+    inst->dt_ms_ = dt_ms;
+
+    // ── Run native init (if provided) ──────────────────────────────────────
+    if (entry.native_init_)
+        entry.native_init_(inst->params_, inst->current_);
+
+    // ── Compute initial output ─────────────────────────────────────────────
+    {
+        value output;
+        inst->emitted_.clear();
+        inst->native_update_(inst->params_, inst->current_, inst->emitted_, output);
+        inst->write_output(std::move(output));
+    }
+
+    instances_[inst->id_] = inst;
+    return inst->read_output();
 }
 
 value evaluator::eval_user_function(const parser::function_definition& def,
@@ -1284,7 +1467,7 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
             if (inst->library_scope_) env_.pop_scope();
         } else {
             // No init: run first update immediately (no dt delay)
-            tick_instance(*inst, def);
+            tick_instance(*inst, &def);
         }
     }
 
@@ -1314,10 +1497,9 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
 // ════════════════════════════════════════════════════════════════════════════════
 
 void evaluator::tick_instance(function_instance& inst,
-                              const parser::function_definition& def) {
-    // Re-evaluate dynamic parameter expressions every tick — even for constant
-    // temporal functions (no lambda block).  This lets dt itself evolve.
-    // Collect updates first to avoid modifying the map during iteration.
+                              const parser::function_definition* def) {
+    // ── Re-evaluate dynamic parameter expressions (all instance types) ────
+    // This lets dt and other params evolve when driven by temporal sources.
     {
         auto expr_it = instance_param_exprs_.find(inst.id_);
         if (expr_it != instance_param_exprs_.end() && !expr_it->second.empty()) {
@@ -1342,7 +1524,16 @@ void evaluator::tick_instance(function_instance& inst,
         }
     }
 
-    if (!def.lambda_block_) return;
+    // ── Native temporal tick ───────────────────────────────────────────────
+    if (inst.native_update_) {
+        inst.emitted_.clear();
+        value output;
+        inst.native_update_(inst.params_, inst.current_, inst.emitted_, output);
+        inst.write_output(std::move(output));
+        return;  // no commit() needed — native callbacks write current_ directly
+    }
+
+    if (!def || !def->lambda_block_) return;
 
     // If this function came from a namespaced library, push its library-local
     // scope first so internal cross-calls (e.g. lfo → sine_shape) resolve
@@ -1364,27 +1555,22 @@ void evaluator::tick_instance(function_instance& inst,
     }
 
     // ── Evaluate update statements (writes go to next_) ────────────────────
-    // Double-buffered: all reads see current_, all writes go to next_.
-    // We evaluate each statement, but assignments write to next_ buffer.
     inst.next_.clear();
-    inst.emitted_.clear();  // Reset emitted values for this tick
+    inst.emitted_.clear();
 
-    for (const auto& stmt : def.lambda_block_->update_statements_) {
+    for (const auto& stmt : def->lambda_block_->update_statements_) {
         if (!stmt) continue;
         if (stmt->type_ == parser::node_t::function_definition) {
-            // "phase = fmod(phase + ...)" parsed as 0-param func def
             auto& upd = static_cast<const parser::function_definition&>(*stmt);
             if (upd.parameters_.empty() && upd.body_) {
                 value v = eval_expr(upd.body_);
                 inst.next_[upd.name_] = v;
-                // Also update the scope so later statements in the same
-                // tick can see the new value (sequential semantics).
                 env_.define(upd.name_, v);
             }
         } else if (stmt->type_ == parser::node_t::assignment) {
             auto& assign = static_cast<const parser::assignment&>(*stmt);
             value v = eval_expr(assign.value_);
-            if(assign.name_ == "dt") {
+            if (assign.name_ == "dt") {
                 double new_dt = v.as_number();
                 if (new_dt != inst.dt_ms_ && new_dt > 0.0) {
                     inst.dt_ms_ = new_dt;
@@ -1401,16 +1587,13 @@ void evaluator::tick_instance(function_instance& inst,
     }
 
     // ── Evaluate output expression ─────────────────────────────────────────
-    if (def.body_) {
-        value output = eval_expr(def.body_);
+    if (def->body_) {
+        value output = eval_expr(def->body_);
         inst.write_output(std::move(output));
     }
 
     env_.pop_scope();
-
-    // Pop library-local scope if it was pushed.
-    if (inst.library_scope_)
-        env_.pop_scope();
+    if (inst.library_scope_) env_.pop_scope();
 
     // ── Commit: next → current ─────────────────────────────────────────────
     inst.commit();
@@ -1477,11 +1660,17 @@ void evaluator::print_warnings() const {
 
 bool evaluator::start_process(const std::string& name) {
     auto it = stored_processes_.find(name);
-    if (it == stored_processes_.end()) return false;
+    if (it == stored_processes_.end()) {
+        std::cout << "Process '" << name << "' not found.\n";
+        return false;
+    }
 
     // If already running, stop first
     if (active_process_instances_.count(name))
+    {
+        std::cout << "Process '" << name << "' is already running, restarting it.\n";
         stop_process(name);
+    }
 
     // Temporarily disable listen mode so exec_stmt actually runs the block
     auto saved_filter = process_filter_;
@@ -1489,6 +1678,8 @@ bool evaluator::start_process(const std::string& name) {
     process_filter_ = name;
     listen_mode_ = false;
 
+    // Execute the process block statements to start the process.  
+    std::cout << "Starting process '" << name << "'.\n";
     exec_stmt(std::static_pointer_cast<parser::statement>(it->second));
 
     process_filter_ = saved_filter;

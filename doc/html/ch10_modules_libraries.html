@@ -101,56 +101,132 @@ href="ch09_process_blocks.html">Previous: Process blocks</a></p>
 <hr />
 <p>Idƴl supports importing external code through
 <strong>libraries</strong> and connecting to external systems through
-<strong>modules</strong>. The built-in OSC module is included by
-default.</p>
+<strong>modules</strong>.</p>
 <hr />
 <h2 id="libraries-lib">Libraries — <code>lib()</code></h2>
-<p>Import another <code>.idl</code> file to reuse its definitions:</p>
+<p>Import another <code>.idyl</code> file to reuse its definitions:</p>
 <div class="sourceCode" id="cb1"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">lib</span>(<span class="st">&quot;utils.idl&quot;</span>)</span></code></pre></div>
-<p>All top-level bindings from <code>utils.idl</code> become available
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">lib</span>(<span class="st">&quot;utils.idyl&quot;</span>)</span></code></pre></div>
+<p>All top-level bindings from <code>utils.idyl</code> become available
 in the current scope.</p>
 <h3 id="namespaced-imports">Namespaced imports</h3>
-<p>To avoid name collisions, import into a namespace:</p>
+<p>To avoid name collisions, assign the import to a name:</p>
 <div class="sourceCode" id="cb2"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">lib</span>(<span class="st">&quot;utils.idl&quot;</span>, <span class="kw">as</span><span class="op">=</span><span class="st">&quot;u&quot;</span>)</span>
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>u <span class="op">=</span> <span class="kw">lib</span>(<span class="st">&quot;utils.idyl&quot;</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>/<span class="co">/ access with dot notation</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> u.<span class="fu">my_function</span>(<span class="dv">42</span>)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> u<span class="op">::</span><span class="fu">my_function</span>(<span class="dv">42</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>Everything from <code>utils.idyl</code> is then accessible via
+<code>u::name</code> notation. Functions, flows, and constants all work
+the same way. The bare name <code>my_function</code> is
+<strong>not</strong> added to the global scope — only
+<code>u::my_function</code> is.</p>
+<h4 id="library-internal-cross-calls">Library-internal cross-calls</h4>
+<p>Functions inside a namespaced library can freely call each other
+without qualification. For example, if <code>stdlib</code> defines both
+<code>sine_shape</code> and <code>lfo</code> (which calls
+<code>sine_shape</code> internally), this works correctly even when
+loaded under a namespace:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>std <span class="op">=</span> <span class="kw">lib</span>(<span class="st">&quot;stdlib&quot;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    l <span class="op">=</span> std<span class="op">::</span><span class="fu">lfo</span>(<span class="sc">1hz</span>)   /<span class="co">/ internally, lfo calls sine_shape — no namespace prefix needed</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>This works because each namespaced library function carries a
+<strong>library-local scope</strong>: a private mapping from every
+original function name in that library to its qualified version. This
+scope is pushed into the environment whenever the function body or
+temporal tick executes, then immediately removed. As a result:</p>
+<ul>
+<li>Internal cross-calls (<code>sine_shape</code>, <code>lfo</code>,
+etc.) resolve correctly inside the library.</li>
+<li>Bare names never appear in the caller’s global scope.</li>
+<li>Two libraries with overlapping internal names can coexist under
+different namespaces.</li>
+</ul>
+<h4 id="what-namespace-isolation-means-in-practice">What namespace
+isolation means in practice</h4>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>What you write</th>
+<th>What resolves</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lib("stdlib")</code></td>
+<td><code>sine</code>, <code>lfo</code>, … added to global scope</td>
+</tr>
+<tr class="even">
+<td><code>std = lib("stdlib")</code></td>
+<td>only <code>std::sine</code>, <code>std::lfo</code>, … in global
+scope</td>
+</tr>
+<tr class="odd">
+<td><code>std = lib("stdlib")</code> then <code>lfo(...)</code></td>
+<td><strong>error</strong> — <code>lfo</code> is not in global
+scope</td>
+</tr>
+<tr class="even">
+<td><code>std = lib("stdlib")</code> then
+<code>std::lfo(...)</code></td>
+<td>works correctly</td>
+</tr>
+</tbody>
+</table>
 <h3 id="deduplication">Deduplication</h3>
 <p>If the same library is imported multiple times (directly or
 transitively), it is only loaded once:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">lib</span>(<span class="st">&quot;core.idl&quot;</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">lib</span>(<span class="st">&quot;helpers.idl&quot;</span>)    /<span class="co">/ if helpers.idl also imports core.idl, it&#39;s not loaded again</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">lib</span>(<span class="st">&quot;core.idyl&quot;</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">lib</span>(<span class="st">&quot;helpers.idyl&quot;</span>)    /<span class="co">/ if helpers.idyl also imports core.idyl, it&#39;s not loaded again</span></span></code></pre></div>
 <hr />
 <h2 id="modules-module">Modules — <code>module()</code></h2>
-<p>Modules connect Idƴl to external systems. They are loaded by
-name:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;midi&quot;</span>)</span></code></pre></div>
-<p>Modules provide functions that become available after loading. The
-available modules depend on the build configuration.</p>
+<p>Modules connect Idƴl to external systems. Unlike libraries, modules
+are compiled components (built-in or external <code>.so</code> files).
+They must be explicitly imported before their functions are
+available.</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;osc&quot;</span>)</span></code></pre></div>
+<p>After this, all OSC functions are in scope. To avoid polluting the
+global namespace, import into a name:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>osc <span class="op">=</span> <span class="kw">module</span>(<span class="st">&quot;osc&quot;</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    h <span class="op">=</span> osc<span class="op">::</span><span class="bu">osc_out</span>(<span class="st">&quot;127.0.0.1&quot;</span>, <span class="dv">9000</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    osc<span class="op">::</span><span class="bu">osc_send</span>(h, <span class="st">&quot;/freq&quot;</span>, <span class="dv">440</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    osc<span class="op">::</span><span class="bu">osc_close</span>(h)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <hr />
 <h2 id="built-in-osc-module">Built-in OSC module</h2>
-<p>OSC (Open Sound Control) support is built in and enabled via the
-<code>IDYL_MODULE_OSC</code> CMake option (ON by default).</p>
+<p>OSC (Open Sound Control) support is compiled in when
+<code>IDYL_MODULE_OSC=ON</code> (the default). Import it with:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;osc&quot;</span>)</span></code></pre></div>
 <h3 id="osc-output">OSC output</h3>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    osc <span class="op">=</span> <span class="bu">osc_out</span>(<span class="st">&quot;127.0.0.1&quot;</span>, <span class="dv">9000</span>)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">freq</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> v <span class="op">|&gt;</span> {</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">init</span>: { v <span class="op">=</span> <span class="dv">440</span> }</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        v <span class="op">=</span> v <span class="op">+</span> <span class="bu">sin</span>(<span class="bu">now</span>() <span class="op">*</span> <span class="dv">0.001</span>) <span class="op">*</span> <span class="dv">100</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_send</span>(osc, <span class="st">&quot;/synth/freq&quot;</span>, freq)</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;osc&quot;</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> <span class="bu">osc_out</span>(<span class="st">&quot;127.0.0.1&quot;</span>, <span class="dv">9000</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_send</span>(out, <span class="st">&quot;/synth/freq&quot;</span>, <span class="dv">440</span>)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_send</span>(out, <span class="st">&quot;/synth/gate&quot;</span>, <span class="dv">1</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_close</span>(out)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <h3 id="osc-functions">OSC functions</h3>
 <table>
+<colgroup>
+<col style="width: 43%" />
+<col style="width: 56%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>Function</th>
@@ -160,68 +236,232 @@ class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb5-1"><a href="
 <tbody>
 <tr class="odd">
 <td><code>osc_out(host, port)</code></td>
-<td>Create an OSC output handle</td>
+<td>Open a UDP output endpoint, return handle</td>
 </tr>
 <tr class="even">
-<td><code>osc_send(handle, address, value)</code></td>
-<td>Send a value to the address</td>
+<td><code>osc_in(port)</code></td>
+<td>Open a UDP input listener, return handle</td>
 </tr>
 <tr class="odd">
-<td><code>osc_send(handle, address, v1, v2, ...)</code></td>
-<td>Send multiple values</td>
+<td><code>osc_send(handle, address, value...)</code></td>
+<td>Send one or more values to an OSC address</td>
 </tr>
 <tr class="even">
 <td><code>osc_close(handle)</code></td>
 <td>Close the connection</td>
 </tr>
 <tr class="odd">
-<td><code>osc_in(port)</code></td>
-<td>Create an OSC input listener</td>
+<td><code>osc_stop()</code></td>
+<td>Stop all scheduled (dt-driven) sends</td>
 </tr>
 </tbody>
 </table>
+<h3 id="receiving-osc-osc_recv">Receiving OSC —
+<code>osc_recv</code></h3>
+<p><code>osc_recv</code> is a <strong>native temporal function</strong>
+— it ticks on a clock and polls a UDP input for incoming OSC messages.
+It integrates naturally with the reactive system:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;osc&quot;</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    rx <span class="op">=</span> <span class="bu">osc_in</span>(<span class="dv">9000</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    msgs <span class="op">=</span> <span class="fu">osc_recv</span>(rx, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>)   /<span class="co">/ poll every 10ms</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;received:&quot;</span>, msgs)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    msgs <span class="kw">catch</span> received: {</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;new message arrived!&quot;</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>handle</code></td>
+<td>A receiver handle from <code>osc_in()</code></td>
+</tr>
+<tr class="even">
+<td><code>dt</code></td>
+<td>Poll interval (default <code>10ms</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output</strong>: the last received OSC message as a flow
+<code>[address, arg0, arg1, ...]</code>, or unchanged if nothing
+arrived.</p>
+<p><strong>Emits</strong>: <code>received</code> — a trigger that fires
+whenever a new message arrives. Use with <code>catch received:</code> to
+react only to new messages.</p>
 <h3 id="sending-multiple-values">Sending multiple values</h3>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="bu">osc_send</span>(osc, <span class="st">&quot;/note&quot;</span>, pitch, velocity, duration)</span></code></pre></div>
-<h3 id="osc-input">OSC input</h3>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    input <span class="op">=</span> <span class="bu">osc_in</span>(<span class="dv">8000</span>)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    /<span class="co">/ input receives messages on port 8000</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">osc_send</span>(out, <span class="st">&quot;/note&quot;</span>, pitch, velocity, duration)</span></code></pre></div>
 <hr />
 <h2 id="building-withwithout-osc">Building with/without OSC</h2>
-<p>OSC is controlled at build time:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable (default)</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cmake</span> .. <span class="at">-DIDYL_MODULE_OSC</span><span class="op">=</span>ON</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Disable</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cmake</span> .. <span class="at">-DIDYL_MODULE_OSC</span><span class="op">=</span>OFF</span></code></pre></div>
-<p>When OSC is disabled, calling <code>osc_out</code>,
-<code>osc_send</code>, etc. will produce a runtime error.</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable (default)</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cmake</span> .. <span class="at">-DIDYL_MODULE_OSC</span><span class="op">=</span>ON</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Disable</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cmake</span> .. <span class="at">-DIDYL_MODULE_OSC</span><span class="op">=</span>OFF</span></code></pre></div>
+<hr />
+<h2 id="built-in-csound-module">Built-in Csound module</h2>
+<p>The Csound module bridges Idƴl’s temporal system with Csound
+instrument control. Each <code>cs_open()</code> call creates an
+independent Csound instance running in a dedicated performance thread.
+Multiple instances can run simultaneously.</p>
+<p>Enable at build time:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cmake</span> .. <span class="at">-DIDYL_MODULE_CSOUND</span><span class="op">=</span>ON</span></code></pre></div>
+<p>Import in your program:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;csound&quot;</span>)</span></code></pre></div>
+<h3 id="functions">Functions</h3>
+<table>
+<colgroup>
+<col style="width: 43%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>cs_open(path)</code></td>
+<td>Compile and start a <code>.csd</code> or <code>.orc</code> file;
+returns a handle</td>
+</tr>
+<tr class="even">
+<td><code>cs_note(handle, instr, dur_ms, p4, ...)</code></td>
+<td>Schedule a Csound i-event (fires immediately)</td>
+</tr>
+<tr class="odd">
+<td><code>cs_chnset(handle, channel, value)</code></td>
+<td>Write a named control channel</td>
+</tr>
+<tr class="even">
+<td><code>cs_chnget(handle, channel, dt=50ms)</code></td>
+<td>Temporal: poll a named control channel</td>
+</tr>
+<tr class="odd">
+<td><code>cs_close(handle)</code></td>
+<td>Stop and destroy the Csound instance</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cs_note"><code>cs_note</code></h3>
+<p>Schedules a Csound instrument event starting at the current moment
+(p2 = 0):</p>
+<ul>
+<li><code>instr</code> — instrument number (number) or instrument name
+(string)</li>
+<li><code>dur_ms</code> — duration in milliseconds (number or time
+literal)</li>
+<li><code>p4, p5, ...</code> — additional p-fields passed verbatim</li>
+</ul>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;csound&quot;</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    cs <span class="op">=</span> <span class="fu">cs_open</span>(<span class="st">&quot;my_synth.csd&quot;</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cs_note</span>(cs, <span class="dv">1</span>, <span class="sc">500ms</span>, <span class="dv">440</span>, <span class="dv">0.8</span>)     /<span class="co">/ instr 1, 500ms, freq=440, amp=0.8</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cs_note</span>(cs, <span class="st">&quot;flute&quot;</span>, <span class="sc">1s</span>, <span class="dv">523</span>, <span class="dv">0.6</span>)  /<span class="co">/ named instrument</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="cs_chnset-and-cs_chnget"><code>cs_chnset</code> and
+<code>cs_chnget</code></h3>
+<p>Control channels are Csound’s named software bus — a fast thread-safe
+way to pass values between the host and running instruments.</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;csound&quot;</span>)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    cs <span class="op">=</span> <span class="fu">cs_open</span>(<span class="st">&quot;synth.csd&quot;</span>)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    lfo_val <span class="op">=</span> <span class="fu">lfo</span>(<span class="sc">0.5hz</span>, <span class="dv">1.0</span>, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cs_chnset</span>(cs, <span class="st">&quot;cutoff&quot;</span>, <span class="dv">800</span> <span class="op">+</span> lfo_val <span class="op">*</span> <span class="dv">400</span>)   /<span class="co">/ modulate cutoff with LFO</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    feedback <span class="op">=</span> <span class="fu">cs_chnget</span>(cs, <span class="st">&quot;level&quot;</span>, <span class="kw">dt</span><span class="op">=</span><span class="sc">20ms</span>)      /<span class="co">/ read back output level</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;level:&quot;</span>, feedback)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    feedback <span class="kw">catch</span> changed: {</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">&quot;level changed to:&quot;</span>, feedback)</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><code>cs_chnget</code> is a native temporal function. It outputs the
+current channel value on every tick and emits <code>changed</code>
+whenever the value differs from the previous tick.</p>
+<h3 id="full-example">Full example</h3>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;csound&quot;</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    cs <span class="op">=</span> <span class="fu">cs_open</span>(<span class="st">&quot;piano.csd&quot;</span>)</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    /<span class="co">/ Play a chord</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cs_note</span>(cs, <span class="dv">1</span>, <span class="sc">2s</span>, <span class="dv">261</span>, <span class="dv">0.7</span>)    /<span class="co">/ C4</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cs_note</span>(cs, <span class="dv">1</span>, <span class="sc">2s</span>, <span class="dv">329</span>, <span class="dv">0.6</span>)    /<span class="co">/ E4</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cs_note</span>(cs, <span class="dv">1</span>, <span class="sc">2s</span>, <span class="dv">392</span>, <span class="dv">0.6</span>)    /<span class="co">/ G4</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">@</span>(<span class="sc">2s</span>): {</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>        <span class="fu">cs_close</span>(cs)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="native-temporal-module-functions">Native temporal module
+functions</h2>
+<p>Some module functions are <strong>native temporal</strong> — they
+behave like temporal functions defined with <code>|&gt;</code>, but
+their state and update logic is implemented in C++. They are
+instantiated, ticked by the scheduler, and can emit values just like
+user-defined temporal functions.</p>
+<p>Currently: - <code>osc_recv(handle, dt=10ms)</code> — polls a UDP OSC
+receiver - <code>cs_chnget(handle, channel, dt=50ms)</code> — polls a
+Csound control channel</p>
+<p>You call them the same way as any temporal function:</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>msgs <span class="op">=</span> <span class="fu">osc_recv</span>(rx, <span class="kw">dt</span><span class="op">=</span><span class="sc">5ms</span>)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>msgs <span class="kw">catch</span> received: {</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;got:&quot;</span>, msgs)</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="external-modules">External modules</h2>
+<p>External modules are shared libraries (<code>.so</code> /
+<code>.dylib</code> / <code>.dll</code>) placed in
+<code>~/.idyl/modules/</code>. Load them by name:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;my_module&quot;</span>)</span></code></pre></div>
+<p>The runtime looks for <code>~/.idyl/modules/my_module.so</code> (or
+the platform-appropriate extension).</p>
+<h3 id="namespaced-external-module">Namespaced external module</h3>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>mm <span class="op">=</span> <span class="kw">module</span>(<span class="st">&quot;my_module&quot;</span>)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> mm<span class="op">::</span><span class="fu">some_function</span>(<span class="dv">42</span>)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <hr />
 <h2 id="example-complete-osc-workflow">Example: complete OSC
 workflow</h2>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span> synth_control: {</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    osc <span class="op">=</span> <span class="bu">osc_out</span>(<span class="st">&quot;127.0.0.1&quot;</span>, <span class="dv">57120</span>)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    /<span class="co">/ LFO modulating frequency</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">lfo</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> v <span class="op">|&gt;</span> {</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">init</span>: { v <span class="op">=</span> <span class="dv">0</span> }</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        v <span class="op">=</span> <span class="bu">sin</span>(<span class="bu">now</span>() <span class="op">*</span> <span class="dv">0.002</span>) <span class="op">*</span> <span class="dv">200</span> <span class="op">+</span> <span class="dv">440</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    /<span class="co">/ envelope</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">env</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">50ms</span>) <span class="op">=</span> e <span class="op">|&gt;</span> {</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">init</span>: { e <span class="op">=</span> <span class="dv">0</span> }</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        e <span class="op">=</span> (e <span class="op">&lt;</span> <span class="dv">1</span>) <span class="op">?</span> e <span class="op">+</span> <span class="dv">0.05</span> : <span class="dv">1</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_send</span>(osc, <span class="st">&quot;/freq&quot;</span>, lfo)</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_send</span>(osc, <span class="st">&quot;/amp&quot;</span>, env)</span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span>(<span class="st">&quot;osc&quot;</span>)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span> synth_control: {</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> <span class="bu">osc_out</span>(<span class="st">&quot;127.0.0.1&quot;</span>, <span class="dv">57120</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">lfo_freq</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> v <span class="op">|&gt;</span> {</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">init</span>: { v <span class="op">=</span> <span class="dv">440</span> }</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>        v <span class="op">=</span> <span class="dv">440</span> <span class="op">+</span> <span class="bu">sin</span>(<span class="bu">now</span>() <span class="op">*</span> <span class="dv">0.002</span>) <span class="op">*</span> <span class="dv">200</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">osc_send</span>(out, <span class="st">&quot;/freq&quot;</span>, lfo_freq)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <hr />
 <p><a href="ch11_architecture.html">Next: Architecture →</a></p>
 </body>

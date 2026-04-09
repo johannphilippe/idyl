@@ -231,6 +231,67 @@ class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb10-1"><a href=
 <p>The <code>print</code> call is not a one-shot — it runs every time
 <code>osc</code> ticks.</p>
 <hr />
+<h2 id="delay-operator">Delay operator — <code>'</code></h2>
+<p>The prime operator <code>'</code> introduces a <strong>sample
+delay</strong>: it returns the value of an expression from a previous
+tick rather than the current one. This is useful for feedback,
+differencing, and basic memory.</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">process</span>: {</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> <span class="fu">counter</span>(<span class="kw">dt</span><span class="op">=</span><span class="sc">300ms</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    b <span class="op">=</span> &#39;(a)        /<span class="co">/ one-sample delay: value of a from the previous tick</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    c <span class="op">=</span> &#39;(a, <span class="dv">3</span>)     /<span class="co">/ three-sample delay: value of a from three ticks ago</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(a, b, c)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="syntax">Syntax</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Form</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>'(expr)</code></td>
+<td>One-sample delay — returns the previous tick’s value</td>
+</tr>
+<tr class="even">
+<td><code>'(expr, N)</code></td>
+<td>N-sample delay — returns the value from N ticks ago</td>
+</tr>
+</tbody>
+</table>
+<h3 id="semantics">Semantics</h3>
+<ul>
+<li>On the first tick(s), delayed slots are filled with <code>0</code>
+until the buffer is populated.</li>
+<li>The delay is measured in <strong>ticks</strong>, not in time. A
+two-sample delay on a <code>dt=100ms</code> function returns the value
+from 200ms ago.</li>
+<li>Each delay expression has its own independent circular buffer, keyed
+to that specific expression in the AST. Multiple delays in the same
+function do not interfere.</li>
+</ul>
+<h3 id="example-differentiate-a-signal">Example: differentiate a
+signal</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">velocity</span>(x, <span class="kw">dt</span><span class="op">=</span><span class="sc">50ms</span>) <span class="op">=</span> dx <span class="op">|&gt;</span> {</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    dx <span class="op">=</span> x <span class="op">-</span> &#39;(x)    /<span class="co">/ rate of change per tick</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="inside-temporal-functions">Inside temporal functions</h3>
+<p>The delay operator is legal anywhere an expression is valid — inside
+lambda blocks, reactions, or the process body itself. When used inside a
+lambda block, the buffer is tied to that specific expression
+position.</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">envelope</span>(attack, <span class="kw">dt</span><span class="op">=</span><span class="sc">10ms</span>) <span class="op">=</span> level <span class="op">|&gt;</span> {</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">init</span>: { level <span class="op">=</span> <span class="dv">0</span>  target <span class="op">=</span> <span class="dv">1</span> }</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    level <span class="op">=</span> level <span class="op">+</span> (target <span class="op">-</span> level) <span class="op">*</span> attack</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    /<span class="co">/ detect when movement slows (approaching target)</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    delta <span class="op">=</span> <span class="bu">abs</span>(level <span class="op">-</span> &#39;(level))</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
 <h2 id="summary">Summary</h2>
 <table>
 <colgroup>

@@ -1,0 +1,22 @@
+
+cnt(limit, dt=300ms) = cnt
+|> {
+    init: {cnt = 0}
+    cnt = cnt + 1 
+    emit killsig = _; ! ? (cnt == limit)
+}
+
+process a: {
+    r = cnt(5)
+    print(r)
+    r catch killsig: {
+        print("Ending process a, starting b")
+        stop a 
+        start b 
+    }
+}
+
+process b: {
+    r = cnt(10)
+    print(r)
+}

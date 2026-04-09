@@ -157,48 +157,48 @@ gate(input, hold=100ms, dt=10ms) = out |> {
 // §3  Control signals — envelopes & curves
 // ────────────────────────────────────────────────────────────────────────────────
 
-// Line — linear ramp from `start` to `target` over `duration` ms, then hold.
-line(start, target, duration, dt=10ms) = out |> {
+// Line — linear ramp from `start_at` to `target` over `duration` ms, then hold.
+line(start_at, target, duration, dt=10ms) = out |> {
     init: {
         phase = 0
-        out = start
+        out = start_at
     }
     phase = min(phase + dt / duration, 1)
-    out = start + (target - start) * phase
+    out = start_at + (target - start_at) * phase
 }
 
-// Expcurve — exponential approach from `start` to `target`.
+// Expcurve — exponential approach from `start_at` to `target`.
 // `curve` > 1 gives concave (fast-then-slow); < 1 gives convex (slow-then-fast).
-expcurve(start, target, duration, curve=2, dt=10ms) = out |> {
+expcurve(start_at, target, duration, curve=2, dt=10ms) = out |> {
     init: {
         phase = 0
-        out = start
+        out = start_at
     }
     phase = min(phase + dt / duration, 1)
     shaped = pow(phase, curve)
-    out = start + (target - start) * shaped
+    out = start_at + (target - start_at) * shaped
 }
 
-// Logcurve — logarithmic ease (fast start, slow end) from `start` to `target`.
-logcurve(start, target, duration, dt=10ms) = out |> {
+// Logcurve — logarithmic ease (fast start_at, slow end) from `start_at` to `target`.
+logcurve(start_at, target, duration, dt=10ms) = out |> {
     init: {
         phase = 0
-        out = start
+        out = start_at
     }
     phase = min(phase + dt / duration, 1)
     shaped = log(1 + phase * (exp(1) - 1))
-    out = start + (target - start) * shaped
+    out = start_at + (target - start_at) * shaped
 }
 
-// S-curve (sigmoid) — smooth ease-in / ease-out from `start` to `target`.
-scurve(start, target, duration, dt=10ms) = out |> {
+// S-curve (sigmoid) — smooth ease-in / ease-out from `start_at` to `target`.
+scurve(start_at, target, duration, dt=10ms) = out |> {
     init: {
         phase = 0
-        out = start
+        out = start_at
     }
     phase = min(phase + dt / duration, 1)
     shaped = phase * phase * (3 - 2 * phase)
-    out = start + (target - start) * shaped
+    out = start_at + (target - start_at) * shaped
 }
 
 // Slew — low-pass smoothing filter. Smooths abrupt value changes.

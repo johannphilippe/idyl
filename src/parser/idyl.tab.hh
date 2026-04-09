@@ -422,47 +422,56 @@ namespace yy {
       // argument
       char dummy5[sizeof (std::shared_ptr<idyl::parser::argument>)];
 
+      // at_block
+      char dummy6[sizeof (std::shared_ptr<idyl::parser::at_block>)];
+
       // catch_block
-      char dummy6[sizeof (std::shared_ptr<idyl::parser::catch_block>)];
+      char dummy7[sizeof (std::shared_ptr<idyl::parser::catch_block>)];
 
       // flow_definition
-      char dummy7[sizeof (std::shared_ptr<idyl::parser::flow_definition>)];
+      char dummy8[sizeof (std::shared_ptr<idyl::parser::flow_definition>)];
 
       // function_definition
-      char dummy8[sizeof (std::shared_ptr<idyl::parser::function_definition>)];
+      char dummy9[sizeof (std::shared_ptr<idyl::parser::function_definition>)];
 
       // init_block
-      char dummy9[sizeof (std::shared_ptr<idyl::parser::init_block>)];
+      char dummy10[sizeof (std::shared_ptr<idyl::parser::init_block>)];
 
       // lambda_block
-      char dummy10[sizeof (std::shared_ptr<idyl::parser::lambda_block>)];
+      char dummy11[sizeof (std::shared_ptr<idyl::parser::lambda_block>)];
 
       // process_block
-      char dummy11[sizeof (std::shared_ptr<idyl::parser::process_block>)];
+      char dummy12[sizeof (std::shared_ptr<idyl::parser::process_block>)];
+
+      // start_statement
+      char dummy13[sizeof (std::shared_ptr<idyl::parser::start_statement>)];
+
+      // stop_statement
+      char dummy14[sizeof (std::shared_ptr<idyl::parser::stop_statement>)];
 
       // IDENTIFIER
       // NUMBER
       // TIME_LITERAL
       // STRING_LITERAL
-      char dummy12[sizeof (std::string)];
+      char dummy15[sizeof (std::string)];
 
       // flow_elements
       // ternary_options
-      char dummy13[sizeof (std::vector<idyl::parser::expr_ptr>)];
+      char dummy16[sizeof (std::vector<idyl::parser::expr_ptr>)];
 
       // parameter_list
-      char dummy14[sizeof (std::vector<idyl::parser::param_ptr>)];
+      char dummy17[sizeof (std::vector<idyl::parser::param_ptr>)];
 
       // top_level_statements
       // process_body_statements
       // lambda_statements
-      char dummy15[sizeof (std::vector<idyl::parser::stmt_ptr>)];
+      char dummy18[sizeof (std::vector<idyl::parser::stmt_ptr>)];
 
       // argument_list
-      char dummy16[sizeof (std::vector<std::shared_ptr<idyl::parser::argument>>)];
+      char dummy19[sizeof (std::vector<std::shared_ptr<idyl::parser::argument>>)];
 
       // flow_members
-      char dummy17[sizeof (std::vector<std::shared_ptr<idyl::parser::flow_member>>)];
+      char dummy20[sizeof (std::vector<std::shared_ptr<idyl::parser::flow_member>>)];
     };
 
     /// The size of the largest semantic type.
@@ -526,42 +535,45 @@ namespace yy {
     END = 269,                     // END
     DT = 270,                      // DT
     DUR = 271,                     // DUR
-    LAMBDA_BLOCK = 272,            // LAMBDA_BLOCK
-    NAMESPACE_DOT = 273,           // NAMESPACE_DOT
-    RESTART_MARKER = 274,          // RESTART_MARKER
-    MEMORY_OP = 275,               // MEMORY_OP
-    RANGE = 276,                   // RANGE
-    REST = 277,                    // REST
-    PLUS = 278,                    // PLUS
-    MINUS = 279,                   // MINUS
-    MUL = 280,                     // MUL
-    DIV = 281,                     // DIV
-    MOD = 282,                     // MOD
-    EQ = 283,                      // EQ
-    NEQ = 284,                     // NEQ
-    LT = 285,                      // LT
-    GT = 286,                      // GT
-    LE = 287,                      // LE
-    GE = 288,                      // GE
-    AND = 289,                     // AND
-    OR = 290,                      // OR
-    XOR = 291,                     // XOR
-    NOT = 292,                     // NOT
-    LSHIFT = 293,                  // LSHIFT
-    RSHIFT = 294,                  // RSHIFT
-    QUESTION = 295,                // QUESTION
-    ASSIGN = 296,                  // ASSIGN
-    COLON = 297,                   // COLON
-    SEMICOLON = 298,               // SEMICOLON
-    COMMA = 299,                   // COMMA
-    DOT = 300,                     // DOT
-    TRIGGER = 301,                 // TRIGGER
-    LPAREN = 302,                  // LPAREN
-    RPAREN = 303,                  // RPAREN
-    LBRACKET = 304,                // LBRACKET
-    RBRACKET = 305,                // RBRACKET
-    LBRACE = 306,                  // LBRACE
-    RBRACE = 307                   // RBRACE
+    STOP = 272,                    // STOP
+    START = 273,                   // START
+    LAMBDA_BLOCK = 274,            // LAMBDA_BLOCK
+    NAMESPACE_DOT = 275,           // NAMESPACE_DOT
+    RESTART_MARKER = 276,          // RESTART_MARKER
+    MEMORY_OP = 277,               // MEMORY_OP
+    RANGE = 278,                   // RANGE
+    REST = 279,                    // REST
+    AT_OP = 280,                   // AT_OP
+    PLUS = 281,                    // PLUS
+    MINUS = 282,                   // MINUS
+    MUL = 283,                     // MUL
+    DIV = 284,                     // DIV
+    MOD = 285,                     // MOD
+    EQ = 286,                      // EQ
+    NEQ = 287,                     // NEQ
+    LT = 288,                      // LT
+    GT = 289,                      // GT
+    LE = 290,                      // LE
+    GE = 291,                      // GE
+    AND = 292,                     // AND
+    OR = 293,                      // OR
+    XOR = 294,                     // XOR
+    NOT = 295,                     // NOT
+    LSHIFT = 296,                  // LSHIFT
+    RSHIFT = 297,                  // RSHIFT
+    QUESTION = 298,                // QUESTION
+    ASSIGN = 299,                  // ASSIGN
+    COLON = 300,                   // COLON
+    SEMICOLON = 301,               // SEMICOLON
+    COMMA = 302,                   // COMMA
+    DOT = 303,                     // DOT
+    TRIGGER = 304,                 // TRIGGER
+    LPAREN = 305,                  // LPAREN
+    RPAREN = 306,                  // RPAREN
+    LBRACKET = 307,                // LBRACKET
+    RBRACKET = 308,                // RBRACKET
+    LBRACE = 309,                  // LBRACE
+    RBRACE = 310                   // RBRACE
       };
       /// Backward compatibility alias (Bison 3.6).
       typedef token_kind_type yytokentype;
@@ -578,7 +590,7 @@ namespace yy {
     {
       enum symbol_kind_type
       {
-        YYNTOKENS = 53, ///< Number of tokens.
+        YYNTOKENS = 56, ///< Number of tokens.
         S_YYEMPTY = -2,
         S_YYEOF = 0,                             // YYEOF
         S_YYerror = 1,                           // error
@@ -597,82 +609,88 @@ namespace yy {
         S_END = 14,                              // END
         S_DT = 15,                               // DT
         S_DUR = 16,                              // DUR
-        S_LAMBDA_BLOCK = 17,                     // LAMBDA_BLOCK
-        S_NAMESPACE_DOT = 18,                    // NAMESPACE_DOT
-        S_RESTART_MARKER = 19,                   // RESTART_MARKER
-        S_MEMORY_OP = 20,                        // MEMORY_OP
-        S_RANGE = 21,                            // RANGE
-        S_REST = 22,                             // REST
-        S_PLUS = 23,                             // PLUS
-        S_MINUS = 24,                            // MINUS
-        S_MUL = 25,                              // MUL
-        S_DIV = 26,                              // DIV
-        S_MOD = 27,                              // MOD
-        S_EQ = 28,                               // EQ
-        S_NEQ = 29,                              // NEQ
-        S_LT = 30,                               // LT
-        S_GT = 31,                               // GT
-        S_LE = 32,                               // LE
-        S_GE = 33,                               // GE
-        S_AND = 34,                              // AND
-        S_OR = 35,                               // OR
-        S_XOR = 36,                              // XOR
-        S_NOT = 37,                              // NOT
-        S_LSHIFT = 38,                           // LSHIFT
-        S_RSHIFT = 39,                           // RSHIFT
-        S_QUESTION = 40,                         // QUESTION
-        S_ASSIGN = 41,                           // ASSIGN
-        S_COLON = 42,                            // COLON
-        S_SEMICOLON = 43,                        // SEMICOLON
-        S_COMMA = 44,                            // COMMA
-        S_DOT = 45,                              // DOT
-        S_TRIGGER = 46,                          // TRIGGER
-        S_LPAREN = 47,                           // LPAREN
-        S_RPAREN = 48,                           // RPAREN
-        S_LBRACKET = 49,                         // LBRACKET
-        S_RBRACKET = 50,                         // RBRACKET
-        S_LBRACE = 51,                           // LBRACE
-        S_RBRACE = 52,                           // RBRACE
-        S_YYACCEPT = 53,                         // $accept
-        S_program = 54,                          // program
-        S_top_level_statements = 55,             // top_level_statements
-        S_top_level_statement = 56,              // top_level_statement
-        S_function_or_flow_definition = 57,      // function_or_flow_definition
-        S_function_definition = 58,              // function_definition
-        S_flow_definition = 59,                  // flow_definition
-        S_flow_members = 60,                     // flow_members
-        S_flow_literal = 61,                     // flow_literal
-        S_flow_elements = 62,                    // flow_elements
-        S_generator_expression = 63,             // generator_expression
-        S_process_block = 64,                    // process_block
-        S_process_body_statements = 65,          // process_body_statements
-        S_process_body_statement = 66,           // process_body_statement
-        S_catch_block = 67,                      // catch_block
-        S_lambda_block = 68,                     // lambda_block
-        S_init_block = 69,                       // init_block
-        S_lambda_statements = 70,                // lambda_statements
-        S_lambda_statement = 71,                 // lambda_statement
-        S_parameter_list = 72,                   // parameter_list
-        S_parameter = 73,                        // parameter
-        S_expression = 74,                       // expression
-        S_assignment_expression = 75,            // assignment_expression
-        S_ternary_expression = 76,               // ternary_expression
-        S_ternary_options = 77,                  // ternary_options
-        S_logical_or_expression = 78,            // logical_or_expression
-        S_logical_and_expression = 79,           // logical_and_expression
-        S_bitwise_or_expression = 80,            // bitwise_or_expression
-        S_bitwise_xor_expression = 81,           // bitwise_xor_expression
-        S_bitwise_and_expression = 82,           // bitwise_and_expression
-        S_equality_expression = 83,              // equality_expression
-        S_relational_expression = 84,            // relational_expression
-        S_shift_expression = 85,                 // shift_expression
-        S_additive_expression = 86,              // additive_expression
-        S_multiplicative_expression = 87,        // multiplicative_expression
-        S_unary_expression = 88,                 // unary_expression
-        S_postfix_expression = 89,               // postfix_expression
-        S_primary_expression = 90,               // primary_expression
-        S_argument_list = 91,                    // argument_list
-        S_argument = 92                          // argument
+        S_STOP = 17,                             // STOP
+        S_START = 18,                            // START
+        S_LAMBDA_BLOCK = 19,                     // LAMBDA_BLOCK
+        S_NAMESPACE_DOT = 20,                    // NAMESPACE_DOT
+        S_RESTART_MARKER = 21,                   // RESTART_MARKER
+        S_MEMORY_OP = 22,                        // MEMORY_OP
+        S_RANGE = 23,                            // RANGE
+        S_REST = 24,                             // REST
+        S_AT_OP = 25,                            // AT_OP
+        S_PLUS = 26,                             // PLUS
+        S_MINUS = 27,                            // MINUS
+        S_MUL = 28,                              // MUL
+        S_DIV = 29,                              // DIV
+        S_MOD = 30,                              // MOD
+        S_EQ = 31,                               // EQ
+        S_NEQ = 32,                              // NEQ
+        S_LT = 33,                               // LT
+        S_GT = 34,                               // GT
+        S_LE = 35,                               // LE
+        S_GE = 36,                               // GE
+        S_AND = 37,                              // AND
+        S_OR = 38,                               // OR
+        S_XOR = 39,                              // XOR
+        S_NOT = 40,                              // NOT
+        S_LSHIFT = 41,                           // LSHIFT
+        S_RSHIFT = 42,                           // RSHIFT
+        S_QUESTION = 43,                         // QUESTION
+        S_ASSIGN = 44,                           // ASSIGN
+        S_COLON = 45,                            // COLON
+        S_SEMICOLON = 46,                        // SEMICOLON
+        S_COMMA = 47,                            // COMMA
+        S_DOT = 48,                              // DOT
+        S_TRIGGER = 49,                          // TRIGGER
+        S_LPAREN = 50,                           // LPAREN
+        S_RPAREN = 51,                           // RPAREN
+        S_LBRACKET = 52,                         // LBRACKET
+        S_RBRACKET = 53,                         // RBRACKET
+        S_LBRACE = 54,                           // LBRACE
+        S_RBRACE = 55,                           // RBRACE
+        S_YYACCEPT = 56,                         // $accept
+        S_program = 57,                          // program
+        S_top_level_statements = 58,             // top_level_statements
+        S_top_level_statement = 59,              // top_level_statement
+        S_function_or_flow_definition = 60,      // function_or_flow_definition
+        S_function_definition = 61,              // function_definition
+        S_flow_definition = 62,                  // flow_definition
+        S_flow_members = 63,                     // flow_members
+        S_flow_literal = 64,                     // flow_literal
+        S_flow_elements = 65,                    // flow_elements
+        S_generator_expression = 66,             // generator_expression
+        S_process_block = 67,                    // process_block
+        S_process_body_statements = 68,          // process_body_statements
+        S_process_body_statement = 69,           // process_body_statement
+        S_at_block = 70,                         // at_block
+        S_stop_statement = 71,                   // stop_statement
+        S_start_statement = 72,                  // start_statement
+        S_catch_block = 73,                      // catch_block
+        S_lambda_block = 74,                     // lambda_block
+        S_init_block = 75,                       // init_block
+        S_lambda_statements = 76,                // lambda_statements
+        S_lambda_statement = 77,                 // lambda_statement
+        S_parameter_list = 78,                   // parameter_list
+        S_parameter = 79,                        // parameter
+        S_expression = 80,                       // expression
+        S_assignment_expression = 81,            // assignment_expression
+        S_ternary_expression = 82,               // ternary_expression
+        S_ternary_options = 83,                  // ternary_options
+        S_logical_or_expression = 84,            // logical_or_expression
+        S_logical_and_expression = 85,           // logical_and_expression
+        S_bitwise_or_expression = 86,            // bitwise_or_expression
+        S_bitwise_xor_expression = 87,           // bitwise_xor_expression
+        S_bitwise_and_expression = 88,           // bitwise_and_expression
+        S_equality_expression = 89,              // equality_expression
+        S_relational_expression = 90,            // relational_expression
+        S_shift_expression = 91,                 // shift_expression
+        S_additive_expression = 92,              // additive_expression
+        S_multiplicative_expression = 93,        // multiplicative_expression
+        S_unary_expression = 94,                 // unary_expression
+        S_postfix_expression = 95,               // postfix_expression
+        S_primary_expression = 96,               // primary_expression
+        S_argument_list = 97,                    // argument_list
+        S_argument = 98                          // argument
       };
     };
 
@@ -749,6 +767,10 @@ namespace yy {
         value.move< std::shared_ptr<idyl::parser::argument> > (std::move (that.value));
         break;
 
+      case symbol_kind::S_at_block: // at_block
+        value.move< std::shared_ptr<idyl::parser::at_block> > (std::move (that.value));
+        break;
+
       case symbol_kind::S_catch_block: // catch_block
         value.move< std::shared_ptr<idyl::parser::catch_block> > (std::move (that.value));
         break;
@@ -771,6 +793,14 @@ namespace yy {
 
       case symbol_kind::S_process_block: // process_block
         value.move< std::shared_ptr<idyl::parser::process_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.move< std::shared_ptr<idyl::parser::start_statement> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.move< std::shared_ptr<idyl::parser::stop_statement> > (std::move (that.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
@@ -897,6 +927,20 @@ namespace yy {
 #endif
 
 #if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::at_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::at_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
       basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::catch_block>&& v, location_type&& l)
         : Base (t)
         , value (std::move (v))
@@ -974,6 +1018,34 @@ namespace yy {
       {}
 #else
       basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::process_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::start_statement>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::start_statement>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::stop_statement>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::stop_statement>& v, const location_type& l)
         : Base (t)
         , value (v)
         , location (l)
@@ -1128,6 +1200,10 @@ switch (yykind)
         value.template destroy< std::shared_ptr<idyl::parser::argument> > ();
         break;
 
+      case symbol_kind::S_at_block: // at_block
+        value.template destroy< std::shared_ptr<idyl::parser::at_block> > ();
+        break;
+
       case symbol_kind::S_catch_block: // catch_block
         value.template destroy< std::shared_ptr<idyl::parser::catch_block> > ();
         break;
@@ -1150,6 +1226,14 @@ switch (yykind)
 
       case symbol_kind::S_process_block: // process_block
         value.template destroy< std::shared_ptr<idyl::parser::process_block> > ();
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.template destroy< std::shared_ptr<idyl::parser::start_statement> > ();
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.template destroy< std::shared_ptr<idyl::parser::stop_statement> > ();
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
@@ -1592,6 +1676,36 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
+      make_STOP (location_type l)
+      {
+        return symbol_type (token::STOP, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_STOP (const location_type& l)
+      {
+        return symbol_type (token::STOP, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_START (location_type l)
+      {
+        return symbol_type (token::START, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_START (const location_type& l)
+      {
+        return symbol_type (token::START, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
       make_LAMBDA_BLOCK (location_type l)
       {
         return symbol_type (token::LAMBDA_BLOCK, std::move (l));
@@ -1677,6 +1791,21 @@ switch (yykind)
       make_REST (const location_type& l)
       {
         return symbol_type (token::REST, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_AT_OP (location_type l)
+      {
+        return symbol_type (token::AT_OP, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_AT_OP (const location_type& l)
+      {
+        return symbol_type (token::AT_OP, l);
       }
 #endif
 #if 201103L <= YY_CPLUSPLUS
@@ -2204,7 +2333,7 @@ switch (yykind)
     // YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
     // Performed when YYTABLE does not specify something else to do.  Zero
     // means the default is an error.
-    static const signed char yydefact_[];
+    static const unsigned char yydefact_[];
 
     // YYPGOTO[NTERM-NUM].
     static const short yypgoto_[];
@@ -2459,8 +2588,8 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 588,     ///< Last index in yytable_.
-      yynnts_ = 40,  ///< Number of nonterminal symbols.
+      yylast_ = 605,     ///< Last index in yytable_.
+      yynnts_ = 43,  ///< Number of nonterminal symbols.
       yyfinal_ = 20 ///< Termination state number.
     };
 
@@ -2510,10 +2639,11 @@ switch (yykind)
       15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
       25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
       35,    36,    37,    38,    39,    40,    41,    42,    43,    44,
-      45,    46,    47,    48,    49,    50,    51,    52
+      45,    46,    47,    48,    49,    50,    51,    52,    53,    54,
+      55
     };
     // Last valid token kind.
-    const int code_max = 307;
+    const int code_max = 310;
 
     if (t <= 0)
       return symbol_kind::S_YYEOF;
@@ -2572,6 +2702,10 @@ switch (yykind)
         value.copy< std::shared_ptr<idyl::parser::argument> > (YY_MOVE (that.value));
         break;
 
+      case symbol_kind::S_at_block: // at_block
+        value.copy< std::shared_ptr<idyl::parser::at_block> > (YY_MOVE (that.value));
+        break;
+
       case symbol_kind::S_catch_block: // catch_block
         value.copy< std::shared_ptr<idyl::parser::catch_block> > (YY_MOVE (that.value));
         break;
@@ -2594,6 +2728,14 @@ switch (yykind)
 
       case symbol_kind::S_process_block: // process_block
         value.copy< std::shared_ptr<idyl::parser::process_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.copy< std::shared_ptr<idyl::parser::start_statement> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.copy< std::shared_ptr<idyl::parser::stop_statement> > (YY_MOVE (that.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
@@ -2697,6 +2839,10 @@ switch (yykind)
         value.move< std::shared_ptr<idyl::parser::argument> > (YY_MOVE (s.value));
         break;
 
+      case symbol_kind::S_at_block: // at_block
+        value.move< std::shared_ptr<idyl::parser::at_block> > (YY_MOVE (s.value));
+        break;
+
       case symbol_kind::S_catch_block: // catch_block
         value.move< std::shared_ptr<idyl::parser::catch_block> > (YY_MOVE (s.value));
         break;
@@ -2719,6 +2865,14 @@ switch (yykind)
 
       case symbol_kind::S_process_block: // process_block
         value.move< std::shared_ptr<idyl::parser::process_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.move< std::shared_ptr<idyl::parser::start_statement> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.move< std::shared_ptr<idyl::parser::stop_statement> > (YY_MOVE (s.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
@@ -2817,7 +2971,7 @@ switch (yykind)
 
 
 } // yy
-#line 2821 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
+#line 2975 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
 
 
 

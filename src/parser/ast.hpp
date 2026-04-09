@@ -29,9 +29,9 @@ enum class node_t {
     memory_op_expr, generator_expr_node, flow_literal_expr, function_call_expr,
     flow_access_expr, module_access_expr, parenthesized_expr,
     // Statements
-    expression_stmt, assignment, catch_block,
+    expression_stmt, assignment, catch_block, at_block,
     function_definition, process_block_body, process_block,
-    library_import, module_import,
+    library_import, module_import, stop_statement, start_statement, sched_statement,
     // Top-level
     program,
 };
@@ -506,7 +506,7 @@ struct ternary_op_expr : expression {
 
 struct memory_op_expr : expression {
     std::shared_ptr<memory_op> op_;
-    
+
     memory_op_expr() : expression(node_t::memory_op_expr) {}
     
     void print(int indent = 0) const override {
@@ -652,6 +652,55 @@ struct catch_block : statement {
         for (const auto& stmt : handler_) {
             if (stmt) stmt->print(indent + 1);
         }
+    }
+};
+
+struct at_block : statement {
+    expr_ptr time_expr_;
+    std::vector<stmt_ptr> handler_;
+    
+    at_block() : statement(node_t::at_block) {}
+    
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "AtBlock(at ...)\n";
+        if (time_expr_) time_expr_->print(indent + 1);
+        for (const auto& stmt : handler_) {
+            if (stmt) stmt->print(indent + 1);
+        }
+    }
+};
+
+struct stop_statement : statement {
+    // Empty = stop the current process.  Non-empty = stop the named process.
+    std::string target_;
+    stop_statement() : statement(node_t::stop_statement) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "StopStatement(stop"
+                  << (target_.empty() ? "" : " " + target_) << ")\n";
+    }
+};
+
+struct start_statement : statement {
+    std::string target_;
+    start_statement() : statement(node_t::start_statement) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "StartStatement(start"
+                  << (target_.empty() ? "" : " " + target_) << ")\n";
+    }
+};
+
+struct sched_statement : statement {
+    std::string target_;   // name of the process to schedule
+    sched_statement() : statement(node_t::sched_statement) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "SchedStatement(sched " << target_ << ")\n";
     }
 };
 

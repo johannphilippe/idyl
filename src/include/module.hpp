@@ -42,8 +42,33 @@ namespace idyl::module {
     // Used for module functions that need temporal awareness (e.g. periodic polls).
     using timed_fn = std::function<core::value(span<const core::value>, double t, double dt)>;
 
+    // ── Parameter descriptor (used by native temporal function entries) ───────
+    // Declares one parameter by name with an optional default value.
+    struct param_def {
+        std::string     name_;
+        core::value     default_value_ = core::value::nil();
+        bool            has_default_   = false;
+    };
+
+    // Convenience builder: required param (no default)
+    inline param_def required(std::string name) {
+        return {std::move(name), core::value::nil(), false};
+    }
+    // Convenience builder: param with a numeric default
+    inline param_def with_default(std::string name, double v) {
+        return {std::move(name), core::value::number(v), true};
+    }
+    // Convenience builder: param with a time default (ms)
+    inline param_def with_default_ms(std::string name, double ms) {
+        return {std::move(name), core::value::time_ms(ms), true};
+    }
+
     // ── Function entry ─────────────────────────────────────────────────────
     // Describes one function exposed by a module.
+    // For stateless functions: fill name_, fn_, min_arity_, max_arity_.
+    // For native temporal functions: set is_native_temporal_ = true and fill
+    // params_, native_init_, native_update_.  min/max arity are derived
+    // automatically from params_ (required params count as min; total as max).
     struct function_entry {
         std::string name_;
         native_fn   fn_;
@@ -51,6 +76,19 @@ namespace idyl::module {
         int max_arity_ = 0;   // -1 = variadic (no upper bound)
         bool is_timed_  = false;   // true → fn_ wraps a timed_fn (scheduler provides t,dt)
         timed_fn timed_fn_;        // set when is_timed_ == true
+
+        // ── Native temporal fields ─────────────────────────────────────────
+        // When is_native_temporal_ is true, the evaluator treats this like a
+        // temporal lambda: creates a function_instance, runs native_init_ once,
+        // and calls native_update_ every tick via tick_instance.
+        bool is_native_temporal_ = false;
+
+        // Declared parameters (positional order).  A parameter named "dt"
+        // with a time default is treated as the tick interval.
+        std::vector<param_def> params_;
+
+        core::native_init_fn   native_init_;    // optional: init state from params
+        core::native_update_fn native_update_;  // required when is_native_temporal_
     };
 
     // ── Base module ────────────────────────────────────────────────────────

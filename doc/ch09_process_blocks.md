@@ -166,4 +166,73 @@ process audio: {
 
 ---
 
+## `start` and `stop` — process control from within a process
+
+A running process block can start or stop another named process block using the `start` and `stop` keywords.
+
+### `start name`
+
+Starts the named process block. The process must have been stored (either loaded in `--listen` mode, or defined as a named block in the same file).
+
+```idyl
+process launcher: {
+    timer(dt=500ms) = t |> {
+        init: { t = 0 }
+        t = t + 1
+    }
+    timer catch end: {
+        start synth     // start "synth" when timer ends
+    }
+}
+
+process synth: {
+    osc = lfo(440hz, 0.8, dt=10ms)
+    print("synth freq:", osc)
+}
+```
+
+### `stop name`
+
+Stops the named process block, unsubscribing all its temporal instances from the scheduler.
+
+```idyl
+process watchdog: {
+    guard(dt=1000ms) = t |> {
+        init: { t = 0 }
+        t = t + 1
+        emit timeout = _; ! ? (t >= 10)
+    }
+    guard catch timeout: {
+        stop audio_loop     // stop "audio_loop" after 10 seconds
+    }
+}
+```
+
+### `stop` (no name)
+
+Used without a name, `stop` stops the **current** process block:
+
+```idyl
+process oneshot: {
+    counter(dt=100ms) = n |> {
+        init: { n = 0 }
+        n = n + 1
+        emit done = _; ! ? (n >= 5)
+    }
+    counter catch done: {
+        print("done, stopping self")
+        stop        // stops "oneshot"
+    }
+}
+```
+
+### Notes
+
+- `start` and `stop` take effect immediately — the next scheduler tick of the target process will either fire (start) or not fire (stop).
+- Stopping a process that is not running is a no-op.
+- Starting a process that is already running starts a second independent instance.
+- These keywords are only valid inside process block bodies.
+
+---
+
 [Next: Modules & libraries →](ch10_modules_libraries.md)

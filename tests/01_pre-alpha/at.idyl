@@ -1,0 +1,8 @@
+process: {
+    delay = 800ms
+    print("start")
+    @(delay): {
+        print("variable delay fired")
+    }
+    @(300ms): print("single-statement form")
+}

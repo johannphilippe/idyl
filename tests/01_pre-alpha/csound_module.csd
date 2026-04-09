@@ -1,0 +1,28 @@
+<CsoundSynthesizer>
+<CsOptions>
+-odac
+</CsOptions>
+; ==============================================
+<CsInstruments>
+
+sr	=	48000
+ksmps	=	32
+nchnls	=	2
+0dbfs	=	1
+
+instr 1	
+    print p3
+    print p4
+    print p5 
+    ao = oscili(p4, p5) * expseg(1, p3, 0.01) * 0.3
+	outs, ao, ao
+endin
+
+</CsInstruments>
+; ==============================================
+<CsScore>
+f 0 z
+
+</CsScore>
+</CsoundSynthesizer>
+

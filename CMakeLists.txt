@@ -4,30 +4,36 @@ project(idyl LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(BISON REQUIRED)
-find_package(FLEX REQUIRED)
+# ── Module search path ────────────────────────────────────────────────────────
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 
-# Generate parser
+# ── Install layout ────────────────────────────────────────────────────────────
+include(GNUInstallDirs)
+
+# Idyl standard library destination: <prefix>/share/idyl/lib
+set(IDYL_LIB_INSTALL_DIR "${CMAKE_INSTALL_DATADIR}/idyl/lib")
+
+# ── Parser / scanner ──────────────────────────────────────────────────────────
+find_package(BISON REQUIRED)
+find_package(FLEX  REQUIRED)
+
 BISON_TARGET(IdylParser
     ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl.y
     ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl.tab.cc
     DEFINES_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl.tab.hh)
 
-# Generate scanner
 FLEX_TARGET(IdylScanner
     ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/idyl.l
     ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/lex.yy.cc)
 
-# Ensure correct build order
 ADD_FLEX_BISON_DEPENDENCY(IdylScanner IdylParser)
 
-# Modules (header-only INTERFACE library)
+# ── Module infrastructure (header-only) ───────────────────────────────────────
 add_subdirectory(src/modules)
 
-# ── Optional native modules ─────────────────────────────────────────────────
-# Each native module can be enabled/disabled at configure time.
-# When enabled, the corresponding compile definition is set, and the module
-# is conditionally registered in idyl.cpp via try_add().
+# ── Optional native modules ───────────────────────────────────────────────────
+
+# OSC module — UDP / Open Sound Control
 option(IDYL_MODULE_OSC "Enable the built-in OSC module" ON)
 if(IDYL_MODULE_OSC)
     message(STATUS "Native module: OSC [enabled]")
@@ -35,16 +41,25 @@ else()
     message(STATUS "Native module: OSC [disabled]")
 endif()
 
-# The Csound module is disabled by default since it requires the 
-# Csound library and headers to be installed.
-option(IDYL_MODULE_CSOUND "Enable the built-in Csound module" OFF)
+# Csound module — instrument control via the Csound C API
+option(IDYL_MODULE_CSOUND "Enable the built-in Csound module" ON)
 if(IDYL_MODULE_CSOUND)
-    message(STATUS "Native module: Csound [enabled]")
+    find_package(Csound)
+    if(CSOUND_FOUND)
+        message(STATUS "Native module: Csound [enabled] (${CSOUND_LIBRARIES})")
+    else()
+        message(WARNING
+            "IDYL_MODULE_CSOUND is ON but Csound was not found. "
+            "Install the Csound development package (e.g. libcsound64-dev) "
+            "or set CSOUND_INCLUDE_DIR / CSOUND_LIBRARY manually. "
+            "The Csound module will be disabled for this build.")
+        set(IDYL_MODULE_CSOUND OFF)
+    endif()
 else()
     message(STATUS "Native module: Csound [disabled]")
 endif()
 
-# Sources: use the generated outputs
+# ── Main executable ───────────────────────────────────────────────────────────
 set(SOURCES
     ${BISON_IdylParser_OUTPUTS}
     ${FLEX_IdylScanner_OUTPUTS}
@@ -52,7 +67,7 @@ set(SOURCES
     src/parser/parse.cpp
     src/semantic/analyzer.cpp
     src/core/evaluator.cpp
-    )
+)
 
 add_executable(idyl ${SOURCES})
 
@@ -62,18 +77,22 @@ target_include_directories(idyl PRIVATE
 
 target_link_libraries(idyl PRIVATE idyl_modules)
 
-# Pass module enable/disable flags to the compiler
+# ── Compile-time feature flags ────────────────────────────────────────────────
 if(IDYL_MODULE_OSC)
     target_compile_definitions(idyl PRIVATE IDYL_MODULE_OSC=1)
 endif()
+
 if(IDYL_MODULE_CSOUND)
     target_compile_definitions(idyl PRIVATE IDYL_MODULE_CSOUND=1)
+    target_include_directories(idyl PRIVATE ${CSOUND_INCLUDE_DIRS})
+    target_link_libraries(idyl PRIVATE ${CSOUND_LIBRARIES})
 endif()
 
-# Tell the binary where system libraries are installed
+# Bake the installed stdlib path into the binary so lib() can find it.
 target_compile_definitions(idyl PRIVATE
-    IDYL_SYSTEM_LIB_DIR="${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/idyl/lib/")
+    IDYL_SYSTEM_LIB_DIR="${CMAKE_INSTALL_PREFIX}/${IDYL_LIB_INSTALL_DIR}/")
 
+# ── Developer targets ─────────────────────────────────────────────────────────
 add_custom_target(parser
     DEPENDS ${FLEX_IdylScanner_OUTPUTS} ${BISON_IdylParser_OUTPUTS}
     COMMENT "Regenerating scanner and parser with Flex/Bison"
@@ -92,10 +111,13 @@ add_custom_target(test
     COMMENT "Running tests"
 )
 
-# ── Install ──────────────────────────────────────────────────────────────────
-include(GNUInstallDirs)
-install(TARGETS idyl RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# ── Install rules ─────────────────────────────────────────────────────────────
 
-# Install standard library files to <prefix>/share/idyl/lib
-install(DIRECTORY lib/ DESTINATION ${CMAKE_INSTALL_DATADIR}/idyl/lib
-        FILES_MATCHING PATTERN "*.idyl")
+# Binary → <prefix>/bin/idyl
+install(TARGETS idyl
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# Standard library → <prefix>/share/idyl/lib/*.idyl
+install(DIRECTORY lib/
+    DESTINATION ${IDYL_LIB_INSTALL_DIR}
+    FILES_MATCHING PATTERN "*.idyl")

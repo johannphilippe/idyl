@@ -16,6 +16,7 @@ namespace idyl::semantic {
         init_block, 
         process_block,
         catch_block,
+        at_block,
     };
 
     struct scope {
@@ -24,6 +25,7 @@ namespace idyl::semantic {
 
         std::string enclosing_function_; 
         bool is_temporal_function_ = false; 
+        bool is_process_block_ = false;
     };
 
     struct scope_stack {
@@ -106,7 +108,15 @@ namespace idyl::semantic {
         // Check if we are currently inside a temporal function (any enclosing scope is temporal)
         bool is_in_temporal_context() const {
             for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
-                if (it->is_temporal_function_) return true;
+                if (it->is_temporal_function_ ) return true;
+            }
+            return false;
+        }
+
+        // Check if we are currently inside a process block (any enclosing scope is a process)
+        bool is_process_context() const {
+            for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
+                if (it->is_process_block_) return true;
             }
             return false;
         }

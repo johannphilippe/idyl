@@ -145,7 +145,7 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="
 <hr />
 <h2 id="running-a-file">Running a file</h2>
 <div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> path/to/file.idl</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> path/to/file.idyl</span></code></pre></div>
 <p>Idƴl reads the source, runs semantic analysis (7 passes), and
 evaluates. If process blocks contain temporal functions, the scheduler
 keeps the program alive until they complete.</p>
@@ -154,7 +154,7 @@ keeps the program alive until they complete.</p>
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&#39;silence = 0&#39;</span> <span class="kw">|</span> <span class="ex">idyl</span> <span class="at">-</span></span></code></pre></div>
 <hr />
 <h2 id="cli-reference">CLI reference</h2>
-<pre><code>Usage: idyl [file.idl] [options]
+<pre><code>Usage: idyl [file.idyl] [options]
 
 Options:
   --trace              Enable parser/lexer debug tracing
@@ -165,19 +165,19 @@ Options:
 <h3 id="process"><code>--process</code></h3>
 <p>Run a single named process block and skip all others:</p>
 <div class="sourceCode" id="cb9"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> file.idl <span class="at">--process</span> clock_demo</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> file.idl <span class="at">-p</span> emit_demo</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> file.idyl <span class="at">--process</span> clock_demo</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> file.idyl <span class="at">-p</span> emit_demo</span></code></pre></div>
 <h3 id="listen"><code>--listen</code></h3>
 <p>Enter listen mode: load the file, store all process blocks, and wait
 for OSC commands to start/stop them.</p>
 <div class="sourceCode" id="cb10"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> file.idl <span class="at">--listen</span> 9000</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idyl</span> file.idyl <span class="at">--listen</span> 9000</span></code></pre></div>
 <p>The port argument is optional (defaults to 9000). See <a
 href="ch09_process_blocks.html">Chapter 9 — Process blocks</a> for the
 full listen mode protocol.</p>
 <hr />
 <h2 id="hello-idƴl">Hello, Idƴl</h2>
-<p>Create a file <code>hello.idl</code>:</p>
+<p>Create a file <code>hello.idyl</code>:</p>
 <div class="sourceCode" id="cb11"><pre
 class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>greeting <span class="op">=</span> <span class="st">&quot;hello, idyl&quot;</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -186,7 +186,7 @@ class="sourceCode idyl"><code class="sourceCode idyl"><span id="cb11-1"><a href=
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <p>Run it:</p>
 <div class="sourceCode" id="cb12"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> idyl hello.idl</span>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> idyl hello.idyl</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">hello,</span> idyl</span></code></pre></div>
 <p>Definitions outside process blocks are inert — they only execute when
 called from within a <code>process</code> block.</p>

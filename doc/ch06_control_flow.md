@@ -172,4 +172,91 @@ Generators are declarative, composable, and produce flows directly.
 
 ---
 
+## `@` — deferred execution block
+
+The `@(time_expr): { }` block schedules a block of statements to run **once**, after a specified delay. It is the "fire and forget at time T" primitive.
+
+```idyl
+process: {
+    print("start")
+
+    @(500ms): {
+        print("this runs 500ms later")
+    }
+
+    @(2s): {
+        print("this runs 2 seconds later")
+    }
+}
+```
+
+### Syntax
+
+```
+@(time_expression): {
+    statement
+    statement
+    ...
+}
+```
+
+The single-statement form (no braces, no colon) is also valid:
+
+```idyl
+@(1s) print("one second later")
+```
+
+### Time expression
+
+The time expression can be any value that resolves to a duration — a literal, a variable, or a computed expression:
+
+```idyl
+process: {
+    delay = 800ms
+    @(delay): {
+        print("fired after delay")
+    }
+    @(delay * 2): {
+        print("fired after double the delay")
+    }
+}
+```
+
+### Scope
+
+The handler block sees the process block's live scope. Variables modified in the handler are visible to subsequent code — including other at-blocks that haven't fired yet:
+
+```idyl
+process: {
+    x = 10
+    @(300ms): {
+        x = 99
+        print("x is now:", x)     // prints 99
+    }
+    @(600ms): {
+        print("x is still:", x)   // also prints 99
+    }
+}
+```
+
+### Use cases
+
+- Timed releases, fade-outs, or state transitions
+- Sequencing one-shot events in a musical timeline
+- Triggering another process after a warm-up delay
+- Scheduling cleanup after a finite process completes
+
+```idyl
+process: {
+    osc = osc_out("127.0.0.1", 9000)
+    osc_send(osc, "/gate", 1)
+
+    @(500ms): {
+        osc_send(osc, "/gate", 0)    // release after 500ms
+    }
+}
+```
+
+---
+
 [Next: Emit & catch →](ch07_emit_catch.md)

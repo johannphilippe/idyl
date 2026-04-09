@@ -167,6 +167,55 @@ The `print` call is not a one-shot — it runs every time `osc` ticks.
 
 ---
 
+## Delay operator — `'`
+
+The prime operator `'` introduces a **sample delay**: it returns the value of an expression from a previous tick rather than the current one. This is useful for feedback, differencing, and basic memory.
+
+```idyl
+process: {
+    a = counter(dt=300ms)
+    b = '(a)        // one-sample delay: value of a from the previous tick
+    c = '(a, 3)     // three-sample delay: value of a from three ticks ago
+    print(a, b, c)
+}
+```
+
+### Syntax
+
+| Form | Meaning |
+|------|---------|
+| `'(expr)` | One-sample delay — returns the previous tick's value |
+| `'(expr, N)` | N-sample delay — returns the value from N ticks ago |
+
+### Semantics
+
+- On the first tick(s), delayed slots are filled with `0` until the buffer is populated.
+- The delay is measured in **ticks**, not in time. A two-sample delay on a `dt=100ms` function returns the value from 200ms ago.
+- Each delay expression has its own independent circular buffer, keyed to that specific expression in the AST. Multiple delays in the same function do not interfere.
+
+### Example: differentiate a signal
+
+```idyl
+velocity(x, dt=50ms) = dx |> {
+    dx = x - '(x)    // rate of change per tick
+}
+```
+
+### Inside temporal functions
+
+The delay operator is legal anywhere an expression is valid — inside lambda blocks, reactions, or the process body itself. When used inside a lambda block, the buffer is tied to that specific expression position.
+
+```idyl
+envelope(attack, dt=10ms) = level |> {
+    init: { level = 0  target = 1 }
+    level = level + (target - level) * attack
+    // detect when movement slows (approaching target)
+    delta = abs(level - '(level))
+}
+```
+
+---
+
 ## Summary
 
 | Aspect | Clock-driven | Trigger-driven | Hybrid |

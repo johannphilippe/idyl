@@ -10,18 +10,30 @@ o = module("osc")
 host = "127.0.0.1"
 port = 9000
 
+handle = o::osc_out(host, port)
+
+sender(dt=100ms) = handle
+|> {
+    init: {cnt = 0}
+    res = o::osc_send(handle, "/synth/freq", 440)
+    res = o::osc_send(handle, "/synth/gate", 1)
+    res = o::osc_send(handle, "/synth/name", "sine")
+    res = o::osc_send(handle, "/control/mix", 0.75, "wet")
+    cnt = cnt + 1
+    emit kill = _;! ? (cnt == 10)
+} 
+
 process: {
     // Open an OSC output (UDP sender)
     print("Opening OSC output...")
-    handle = o::osc_out(host, port)
 
-    // Send a few OSC messages with different argument types
-    o::osc_send(handle, "/synth/freq", 440)
-    o::osc_send(handle, "/synth/gate", 1)
-    o::osc_send(handle, "/synth/name", "sine")
-    o::osc_send(handle, "/control/mix", 0.75, "wet")
+    handle = sender()
+    handle catch kill: {
+        print("kill catched")
+        o::osc_close(handle)
+        print("OSC test complete.")
+        stop 
+    }
 
-    // Close the connection
-    o::osc_close(handle)
-    print("OSC test complete.")
 }
+    

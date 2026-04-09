@@ -77,42 +77,136 @@ namespace idyl::modules {
         }
 
         std::vector<module::function_entry> functions() override {
+            using namespace module;
+
+            // ── Stateless functions ────────────────────────────────────────
+            function_entry osc_out_entry;
+            osc_out_entry.name_      = "osc_out";
+            osc_out_entry.fn_        = [this](span<const core::value> args) { return do_osc_out(args); };
+            osc_out_entry.min_arity_ = 2;
+            osc_out_entry.max_arity_ = 2;
+
+            function_entry osc_send_entry;
+            osc_send_entry.name_      = "osc_send";
+            osc_send_entry.fn_        = [this](span<const core::value> args) { return do_osc_send(args); };
+            osc_send_entry.min_arity_ = 2;
+            osc_send_entry.max_arity_ = -1;
+
+            function_entry osc_in_entry;
+            osc_in_entry.name_      = "osc_in";
+            osc_in_entry.fn_        = [this](span<const core::value> args) { return do_osc_in(args); };
+            osc_in_entry.min_arity_ = 1;
+            osc_in_entry.max_arity_ = 1;
+
+            function_entry osc_stop_entry;
+            osc_stop_entry.name_      = "osc_stop";
+            osc_stop_entry.fn_        = [this](span<const core::value>) { return do_osc_stop(); };
+            osc_stop_entry.min_arity_ = 0;
+            osc_stop_entry.max_arity_ = 0;
+
+            function_entry osc_close_entry;
+            osc_close_entry.name_      = "osc_close";
+            osc_close_entry.fn_        = [this](span<const core::value> args) { return do_osc_close(args); };
+            osc_close_entry.min_arity_ = 1;
+            osc_close_entry.max_arity_ = 1;
+
+            // ── osc_recv: native temporal — polls a UDP receiver each tick ──
+            // Usage: msgs = osc_recv(handle, dt=10ms)
+            //   handle: opened via osc_in()
+            //   dt:     poll interval
+            // Output: the last received OSC message as a flow [address, arg0, arg1, ...]
+            //   or nil if nothing arrived since the last tick.
+            // Emits: "received" (trigger) whenever a new message arrives.
+            function_entry osc_recv_entry;
+            osc_recv_entry.name_               = "osc_recv";
+            osc_recv_entry.is_native_temporal_  = true;
+            osc_recv_entry.params_ = {
+                required("handle"),
+                with_default_ms("dt", 10.0),
+            };
+
+            osc_recv_entry.native_init_ = [](
+                const core::native_state_t& /*params*/,
+                core::native_state_t& state)
+            {
+                state["last_msg"] = core::value::nil();
+            };
+
+            osc_recv_entry.native_update_ = [this](
+                const core::native_state_t& params,
+                core::native_state_t& state,
+                core::native_state_t& emitted,
+                core::value& output)
+            {
+                intptr_t h = 0;
+                auto hit = params.find("handle");
+                if (hit != params.end()) h = hit->second.as_handle();
+
+                if (h == 0) { output = core::value::nil(); return; }
+
+                std::lock_guard<std::mutex> lock(mutex_);
+                auto cit = connections_.find(h);
+                if (cit == connections_.end() ||
+                    cit->second->type_ != conn_type::receiver ||
+                    !cit->second->receiver_) {
+                    output = core::value::nil();
+                    return;
+                }
+
+                auto& udp_rx = *cit->second->receiver_;
+
+                // Non-blocking poll: 0 ms timeout
+                auto res = udp_rx.recv_timeout(65507, 0);
+                if (!res) {
+                    // Nothing arrived — output last message unchanged, no emit
+                    output = state["last_msg"];
+                    return;
+                }
+
+                // Parse the OSC packet
+                try {
+                    osc_message msg = osc_message::parse(res->member_data);
+
+                    // Build a flow: [address_string, arg0, arg1, ...]
+                    auto fd = std::make_shared<core::flow_data>();
+                    core::flow_member fm;
+                    fm.elements_.push_back(core::value::string(msg.member_address));
+                    for (const auto& arg : msg.member_args) {
+                        std::visit([&](auto&& v) {
+                            using T = std::decay_t<decltype(v)>;
+                            if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>)
+                                fm.elements_.push_back(core::value::number(static_cast<double>(v)));
+                            else if constexpr (std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t>)
+                                fm.elements_.push_back(core::value::number(static_cast<double>(v)));
+                            else if constexpr (std::is_same_v<T, std::string>)
+                                fm.elements_.push_back(core::value::string(v));
+                            else if constexpr (std::is_same_v<T, bool>)
+                                fm.elements_.push_back(core::value::trigger(v));
+                            else
+                                fm.elements_.push_back(core::value::nil());
+                        }, arg);
+                    }
+                    fd->members_.push_back(std::move(fm));
+
+                    core::value flow_val;
+                    flow_val.type_ = core::value_t::flow;
+                    flow_val.flow_ = std::move(fd);
+
+                    state["last_msg"] = flow_val;
+                    emitted["received"] = core::value::trigger(true);
+                    output = flow_val;
+                } catch (...) {
+                    output = state["last_msg"];
+                }
+            };
+
             return {
-                {
-                    "osc_out",
-                    [this](span<const core::value> args) -> core::value {
-                        return do_osc_out(args);
-                    },
-                    2, 2   // osc_out(host, port) → handle
-                },
-                {
-                    "osc_send",
-                    [this](span<const core::value> args) -> core::value {
-                        return do_osc_send(args);
-                    },
-                    2, -1  // osc_send(handle, address, ...args) — variadic
-                },
-                {
-                    "osc_in",
-                    [this](span<const core::value> args) -> core::value {
-                        return do_osc_in(args);
-                    },
-                    1, 1   // osc_in(port) → handle
-                },
-                {
-                    "osc_stop",
-                    [this](span<const core::value> /*args*/) -> core::value {
-                        return do_osc_stop();
-                    },
-                    0, 0   // osc_stop()
-                },
-                {
-                    "osc_close",
-                    [this](span<const core::value> args) -> core::value {
-                        return do_osc_close(args);
-                    },
-                    1, 1   // osc_close(handle)
-                },
+                std::move(osc_out_entry),
+                std::move(osc_send_entry),
+                std::move(osc_in_entry),
+                std::move(osc_stop_entry),
+                std::move(osc_close_entry),
+                std::move(osc_recv_entry),
             };
         }
 

@@ -238,6 +238,44 @@ namespace idyl::core {
                 return value::nil();
             }, 1, -1
         },
+        {
+            "printf", [](span<const value> args) -> value {
+                if (args.size_ == 0) return value::nil();
+                std::string format = args[0].type_ == value_t::string && args[0].string_ ? *args[0].string_ : "";
+                size_t arg_index = 1;
+                for (size_t i = 0; i < format.size(); ++i) {
+                    if (format[i] == '%' && i + 1 < format.size()) {
+                        char spec = format[++i];
+                        if (arg_index >= args.size_) {
+                            std::cerr << "Not enough arguments for printf format string\n";
+                            break;
+                        }
+                        const value& v = args[arg_index++];
+                        switch (spec) {
+                            case 'd':
+                            case 'i':
+                                std::cout << static_cast<int64_t>(v.as_number());
+                                break;
+                            case 'f':
+                                std::cout << v.as_number();
+                                break;
+                            case 's':
+                                std::cout << v.as_string();
+                                break;
+                            case '%':
+                                std::cout << '%';
+                                break;
+                            default:
+                                std::cerr << "Unknown printf format specifier: %" << spec << "\n";
+                        }
+                    } else {
+                        std::cout << format[i];
+                    }
+                }
+                std::cout << std::endl;
+                return value::nil();
+            }, 1, -1
+        },
         // ── Temporal utilities ───────────────────────────────────────────────────
         //  clock() and tempo() are handled as evaluator intrinsics
         //  (see evaluator.cpp eval_call) so they have access to the
@@ -299,6 +337,21 @@ namespace idyl::core {
                 return value::trigger(args[0].as_number() != 0.0);
             }, 1, 1
         },
+        // ── MIDI utilities ───────────────────────────────────────────────────
+        {
+            "mtof", [](span<const value> args) -> value {
+                double m = args[0].as_number();
+                double f = 440.0 * std::pow(2.0, (m - 69.0) / 12.0);
+                return value::number(f);
+            }, 1, 1
+        },
+        {
+            "ftom", [](span<const value> args) -> value {
+                double f = args[0].as_number();
+                double m = 69.0 + 12.0 * std::log2(f / 440.0);
+                return value::number(m);
+            }, 1, 1
+        }
     };
     constexpr size_t num_builtins = sizeof(builtins) / sizeof(builtin);
 } // --- idyl::core ---
