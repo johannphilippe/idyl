@@ -10,7 +10,7 @@ ksmps	=	32
 nchnls	=	2
 0dbfs	=	1
 
-instr 1	
+instr first
     print p3
     print p4
     print p5 

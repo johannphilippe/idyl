@@ -1,0 +1,28 @@
+module("osc")
+lib("stdlib")
+
+addr = "127.0.0.1"
+port = 9000
+handle = osc_out(addr, port)
+
+flow melody = {
+    notes: [50 53 60 65 47 33 60]
+    rhythm: [! ! _ ! ! ! _ _ _ ! _ ! ! ! ! !]
+}
+
+
+process: {
+    met = metro(dt = 0.2s)
+    print(met)
+    fl = melody[met]
+    print(fl.notes, fl.rhythm)
+
+    // Equivalent of "on" : ternary condition to trigger event or not : rest, or event depending on trigger
+    _; osc_send(handle, "/csound/scheduler", mtof(80)) ? met
+    _; osc_send(handle, "/csound/scheduler", mtof(fl.notes)) ? fl.rhythm
+
+    @(60s): {
+        print("End of instance")
+        stop
+    }
+}

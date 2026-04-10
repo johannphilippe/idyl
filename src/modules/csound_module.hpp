@@ -311,7 +311,7 @@ private:
             for (size_t i = 3; i < args.size_; ++i)
                 score += " " + std::to_string(args[i].as_number());
             score += "\n";
-            csoundReadScore(cs, score.c_str());
+            csoundReadScoreAsync(cs, score.c_str());
 
         } else {
             // Numeric instrument: use csoundScoreEvent for efficiency.
@@ -324,7 +324,7 @@ private:
             for (size_t i = 3; i < args.size_; ++i)
                 pf.push_back(static_cast<MYFLT>(args[i].as_number()));
 
-            csoundScoreEvent(cs, 'i', pf.data(), static_cast<long>(pf.size()));
+            csoundScoreEventAsync(cs, 'i', pf.data(), static_cast<long>(pf.size()));
         }
         return core::value::trigger(true);
 #else

@@ -15,11 +15,10 @@ This must be done in a smart way :
 
 ## Next 
 
-
-- on keyword : `on(trig): {// Do something}`
+- [important] on keyword : `on(trig): {// Do something}` where the bloc is only computed when the trigger happens 
 - List of features in syntax.md (traits for example)
-- Audio base runtime  (not urgent)
+- Audio base runtime (for buffer rate accuracy, with pure audio synchronization) (not urgent)
 
-## Test drifs 
+## Test drifts 
 
 - Compare csound_module scheduling to Csound OSC scheduling  
