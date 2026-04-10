@@ -9,7 +9,7 @@ counter(dt=200ms) = cnt |> {
     cnt = cnt + 1
 }
 
-flow notes = [10 20 30 40 50]
+flow notes = [10, 20, 30, 40, 50]
 
 process: {
     c = counter()

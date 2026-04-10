@@ -7,9 +7,130 @@
 
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <set>
+#include <unordered_set>
 
 namespace idyl::core {
+
+// ════════════════════════════════════════════════════════════════════════════════
+// AST identifier collection — used by reaction redistribution
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Recursively collect all identifier names referenced by an expression.
+static void collect_expr_ids(const parser::expr_ptr& expr,
+                              std::unordered_set<std::string>& out) {
+    if (!expr) return;
+    switch (expr->type_) {
+        case parser::node_t::identifier_expr: {
+            auto& e = static_cast<const parser::identifier_expr&>(*expr);
+            if (e.identifier_) out.insert(e.identifier_->name_);
+            break;
+        }
+        case parser::node_t::binary_op_expr: {
+            auto& e = static_cast<const parser::binary_op_expr&>(*expr);
+            if (e.op_) {
+                collect_expr_ids(e.op_->left_,  out);
+                collect_expr_ids(e.op_->right_, out);
+            }
+            break;
+        }
+        case parser::node_t::unary_op_expr: {
+            auto& e = static_cast<const parser::unary_op_expr&>(*expr);
+            if (e.op_) collect_expr_ids(e.op_->operand_, out);
+            break;
+        }
+        case parser::node_t::ternary_op_expr: {
+            auto& e = static_cast<const parser::ternary_op_expr&>(*expr);
+            if (e.op_) {
+                for (const auto& opt : e.op_->options_)
+                    collect_expr_ids(opt, out);
+                collect_expr_ids(e.op_->condition_, out);
+            }
+            break;
+        }
+        case parser::node_t::memory_op_expr: {
+            auto& e = static_cast<const parser::memory_op_expr&>(*expr);
+            if (e.op_) {
+                collect_expr_ids(e.op_->expr_,        out);
+                collect_expr_ids(e.op_->delay_count_, out);
+            }
+            break;
+        }
+        case parser::node_t::function_call_expr: {
+            auto& e = static_cast<const parser::function_call_expr&>(*expr);
+            if (e.call_) {
+                collect_expr_ids(e.call_->function_, out);
+                for (const auto& arg : e.call_->arguments_)
+                    if (arg) collect_expr_ids(arg->value_, out);
+            }
+            break;
+        }
+        case parser::node_t::flow_access_expr: {
+            auto& e = static_cast<const parser::flow_access_expr&>(*expr);
+            if (e.access_) {
+                collect_expr_ids(e.access_->flow_,  out);
+                collect_expr_ids(e.access_->index_, out);
+            }
+            break;
+        }
+        case parser::node_t::module_access_expr: {
+            auto& e = static_cast<const parser::module_access_expr&>(*expr);
+            if (e.access_) {
+                collect_expr_ids(e.access_->module_, out);
+                for (const auto& arg : e.access_->arguments_)
+                    if (arg) collect_expr_ids(arg->value_, out);
+            }
+            break;
+        }
+        case parser::node_t::parenthesized_expr: {
+            auto& e = static_cast<const parser::parenthesized_expr&>(*expr);
+            collect_expr_ids(e.expr_, out);
+            break;
+        }
+        case parser::node_t::generator_expr_node: {
+            auto& e = static_cast<const parser::generator_expr_node&>(*expr);
+            if (e.generator_) {
+                collect_expr_ids(e.generator_->range_start_, out);
+                collect_expr_ids(e.generator_->range_end_,   out);
+                collect_expr_ids(e.generator_->body_,        out);
+            }
+            break;
+        }
+        case parser::node_t::flow_literal_expr: {
+            auto& e = static_cast<const parser::flow_literal_expr&>(*expr);
+            if (e.flow_)
+                for (const auto& elem : e.flow_->elements_)
+                    collect_expr_ids(elem, out);
+            break;
+        }
+        default: break;
+    }
+}
+
+// Collect identifiers from the expression(s) inside a statement.
+static void collect_stmt_ids(const parser::stmt_ptr& stmt,
+                              std::unordered_set<std::string>& out) {
+    if (!stmt) return;
+    switch (stmt->type_) {
+        case parser::node_t::assignment: {
+            auto& a = static_cast<const parser::assignment&>(*stmt);
+            collect_expr_ids(a.value_, out);
+            break;
+        }
+        case parser::node_t::expression_stmt: {
+            auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+            collect_expr_ids(es.expression_, out);
+            break;
+        }
+        case parser::node_t::function_definition: {
+            auto& fd = static_cast<const parser::function_definition&>(*stmt);
+            collect_expr_ids(fd.body_, out);
+            break;
+        }
+        default: break;
+    }
+}
 
 // ════════════════════════════════════════════════════════════════════════════════
 // Top-level entry: walk program statements
@@ -197,6 +318,52 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                     break;
                 }
             }
+        }
+
+        // ── Redistribute reactions to the fastest segment they depend on ──────
+        // A reaction belongs to the segment whose bound variable it references
+        // with the smallest dt (highest frequency).  This ensures that, e.g.,
+        // `print(m1)` placed after `m2` in source still fires at m1's rate
+        // rather than m2's rate, because it only depends on m1.
+        //
+        // Only direct references to segment bound-variables matter here.
+        // Derived variables (computed in reactions) are not segment-bound, so
+        // a reaction like `print(x)` where x is a reaction-computed variable
+        // stays in whatever segment it currently belongs to.
+        if (segments.size() > 1) {
+            // Map: bound variable name → segment index
+            std::unordered_map<std::string, size_t> var_to_seg;
+            for (size_t si = 0; si < segments.size(); ++si)
+                if (!segments[si].bound_var.empty())
+                    var_to_seg[segments[si].bound_var] = si;
+
+            std::vector<std::vector<parser::stmt_ptr>> new_reactions(segments.size());
+
+            for (size_t si = 0; si < segments.size(); ++si) {
+                for (const auto& reaction : segments[si].reactions) {
+                    std::unordered_set<std::string> ids;
+                    collect_stmt_ids(reaction, ids);
+
+                    // Find the fastest (smallest dt) segment bound-var referenced.
+                    double min_dt   = std::numeric_limits<double>::max();
+                    size_t target   = si;   // default: keep in current segment
+
+                    for (const auto& id : ids) {
+                        auto vit = var_to_seg.find(id);
+                        if (vit == var_to_seg.end()) continue;
+                        size_t ref_si  = vit->second;
+                        auto   iit     = instances_.find(segments[ref_si].instance_id);
+                        if (iit == instances_.end()) continue;
+                        double ref_dt  = iit->second->dt_ms_;
+                        if (ref_dt < min_dt) { min_dt = ref_dt; target = ref_si; }
+                    }
+
+                    new_reactions[target].push_back(reaction);
+                }
+            }
+
+            for (size_t si = 0; si < segments.size(); ++si)
+                segments[si].reactions = std::move(new_reactions[si]);
         }
 
         // Subscribe each segment's temporal source to the scheduler.
@@ -1670,48 +1837,78 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
     return fd;
 }
 
+// ── flow_cache_key equality and hash ──────────────────────────────────────────
+
+static bool values_equal(const value& a, const value& b) {
+    if (a.type_ != b.type_) return false;
+    switch (a.type_) {
+        case value_t::number:
+        case value_t::time:    return a.number_ == b.number_;
+        case value_t::trigger: return a.trigger_ == b.trigger_;
+        case value_t::handle:  return a.handle_  == b.handle_;
+        case value_t::string:
+            if (!a.string_ && !b.string_) return true;
+            if (!a.string_ || !b.string_) return false;
+            return *a.string_ == *b.string_;
+        default:               return true;  // nil == nil, function refs not used as args
+    }
+}
+
+bool evaluator::flow_cache_key::operator==(const flow_cache_key& o) const {
+    if (name != o.name) return false;
+    if (args.size() != o.args.size()) return false;
+    for (size_t i = 0; i < args.size(); ++i)
+        if (!values_equal(args[i], o.args[i])) return false;
+    if (named.size() != o.named.size()) return false;
+    for (const auto& [k, v] : named) {
+        auto it = o.named.find(k);
+        if (it == o.named.end() || !values_equal(v, it->second)) return false;
+    }
+    return true;
+}
+
+std::size_t evaluator::flow_cache_key_hash::operator()(const flow_cache_key& k) const {
+    std::size_t h = std::hash<std::string>{}(k.name);
+    for (const auto& v : k.args) {
+        std::size_t vh = 0;
+        vh ^= std::hash<int>{}(static_cast<int>(v.type_)) + 0x9e3779b9 + (vh << 6);
+        vh ^= std::hash<double>{}(v.number_)               + 0x9e3779b9 + (vh << 6);
+        vh ^= std::hash<bool>{}(v.trigger_)                + 0x9e3779b9 + (vh << 6);
+        h  ^= vh + 0x9e3779b9 + (h << 6) + (h >> 2);
+    }
+    for (const auto& [name, v] : k.named) {
+        std::size_t vh = std::hash<std::string>{}(name);
+        vh ^= std::hash<double>{}(v.number_) + 0x9e3779b9 + (vh << 6);
+        h  ^= vh + 0x9e3779b9 + (h << 6) + (h >> 2);
+    }
+    return h;
+}
+
 value evaluator::eval_flow_call(const parser::flow_definition& def,
                                 const std::vector<value>& args,
                                 const named_args_t& named,
                                 const std::vector<parser::expr_ptr>& pos_exprs,
                                 const named_exprs_t& named_exprs) {
-    // Phase 2 hook: pos_exprs / named_exprs will be used here to detect
-    // temporal arguments and register a reactive binding.  For now (phase 1,
-    // static), we simply bind arguments and evaluate the members once.
+    // Phase 2 hook: pos_exprs / named_exprs reserved for detecting temporal
+    // arguments and registering reactive bindings.
 
-    // Build a cache key from the definition name and the stringified argument
-    // values.  Returning the same flow_data object for identical arguments
-    // preserves cursor state across reactive-chain re-evaluations on each tick.
-    // When arguments change (dynamic case, phase 2), the key changes and a
-    // fresh flow_data is built automatically.
-    std::string cache_key = def.name_;
-    for (const auto& v : args) {
-        cache_key += ':';
-        cache_key += std::to_string(v.as_number());
-    }
-    for (const auto& [name, v] : named) {
-        cache_key += ':';
-        cache_key += name + '=' + std::to_string(v.as_number());
-    }
+    // Look up in cache. Identical arguments → same flow_data → cursors persist
+    // across reactive-chain re-evaluations. Changed arguments → new entry.
+    flow_cache_key key{def.name_, args, named};
 
-    auto cached = flow_call_cache_.find(cache_key);
+    auto cached = flow_call_cache_.find(key);
     if (cached != flow_call_cache_.end())
         return cached->second;
 
+    // Build the flow.
     env_.push_scope();
 
-    // Bind positional arguments to parameters in declaration order.
-    for (size_t i = 0; i < def.parameters_.size() && i < args.size(); ++i) {
+    for (size_t i = 0; i < def.parameters_.size() && i < args.size(); ++i)
         env_.define(def.parameters_[i]->name_, args[i]);
-    }
-    // Bind named arguments.
-    for (const auto& [name, val] : named) {
-        env_.define(name, val);
-    }
-    // Apply parameter defaults for any unbound parameters.
+    for (const auto& [pname, val] : named)
+        env_.define(pname, val);
     for (const auto& param : def.parameters_) {
-        if (!param) continue;
-        if (env_.lookup(param->name_)) continue;  // already bound
+        if (!param || env_.lookup(param->name_)) continue;
         if (param->default_value_)
             env_.define(param->name_, eval_expr(param->default_value_));
     }
@@ -1722,7 +1919,13 @@ value evaluator::eval_flow_call(const parser::flow_definition& def,
 
     env_.pop_scope();
 
-    flow_call_cache_[cache_key] = result;
+    // Evict oldest entry if cache is full.
+    if (flow_call_cache_.size() >= FLOW_CACHE_MAX) {
+        flow_call_cache_.erase(flow_cache_order_.front());
+        flow_cache_order_.pop_front();
+    }
+    flow_cache_order_.push_back(key);
+    flow_call_cache_[std::move(key)] = result;
     return result;
 }
 

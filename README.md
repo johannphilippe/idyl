@@ -111,12 +111,12 @@ note(degree) = 261; 293; 329; 349; 391 ? (degree % 5)
 Ordered sequences — the data structure of Idƴl. Single or multi-member, with generator expressions.
 
 ```idyl
-flow notes = [60 62 64 67 69]
+flow notes = [60, 62, 64, 67, 69]
 
 flow drum_pattern = {
-    kick:  [! _ _ _]
-    snare: [_ _ ! _]
-    hat:   [! ! ! !]
+    kick:  [!, _, _, _]
+    snare: [_, _, !, _]
+    hat:   [!, !, !, !]
 }
 
 chromatic(root) = [semitone = 0..11 : root * (2.0 ^ (semitone / 12.0))]

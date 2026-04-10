@@ -6,10 +6,10 @@
 */
 
 // ── Simple flow literal ───────────────────────────────────────────
-flow simple = [1 2 3 4 5]
+flow simple = [1, 2, 3, 4, 5]
 
 // ── Flow with computed expressions ────────────────────────────────
-flow computed = [10 20 30]
+flow computed = [10, 20, 30]
 
 // ── Generator: identity ───────────────────────────────────────────
 flow identity = [i = 0..5 : i]

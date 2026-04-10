@@ -1,10 +1,10 @@
 lib("stdlib")
 flow pattern(i) = {
-    notes: [40+i 42+i 60+i 62+i]
-    rhythm: [! _ ! !]
+    notes: [40+i, 42+i, 60+i, 62+i]
+    rhythm: [!, _, !, !]
 }
 
-flow incr_pattern = [2 12 24]
+flow incr_pattern = [2, 12, 24]
 
 flow gen_pattern(i) = [n = 1..4: 50 + n + i]
 

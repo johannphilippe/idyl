@@ -309,3 +309,4 @@ accum(trig_in, step=1, wrap_at=128, dt=10ms) = out |> {
     val = fmod(val + step * trig_in + wrap_at, wrap_at)
     out = val
 }
+

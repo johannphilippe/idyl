@@ -340,35 +340,35 @@ flow_literal
     ;
 
 flow_elements
-    : flow_elements expression
+    : flow_elements COMMA expression
     {
         $$ = $1;
-        $$.push_back($2);
+        $$.push_back($3);
     }
-    | flow_elements LBRACKET NUMBER RBRACKET
+    | flow_elements COMMA LBRACKET NUMBER RBRACKET
     {
         $$ = $1;
         auto rep = std::make_shared<idyl::parser::repetition_marker>();
         auto num = std::make_shared<idyl::parser::number_literal>();
-        num->value_ = $3;
-        num->line_ = @3.begin.line;
-        num->column_ = @3.begin.column;
+        num->value_ = $4;
+        num->line_ = @4.begin.line;
+        num->column_ = @4.begin.column;
         auto expr = std::make_shared<idyl::parser::literal_expr>();
         expr->literal_ = num;
-        expr->line_ = @3.begin.line;
-        expr->column_ = @3.begin.column;
+        expr->line_ = @4.begin.line;
+        expr->column_ = @4.begin.column;
         rep->repetition_count_ = expr;
-        rep->line_ = @2.begin.line;
-        rep->column_ = @2.begin.column;
+        rep->line_ = @3.begin.line;
+        rep->column_ = @3.begin.column;
         $$.push_back(expr);
     }
-    | flow_elements RESTART_MARKER
+    | flow_elements COMMA RESTART_MARKER
     {
         $$ = $1;
         auto restart = std::make_shared<idyl::parser::repetition_marker>();
         restart->repetition_count_ = nullptr;
-        restart->line_ = @2.begin.line;
-        restart->column_ = @2.begin.column;
+        restart->line_ = @3.begin.line;
+        restart->column_ = @3.begin.column;
         $$.push_back(nullptr); // Placeholder for restart
     }
     | expression { $$ = {$1}; }

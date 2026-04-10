@@ -8,11 +8,11 @@ counter(dt = 100ms) = cnt
 }
 
 
-flow mflow = [0 1 2 3] 
+flow mflow = [0, 1, 2, 3] 
 
 flow cflow = {
-    kick: [! _ ! !]
-    notes: [ 61 48 59 39 77 ] 
+    kick: [!, _, !, !]
+    notes: [61, 48, 59, 39, 77] 
 }
 
 process: {

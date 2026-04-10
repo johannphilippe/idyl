@@ -10,13 +10,11 @@ Flows are **ordered sequences** — the data structure of Idƴl. They hold numbe
 
 ## Simple flows
 
-A flow literal is a bracketed list of values separated by spaces:
+A flow literal is a bracketed list of values separated by commas:
 
 ```idyl
-flow notes = [60 62 64 67 69]
+flow notes = [60, 62, 64, 67, 69]
 ```
-
-Values are not comma-separated — spaces are the delimiter.
 
 ---
 
@@ -51,9 +49,9 @@ Flows can have multiple named members — like a struct of parallel sequences:
 
 ```idyl
 flow drum_pattern = {
-    kick:  [! _ _ _]
-    snare: [_ _ ! _]
-    hat:   [! ! ! !]
+    kick:  [!, _, _, _]
+    snare: [_, _, !, _]
+    hat:   [!, !, !, !]
 }
 ```
 
@@ -98,7 +96,7 @@ process: {
 Flows wrap automatically when indexed past their length:
 
 ```idyl
-flow seq = [10 20 30]
+flow seq = [10, 20, 30]
 // seq[0] = 10, seq[1] = 20, seq[2] = 30
 // seq[3] = 10  (wraps), seq[4] = 20, ...
 ```
@@ -118,7 +116,7 @@ flow seq = [10 20 30]
 Use `len()` to get the number of elements:
 
 ```idyl
-flow notes = [60 62 64 67 69]
+flow notes = [60, 62, 64, 67, 69]
 
 process: {
     print("length:", len(notes))   // 5
@@ -132,8 +130,8 @@ process: {
 Flows can be transformed with generator expressions that reference other flows:
 
 ```idyl
-flow_a = [1 2 3 4]
-flow_b = [10 20 30 40]
+flow_a = [1, 2, 3, 4]
+flow_b = [10, 20, 30, 40]
 
 // Element-wise combination
 combined = [i = 0..len(flow_a) : flow_a[i] + flow_b[i]]
@@ -152,8 +150,8 @@ Functions applied to flows operate element-wise:
 add(a, b) = a + b
 
 process: {
-    result = add([0 3 5], [5 2 0])
-    print(result)    // flow: [5 5 5]
+    result = add([0, 3, 5], [5, 2, 0])
+    print(result)    // flow: [5, 5, 5]
 }
 ```
 

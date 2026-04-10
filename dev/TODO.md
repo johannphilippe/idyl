@@ -15,12 +15,25 @@ This must be done in a smart way :
 
 ## Next 
 
+- [important] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI 
+- [important] Flows with temporal elements should update (they don't)
+- [later] List of features in syntax.md (traits for example)
+- [later] Audio base runtime option (either system_clock scheduler, either audio clock scheduler with low buffer size - 16 or 32 samples) (for buffer rate accuracy, with pure audio synchronization) (not urgent)
+- [later] Closures : or better way to get full flexibility over function manipulation
+- [later] traits : a way to implement new features to some flows 
+- [later]Reintroduce function definition inside lambdas init scope   
+- [unnecessary] Functional flow (function output with flow) seems not fully functional. Also, ambiguous. Try to find a better way to build it, or keep this static. 
 - [unnecessary] on keyword : `on(trig): {// Do something}` where the bloc is only computed when the trigger happens : ternary are ok for this `_; do_something ? condition`
-- List of features in syntax.md (traits for example)
-- Audio base runtime option (either system_clock scheduler, either audio clock scheduler with low buffer size - 16 or 32 samples) (for buffer rate accuracy, with pure audio synchronization) (not urgent)
-- Reintroduce function definition inside lambdas init scope ?  
-- Closures : or better way to get full flexibility over function manipulation
 
+- [semantics] modify a few keywords so they match idyl philosophy : 
+    - `process` : `cycle`, `verse`, `weave` or `tide` (last is favorite)
+    - `dt` could alias  `drift` (though, it would explicitly say we're drifting, but it's fun)
+    - `start` : `dawn`, `rise`, `wake`, `spark` (dawn)
+    - `stop`: `ease`, `dim`, `wane` , 
+    - `catch`: `meet`, `hear`, `heed` (favoritee hear)
+
+for example, rise a tide, then wane it. inside the tide, everything can drift.
+And we can hear some signals.
 
 ## Flows 
 

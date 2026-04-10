@@ -6,7 +6,7 @@
 
 trig(dt=200ms) = !
 
-flow notes = [10 20 30 40 50]
+flow notes = [10, 20, 30, 40, 50]
 
 process: {
     t = trig()

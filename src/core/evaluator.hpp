@@ -4,6 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <memory>
+#include <list>
 #include <set>
 #include <unordered_map>
 
@@ -34,13 +35,41 @@ namespace idyl::core {
         std::unordered_map<std::string,
             std::shared_ptr<parser::flow_definition>> flow_defs_;
 
-        // Cache for parametric flow call results, keyed by "<name>:<arg0>:<arg1>:...".
+        // Cache for parametric flow call results.
+        //
+        // Key: (flow definition name, vector of argument values).
+        // Value: the built flow_data wrapped in a value.
+        //
         // Returning the same flow_data object for identical arguments preserves
-        // cursor state across reactive-chain re-executions (i.e. the flow advances
-        // through its elements on each tick rather than resetting each time).
-        // Phase 2: when a dynamic argument changes, its cache key changes, so a
-        // fresh flow_data is built automatically — no explicit invalidation needed.
-        std::unordered_map<std::string, value> flow_call_cache_;
+        // cursor state across reactive-chain re-executions — the flow advances
+        // through its elements on each tick rather than resetting each time.
+        //
+        // When arguments change (dynamic case), the key changes and a fresh
+        // flow_data is built automatically.  The old entry stays in the cache
+        // so that if the caller cycles back to a previous argument set, the
+        // cursor position is also preserved from that prior run.
+        //
+        // Size is capped at FLOW_CACHE_MAX entries; when full, the oldest
+        // insertion is evicted.  This prevents unbounded growth when a
+        // continuously-varying value is used as a flow argument.
+        static constexpr std::size_t FLOW_CACHE_MAX = 64;
+
+        struct flow_cache_key {
+            std::string name;
+            std::vector<value> args;
+            std::unordered_map<std::string, value> named;
+
+            bool operator==(const flow_cache_key& o) const;
+        };
+
+        struct flow_cache_key_hash {
+            std::size_t operator()(const flow_cache_key& k) const;
+        };
+
+        // Ordered insertion list for LRU eviction (front = oldest).
+        std::list<flow_cache_key> flow_cache_order_;
+        std::unordered_map<flow_cache_key, value,
+                           flow_cache_key_hash> flow_call_cache_;
 
         // ── Temporal function instances ────────────────────────────────────────
         // Keyed by instance id.  Each temporal call site creates one.

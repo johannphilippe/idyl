@@ -4,11 +4,11 @@ lib("stdlib")
 handle = cs_open("csound_module.csd")
 
 flow melody(i) = {
-    notes: [50+i 53+i 60+i 65+i 47+i 33+i 20+i]
-    rhythm: [! ! _ ! ! ! _ _ _ ! _ ! ! !]
+    notes: [50+i, 53+i, 60+i, 65+i, 47+i, 33+i, 20+i]
+    rhythm: [!, !, _, !, !, !, _, _, _, !, _, !, !, !]
 }
 
-flow octaver = [12 7 0]
+flow octaver = [12, 7, 0]
 
 note(spike!, note) = cs_note(handle, "first", 0.3s, 0.3, note)
 

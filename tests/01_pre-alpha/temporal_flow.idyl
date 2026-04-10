@@ -1,0 +1,9 @@
+lib("stdlib")
+
+flow moving = [sine(1hz), square[1hz]]
+
+
+process: {
+    print(moving[0], moving[1])
+    a = sine(1hz)
+}

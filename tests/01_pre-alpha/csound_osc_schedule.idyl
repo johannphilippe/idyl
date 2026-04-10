@@ -6,8 +6,8 @@ port = 9000
 handle = osc_out(addr, port)
 
 flow melody = {
-    notes: [50 53 60 65 47 33 60]
-    rhythm: [! ! _ ! ! ! _ _ _ ! _ ! ! ! ! !]
+    notes: [50, 53, 60, 65, 47, 33, 60]
+    rhythm: [!, !, _, !, !, !, _, _, _, !, _, !, !, !, !, !]
 }
 
 process: {
