@@ -4,15 +4,22 @@ flow pattern(i) = {
     rhythm: [! _ ! !]
 }
 
-flow incr_pattern = [0 12 -12]
+flow incr_pattern = [2 12 24]
 
 flow gen_pattern(i) = [n = 1..4: 50 + n + i]
 
-process: {
-    m1 = metro(2s)
-    m2 = metro(dt=0.3s)
-    incr = incr_pattern[m1]
+functional(i) = [n = 1..4: 50 + n + i]
 
-    m = gen_pattern(incr)[m2]
-    print(incr, m)
+
+process: {
+    m1 = counter(dt=1s)
+    m2 = metro(dt=0.3s)
+    i = incr_pattern[m1]
+    print(m1, i)
+
+    //print(m1, i)
+    //m = gen_pattern(i)[m2]
+    pat = gen_pattern(i)
+    m = pat[m2]
+    print(m)
 }

@@ -1,0 +1,8 @@
+lib("stdlib")
+
+process: {
+    m1 = metro(dt=500ms)
+    m2 = metro(dt=100ms)
+    print("m1", m1)
+    print("\tm2: ", m2)
+}

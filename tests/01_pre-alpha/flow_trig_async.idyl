@@ -1,0 +1,12 @@
+lib("stdlib")
+
+flow pattern = {
+    first: [1 2 3]
+    second: [11 22 33 44 55]
+    third: [111 222 333 444 555 666 777 888 999]
+}
+
+process: {
+    f = pattern[metro(dt=200ms)] 
+    print(f.first, f.second, f.third)
+}

@@ -10,7 +10,6 @@ flow melody = {
     rhythm: [! ! _ ! ! ! _ _ _ ! _ ! ! ! ! !]
 }
 
-
 process: {
     met = metro(dt = 0.2s)
     print(met)

@@ -1,10 +1,13 @@
 lib("stdlib")
 
-fun(spike!) = !;_ ? spike
+fun(spike!) = _;! ? spike
+f2(spike!) = spike
 
 trig(dt=100ms) = !
 
 process: {
     a = fun(trig())
-    print(a)
+    b = f2(trig())
+    print(a, b)
+
 }

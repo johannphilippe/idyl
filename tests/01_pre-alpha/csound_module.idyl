@@ -8,25 +8,27 @@ flow melody(i) = {
     rhythm: [! ! _ ! ! ! _ _ _ ! _ ! ! !]
 }
 
-flow incr = [12 -12]
+flow octaver = [12 7 0]
 
 note(spike!, note) = cs_note(handle, "first", 0.3s, 0.3, note)
 
 process: {
-    m1 = metro(dt=3s)
-    i = incr[m1]
+    m1 = counter(dt=3s)
+    i = octaver[m1]
+    print(i)
 
     met = metro(dt = 0.3s)
     print(met)
-    fl = melody[met]
+    fl = melody(i)[met]
     print(fl.notes, fl.rhythm)
 
-    a = note(fl.rhythm, mtof(fl.notes + 12))
+    a = note(fl.rhythm, mtof(fl.notes))
 
     b = note(met, mtof(83) )
-
     @(60s): {
         print("End of instance")
         stop
     }
 }
+
+
