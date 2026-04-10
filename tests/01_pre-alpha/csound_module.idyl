@@ -3,18 +3,20 @@ lib("stdlib")
 
 handle = cs_open("csound_module.csd")
 
-flow melody = {
-    notes: [50 53 60 65 47 33 20]
+flow melody(i) = {
+    notes: [50+i 53+i 60+i 65+i 47+i 33+i 20+i]
     rhythm: [! ! _ ! ! ! _ _ _ ! _ ! ! !]
 }
 
-note(spike!, note) = cs_note(handle, "first", d, 0.3, note)
-|> {
-    d = as_s(rnd(0.5, 4))
-}
+flow incr = [12 -12]
+
+note(spike!, note) = cs_note(handle, "first", 0.3s, 0.3, note)
 
 process: {
-    met = metro(dt = 0.1s)
+    m1 = metro(dt=3s)
+    i = incr[m1]
+
+    met = metro(dt = 0.3s)
     print(met)
     fl = melody[met]
     print(fl.notes, fl.rhythm)

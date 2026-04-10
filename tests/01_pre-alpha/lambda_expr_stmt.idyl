@@ -1,0 +1,13 @@
+counter(init_val) = val |> {
+    init: {
+        val = init_val
+        print("init called")
+    }
+    print(val)
+    val = val + 1
+}
+
+process: {
+    c = counter(0)
+    print(c)
+}

@@ -8,6 +8,16 @@ The engine underneath is a high-accuracy system-clock scheduler that drives temp
 
 ---
 
+## Author note 
+
+I spent a long time thinking about Idyl as a functional temporal language. 
+It took me a while to design it. 
+Though, I would probably never have found time to implement it myself completely. 
+So this project is a combined work of me and the AI assistants I could find helpful. 
+The workflow was simple : I design, the AI implements most features, I check, I fix when needed. 
+The use of AI reduced the time to find grammar inconsistencies by a large amount. 
+Same for engine implementation.
+
 ## Philosophy
 
 - **Stateless by default.** Definitions are immutable. State exists only where you ask for it, inside temporal lambda blocks, and every mutation is explicit.
@@ -131,6 +141,19 @@ trigger_counter(spike!) = count |> {
 }
 ```
 
+Both the `init` block and the update body of a lambda block accept bare expression calls (function calls without assignment). This is useful for side effects such as logging or calling external module functions on each tick:
+
+```idyl
+debug_counter(dt=100ms) = n |> {
+    init: {
+        n = 0
+        print("counter initialized")   // bare call in init
+    }
+    print("tick:", n)                   // bare call on every tick
+    n = n + 1
+}
+```
+
 ### Emit and the `::` accessor
 
 Temporal functions can emit named values as a side channel. The `::` operator reads them from an instance.
@@ -239,7 +262,9 @@ process synth: {
 
 ### Process blocks
 
-The only code that actually runs. Everything outside a process block is a definition waiting to be called.
+The only code that actually runs. Everything outside a process block is a definition waiting to be called — **global scope is declaration-only**: no bare function calls, no side effects, only function and constant definitions, flow definitions, and module imports.
+
+Inside a process block, both assignments and bare expression calls (function calls without assignment) are valid:
 
 ```idyl
 // Named, with optional duration
@@ -250,7 +275,7 @@ process oscillator_demo, dur=1s: {
 
 process flow_ops: {
     scale = chromatic(440)
-    print("chromatic scale:", scale)
+    print("chromatic scale:", scale)   // bare call — valid in process blocks
 }
 ```
 

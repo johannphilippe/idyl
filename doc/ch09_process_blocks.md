@@ -139,6 +139,18 @@ This starts `drums` immediately and waits for OSC commands to start/stop others.
 4. **Duration** is checked each tick — when elapsed time exceeds `dur=`, the block stops
 5. In listen mode, blocks are **stored but not started** until an OSC command requests them
 
+Process blocks accept both assignments (`x = expr`) and **bare expression calls** (function calls without assignment). Bare calls run for their side effects:
+
+```idyl
+process: {
+    out = osc_out("127.0.0.1", 9000)
+    osc_send(out, "/gate", 1)          // bare call — valid
+    print("gate sent")                 // bare call — valid
+}
+```
+
+> **Note**: Bare expression calls are **only valid inside process blocks and lambda blocks**. Global scope is declaration-only — attempting a bare call at the top level of a file is a parse error.
+
 ---
 
 ## Multiple process blocks

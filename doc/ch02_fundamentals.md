@@ -145,11 +145,37 @@ full_circle = tau      // = 2π
 
 ## Scope rules
 
+### Global scope — declaration only
+
+Top-level (global) scope is **purely declarative**: only function definitions, constants, flow definitions, and module/library imports are allowed. Bare function calls and any other imperative statements are not valid at global scope.
+
+```idyl
+// Valid at global scope
+silence = 0
+square(x) = x * x
+lib("scales.idyl")
+module("osc")
+
+// NOT valid at global scope
+print("hello")       // error — no bare calls outside process/lambda blocks
+```
+
 Top-level definitions are **hoisted** — they can reference each other regardless of declaration order:
 
 ```idyl
 foo(x) = bar(x) + 1
 bar(x) = x * 2           // defined after foo — still valid
+```
+
+### Process and lambda blocks — imperative context
+
+Executable statements (assignments and bare expression calls) are only valid inside **process blocks** and **lambda blocks** (`|> { ... }`). These are the only contexts where function calls without assignment are permitted:
+
+```idyl
+process: {
+    x = compute(440)        // assignment
+    print("result:", x)     // bare call — valid here
+}
 ```
 
 Inside lambda blocks, **declaration order applies** — a variable must be defined before it is used.

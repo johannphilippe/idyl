@@ -117,6 +117,17 @@ Rules:
 - Variables defined in `init` persist across ticks (they are the function's state).
 - `init` is optional. Without it, the first update runs immediately (no dt delay).
 - With `init`, the function's first output is the init value; the first update runs after one `dt`.
+- Bare expression calls (without assignment) are valid inside `init`, useful for setup side effects:
+
+```idyl
+synth(freq, dt=10ms) = level |> {
+    init: {
+        level = 0
+        print("synth started at freq:", freq)   // runs once at instantiation
+    }
+    level = level + 0.01
+}
+```
 
 ---
 
@@ -132,6 +143,23 @@ sawtooth(freq, dt=10ms) = phase |> {
 ```
 
 `phase` is updated every tick. The caller sees only the output (`phase` in this case, since it is the output variable).
+
+## Bare expression calls in lambda blocks
+
+Both the `init` block and the update body accept **bare expression calls** — function calls not bound to a variable. These run for their side effects (logging, calling external module functions, etc.).
+
+```idyl
+step_logger(dt=200ms) = n |> {
+    init: {
+        n = 0
+        print("starting")              // called once at instantiation
+    }
+    print("step:", n)                  // called on every tick
+    n = n + 1
+}
+```
+
+The call executes in source order relative to the surrounding assignments. Bare calls inside `init` run during instantiation; bare calls in the update body run on every tick.
 
 ---
 

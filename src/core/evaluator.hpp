@@ -26,6 +26,22 @@ namespace idyl::core {
         std::unordered_map<std::string,
             std::shared_ptr<parser::function_definition>> function_defs_;
 
+        // AST definitions for parametric flow definitions (flow with parameters).
+        // Zero-parameter flows are evaluated eagerly at definition time and stored
+        // directly in the environment as flow values.  Parametric flows are stored
+        // here and evaluated on each call — once per unique argument set (static),
+        // or on each tick of the driving temporal source (dynamic, phase 2).
+        std::unordered_map<std::string,
+            std::shared_ptr<parser::flow_definition>> flow_defs_;
+
+        // Cache for parametric flow call results, keyed by "<name>:<arg0>:<arg1>:...".
+        // Returning the same flow_data object for identical arguments preserves
+        // cursor state across reactive-chain re-executions (i.e. the flow advances
+        // through its elements on each tick rather than resetting each time).
+        // Phase 2: when a dynamic argument changes, its cache key changes, so a
+        // fresh flow_data is built automatically — no explicit invalidation needed.
+        std::unordered_map<std::string, value> flow_call_cache_;
+
         // ── Temporal function instances ────────────────────────────────────────
         // Keyed by instance id.  Each temporal call site creates one.
         std::unordered_map<uint64_t, std::shared_ptr<function_instance>> instances_;
@@ -194,6 +210,22 @@ namespace idyl::core {
         // ── Flows ──────────────────────────────────────────────────────────────
         value eval_flow_literal(const parser::flow_literal& fl);
         value eval_generator(const parser::generator_expr& gen);
+
+        // Shared helper: build a flow_data from a list of flow_member nodes.
+        // Assumes parameters are already bound in the current scope.
+        std::shared_ptr<flow_data> eval_flow_members(
+            const std::vector<std::shared_ptr<parser::flow_member>>& members);
+
+        // Build a flow_data from a parametric flow definition with the supplied
+        // argument values bound to parameters.  Used by eval_call when a call
+        // resolves to a flow_defs_ entry.
+        // pos_exprs / named_exprs are kept for phase 2 (dynamic recomputation)
+        // but are unused in the static implementation.
+        value eval_flow_call(const parser::flow_definition& def,
+                             const std::vector<value>& args,
+                             const named_args_t& named = {},
+                             const std::vector<parser::expr_ptr>& pos_exprs = {},
+                             const named_exprs_t& named_exprs = {});
 
         // ── Warnings ───────────────────────────────────────────────────────────
         void warn(int line, int col, const std::string& msg);

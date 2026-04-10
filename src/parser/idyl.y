@@ -647,25 +647,13 @@ lambda_statement
         assign->column_ = @1.begin.column;
         $$ = assign;
     }
-    | IDENTIFIER LPAREN parameter_list RPAREN ASSIGN expression %prec ASSIGN
+    | expression
     {
-        auto func = std::make_shared<idyl::parser::function_definition>();
-        func->name_ = $1;
-        func->parameters_ = $3;
-        func->body_ = $6;
-        func->line_ = @1.begin.line;
-        func->column_ = @1.begin.column;
-        $$ = func;
-    }
-    | IDENTIFIER LPAREN RPAREN ASSIGN expression %prec ASSIGN
-    {
-        auto func = std::make_shared<idyl::parser::function_definition>();
-        func->name_ = $1;
-        func->parameters_ = {};
-        func->body_ = $5;
-        func->line_ = @1.begin.line;
-        func->column_ = @1.begin.column;
-        $$ = func;
+        auto es = std::make_shared<idyl::parser::expression_stmt>();
+        es->expression_ = $1;
+        es->line_ = @1.begin.line;
+        es->column_ = @1.begin.column;
+        $$ = es;
     }
     ;
 

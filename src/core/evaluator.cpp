@@ -59,48 +59,24 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
     // ── Flow definition → evaluate and register ────────────────────────────
     case parser::node_t::flow_definition: {
         auto& def = static_cast<const parser::flow_definition&>(*stmt);
-        // Build flow_data from members
-        auto fd = std::make_shared<flow_data>();
-        for (const auto& member : def.members_) {
-            if (!member) continue;
-            flow_member fm;
-            fm.name_ = member->name_;
-            // Evaluate the member's value expression
-            if (member->value_) {
-                // The member value is wrapped in an expression node
-                if (member->value_->type_ == parser::node_t::flow_literal_expr) {
-                    auto& fle = static_cast<const parser::flow_literal_expr&>(*member->value_);
-                    if (fle.flow_) {
-                        for (const auto& elem : fle.flow_->elements_) {
-                            fm.elements_.push_back(eval_expr(elem));
-                        }
-                    }
-                } else if (member->value_->type_ == parser::node_t::generator_expr_node) {
-                    auto& gn = static_cast<const parser::generator_expr_node&>(*member->value_);
-                    if (gn.generator_) {
-                        auto& gen = *gn.generator_;
-                        value start = eval_expr(gen.range_start_);
-                        value end = eval_expr(gen.range_end_);
-                        int n = static_cast<int>(end.as_number());
-                        int s = static_cast<int>(start.as_number());
-                        env_.push_scope();
-                        for (int i = s; i < n; ++i) {
-                            env_.define(gen.variable_, value::number(static_cast<double>(i)));
-                            fm.elements_.push_back(eval_expr(gen.body_));
-                        }
-                        env_.pop_scope();
-                    }
-                } else {
-                    // Single expression member
-                    fm.elements_.push_back(eval_expr(member->value_));
-                }
-            }
-            fd->members_.push_back(std::move(fm));
+
+        if (!def.parameters_.empty()) {
+            // Parametric flow: store the definition for call-time evaluation.
+            // A function_ref is placed in the environment so the name resolves
+            // through the normal indirect-call path in eval_call.
+            flow_defs_[def.name_] = std::static_pointer_cast<parser::flow_definition>(
+                std::const_pointer_cast<parser::statement>(stmt));
+            env_.define(def.name_, value::function_ref(def.name_));
+            break;
         }
-        value flow_val;
-        flow_val.type_ = value_t::flow;
-        flow_val.flow_ = std::move(fd);
-        env_.define(def.name_, std::move(flow_val));
+
+        // Zero-parameter flow: evaluate eagerly (original behaviour).
+        {
+            value flow_val;
+            flow_val.type_ = value_t::flow;
+            flow_val.flow_ = eval_flow_members(def.members_);
+            env_.define(def.name_, std::move(flow_val));
+        }
         break;
     }
 
@@ -1132,6 +1108,12 @@ value evaluator::eval_call(const parser::function_call& call) {
         return eval_user_function(*it->second, args, named, fn_name, pos_exprs, named_exprs);
     }
 
+    // ── Check parametric flow definitions ──────────────────────────────────
+    auto fit = flow_defs_.find(fn_name);
+    if (fit != flow_defs_.end() && fit->second) {
+        return eval_flow_call(*fit->second, args, named, pos_exprs, named_exprs);
+    }
+
     warn(call.line_, call.column_, "undefined function '" + fn_name + "'");
     return value::number(0.0);
 }
@@ -1394,6 +1376,9 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                 value v = eval_expr(assign.value_);
                 inst->current_[assign.name_] = v;
                 env_.define(static_cast<const parser::assignment&>(*stmt).name_, v);  // pre-define for self-reference
+            } else if (stmt->type_ == parser::node_t::expression_stmt) {
+                auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+                eval_expr(es.expression_);
             }
         }
 
@@ -1457,6 +1442,9 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                         if (assign.is_emit_)
                             inst->emitted_[assign.name_] = v;
                     }
+                } else if (stmt->type_ == parser::node_t::expression_stmt) {
+                    auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+                    eval_expr(es.expression_);
                 }
             }
             inst->commit();
@@ -1583,6 +1571,9 @@ void evaluator::tick_instance(function_instance& inst,
             if (assign.is_emit_) {
                 inst.emitted_[assign.name_] = v;
             }
+        } else if (stmt->type_ == parser::node_t::expression_stmt) {
+            auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+            eval_expr(es.expression_);
         }
     }
 
@@ -1636,6 +1627,102 @@ value evaluator::eval_generator(const parser::generator_expr& gen) {
     value result;
     result.type_ = value_t::flow;
     result.flow_ = std::move(fd);
+    return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Parametric flow evaluation
+// ════════════════════════════════════════════════════════════════════════════════
+
+std::shared_ptr<flow_data> evaluator::eval_flow_members(
+        const std::vector<std::shared_ptr<parser::flow_member>>& members) {
+    auto fd = std::make_shared<flow_data>();
+    for (const auto& member : members) {
+        if (!member) continue;
+        flow_member fm;
+        fm.name_ = member->name_;
+        if (member->value_) {
+            if (member->value_->type_ == parser::node_t::flow_literal_expr) {
+                auto& fle = static_cast<const parser::flow_literal_expr&>(*member->value_);
+                if (fle.flow_) {
+                    for (const auto& elem : fle.flow_->elements_)
+                        fm.elements_.push_back(eval_expr(elem));
+                }
+            } else if (member->value_->type_ == parser::node_t::generator_expr_node) {
+                auto& gn = static_cast<const parser::generator_expr_node&>(*member->value_);
+                if (gn.generator_) {
+                    auto& gen = *gn.generator_;
+                    int s = static_cast<int>(eval_expr(gen.range_start_).as_number());
+                    int n = static_cast<int>(eval_expr(gen.range_end_).as_number());
+                    env_.push_scope();
+                    for (int i = s; i < n; ++i) {
+                        env_.define(gen.variable_, value::number(static_cast<double>(i)));
+                        fm.elements_.push_back(eval_expr(gen.body_));
+                    }
+                    env_.pop_scope();
+                }
+            } else {
+                fm.elements_.push_back(eval_expr(member->value_));
+            }
+        }
+        fd->members_.push_back(std::move(fm));
+    }
+    return fd;
+}
+
+value evaluator::eval_flow_call(const parser::flow_definition& def,
+                                const std::vector<value>& args,
+                                const named_args_t& named,
+                                const std::vector<parser::expr_ptr>& pos_exprs,
+                                const named_exprs_t& named_exprs) {
+    // Phase 2 hook: pos_exprs / named_exprs will be used here to detect
+    // temporal arguments and register a reactive binding.  For now (phase 1,
+    // static), we simply bind arguments and evaluate the members once.
+
+    // Build a cache key from the definition name and the stringified argument
+    // values.  Returning the same flow_data object for identical arguments
+    // preserves cursor state across reactive-chain re-evaluations on each tick.
+    // When arguments change (dynamic case, phase 2), the key changes and a
+    // fresh flow_data is built automatically.
+    std::string cache_key = def.name_;
+    for (const auto& v : args) {
+        cache_key += ':';
+        cache_key += std::to_string(v.as_number());
+    }
+    for (const auto& [name, v] : named) {
+        cache_key += ':';
+        cache_key += name + '=' + std::to_string(v.as_number());
+    }
+
+    auto cached = flow_call_cache_.find(cache_key);
+    if (cached != flow_call_cache_.end())
+        return cached->second;
+
+    env_.push_scope();
+
+    // Bind positional arguments to parameters in declaration order.
+    for (size_t i = 0; i < def.parameters_.size() && i < args.size(); ++i) {
+        env_.define(def.parameters_[i]->name_, args[i]);
+    }
+    // Bind named arguments.
+    for (const auto& [name, val] : named) {
+        env_.define(name, val);
+    }
+    // Apply parameter defaults for any unbound parameters.
+    for (const auto& param : def.parameters_) {
+        if (!param) continue;
+        if (env_.lookup(param->name_)) continue;  // already bound
+        if (param->default_value_)
+            env_.define(param->name_, eval_expr(param->default_value_));
+    }
+
+    value result;
+    result.type_ = value_t::flow;
+    result.flow_ = eval_flow_members(def.members_);
+
+    env_.pop_scope();
+
+    flow_call_cache_[cache_key] = result;
     return result;
 }
 

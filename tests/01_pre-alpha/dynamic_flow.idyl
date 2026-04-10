@@ -1,0 +1,18 @@
+lib("stdlib")
+flow pattern(i) = {
+    notes: [40+i 42+i 60+i 62+i]
+    rhythm: [! _ ! !]
+}
+
+flow incr_pattern = [0 12 -12]
+
+flow gen_pattern(i) = [n = 1..4: 50 + n + i]
+
+process: {
+    m1 = metro(2s)
+    m2 = metro(dt=0.3s)
+    incr = incr_pattern[m1]
+
+    m = gen_pattern(incr)[m2]
+    print(incr, m)
+}

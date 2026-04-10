@@ -81,6 +81,7 @@ process: {
 - **Function definitions** are eagerly compiled but lazily instantiated (on first use)
 - **Process blocks** are the only executable entry points; they run when the file loads
 - **No global state**: Each file compilation is independent and side-effect-free until a process block executes
+- **Global scope is declaration-only**: only function/constant definitions, flow definitions, and `lib()`/`module()` imports are valid at the top level. Bare expression calls are a parse error outside process blocks and lambda blocks.
 
 ### 1.4 Namespace & Module Resolution
 
@@ -305,6 +306,7 @@ Runs once when the function is first instantiated.
 - Executed immediately at instantiation
 - Sets up initial state variables
 - Optional (omit if no initialization needed)
+- Bare expression calls (without assignment) are valid inside `init` and in the lambda update body — they execute for side effects (e.g. logging, external calls)
 
 **Example**:
 ```idl
@@ -624,13 +626,13 @@ osc::send(sender, "/note", 60)
 
 ### 9.1 Main Entry Point
 
-The `process` block is the **only executable entry point**. Code outside process blocks is just definitions.
+The `process` block is the **only executable entry point**. Code outside process blocks is purely declarative — definitions, flow declarations, and module imports only. Bare expression calls at global scope are a parse error.
 
 **Syntax**:
 ```idl
 process: {
     // Executable code here
-    // Definitions and expressions
+    // Assignments and bare expression calls
 }
 ```
 
@@ -638,6 +640,7 @@ process: {
 - Runs when the file is loaded
 - All expressions execute in parallel (no sequential order dependency)
 - Parallel scope: all assignments are simultaneous
+- Both assignments (`x = expr`) and bare expression calls (`f(x)`) are valid — bare calls execute for their side effects
 
 **Examples**:
 ```idl

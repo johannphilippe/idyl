@@ -1,0 +1,11 @@
+f(x) = sqsq |>
+{
+    init: {
+        sq = x * x
+        sqsq = sq * sq
+    }
+}
+
+process: {
+    print(f(2))
+}

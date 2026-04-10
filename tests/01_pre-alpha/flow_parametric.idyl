@@ -1,0 +1,21 @@
+lib("stdlib")
+
+flow pattern(i) = [40+i 50+i 60+i]
+
+flow complex_pattern(i) = {
+    notes: [40+i 50+i 60+i]
+}
+
+flow incr = [0 12 -12]
+
+// Static parameter — called with a literal
+process static: {
+    m = metro(dt=500ms)
+    p = pattern(12)
+    print(p[m])                  // expects 52, 62, 72 cycling
+
+    print(pattern(1)[m])         // expects 41, 51, 61 cycling
+
+    pat = complex_pattern(5)
+    print(pat.notes[m])          // expects 45, 55, 65 cycling
+}
