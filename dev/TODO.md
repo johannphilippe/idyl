@@ -15,14 +15,18 @@ This must be done in a smart way :
 
 ## Next 
 
+- [implemented] Flows with temporal elements should update (they don't) : e.g. `flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]`
+- [unnecessary] flows inlined inside functions body or assignment - seems not fully working. Also, ambiguous. Add it later ? 
+
 - [important] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI 
-- [important] Flows with temporal elements should update (they don't)
+- [important] clock are not well designed (kind of useless) & temporal conversions introduce issues (bpm are not treated as bpm by default etc)
+- [fixed] basic metronome only sends triggers ! . A trigger, if not fired, should always be a rest (case of `metro(dt=100ms)=!`, if called or evaluated, return should be rest when not fired)
+- [fix] Doc ch 9 show erratic examples of functions defined inside process blocs
 - [later] List of features in syntax.md (traits for example)
 - [later] Audio base runtime option (either system_clock scheduler, either audio clock scheduler with low buffer size - 16 or 32 samples) (for buffer rate accuracy, with pure audio synchronization) (not urgent)
 - [later] Closures : or better way to get full flexibility over function manipulation
 - [later] traits : a way to implement new features to some flows 
 - [later]Reintroduce function definition inside lambdas init scope   
-- [unnecessary] Functional flow (function output with flow) seems not fully functional. Also, ambiguous. Try to find a better way to build it, or keep this static. 
 - [unnecessary] on keyword : `on(trig): {// Do something}` where the bloc is only computed when the trigger happens : ternary are ok for this `_; do_something ? condition`
 
 - [semantics] modify a few keywords so they match idyl philosophy : 

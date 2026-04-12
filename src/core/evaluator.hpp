@@ -164,6 +164,31 @@ namespace idyl::core {
         // re-evaluated with the updated temporal value.
         function_instance* retick_instance_ = nullptr;
 
+        // Retick pool for compound flow-slot re-evaluation (case F).
+        // When a live_expr slot is re-evaluated, the dep instances are pushed
+        // here so instantiate_* returns their current output instead of creating
+        // new instances.  Checked alongside retick_instance_ in instantiate_*.
+        std::vector<function_instance*> retick_pool_;
+
+        // Side-channel set by instantiate_* each time a new temporal instance is
+        // created.  Read by eval_flow_literal / eval_flow_members to detect
+        // temporal elements.  Cleared before each element's eval_expr call.
+        std::shared_ptr<function_instance> last_instantiated_;
+
+        // ── Epoch-based trigger reset ──────────────────────────────────────────
+        // Trigger temporals (e.g. metro) should read as `!` only during the
+        // scheduler tick in which they fired, and `_` at all other times.
+        // When multiple segments fire at the same scheduler time (e.g. metro(500ms)
+        // and metro(100ms) both fire at t=500ms), their reactions should all see
+        // each other as trigger before any reset happens.
+        //
+        // Implementation: instead of resetting trigger env bindings immediately
+        // after each callback, defer resets to an "epoch_resets_" list.  At the
+        // START of the first callback whose time differs from the current epoch,
+        // all pending resets are applied, then the new epoch begins.
+        double epoch_time_ms_ = -1.0;
+        std::vector<value*> epoch_resets_;
+
         // Runtime warnings (non-fatal)
         struct runtime_warning {
             int line_ = 0;
@@ -255,6 +280,21 @@ namespace idyl::core {
                              const named_args_t& named = {},
                              const std::vector<parser::expr_ptr>& pos_exprs = {},
                              const named_exprs_t& named_exprs = {});
+
+        // ── Flow element resolution ────────────────────────────────────────────
+        // Returns the live value of a flow element at index i in member m.
+        // Handles instance_ref (reads current instance output) and live_expr
+        // slots (re-evaluates compound temporal expressions with retick guard).
+        value resolve_flow_element(const flow_member& m, int i);
+
+        // Subscribe a temporal instance to the scheduler so it ticks
+        // independently.  No-op if scheduler_ is null, dt is zero, or the
+        // instance is already subscribed.
+        void schedule_instance(std::shared_ptr<function_instance> inst);
+
+        // Iterate all elements and live_deps of a flow and schedule any
+        // temporal instances that have not yet been subscribed.
+        void auto_schedule_flow(flow_data& fd);
 
         // ── Warnings ───────────────────────────────────────────────────────────
         void warn(int line, int col, const std::string& msg);

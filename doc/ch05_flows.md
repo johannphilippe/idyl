@@ -106,7 +106,7 @@ flow seq = [10, 20, 30]
 | Index type | Behavior |
 |------------|----------|
 | Integer | Direct element at that index (wraps) |
-| Float | Element at `floor(index)` (wraps) |
+| Float | Nearest element of index, proportionally, between 0 and 1 (wraps if exceeds 1) |
 | Trigger | Advance to next element on trigger |
 
 ---

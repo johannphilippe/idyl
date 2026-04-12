@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include <variant>
 #include <string>
@@ -10,20 +10,25 @@
 #include <unordered_map>
 #include <mutex>
 
+// Forward-declare parser::expression so flow_member can hold live expr slots
+// without pulling in the full AST header into the core runtime.
+namespace idyl::parser { struct expression; }
+
 namespace idyl::core {
 
     // ── Value tag ──────────────────────────────────────────────────────────────
     // Mirrors semantic::inferred_t but lives in core to avoid circular deps.
     // The evaluator uses this exclusively at runtime.
     enum class value_t {
-        number, 
-        time, 
+        number,
+        time,
         trigger,
         string,
-        flow, 
-        function, 
+        flow,
+        function,
         module,
         handle,
+        instance_ref,   // live reference to a temporal function_instance (used in flow elements)
         nil
     };
 
@@ -42,9 +47,13 @@ namespace idyl::core {
         // Complex types (heap-allocated, ref-counted)
         std::shared_ptr<std::string> string_;
         std::shared_ptr<flow_data> flow_;
-        // function_ and module_ will be added in later phases
+        // Live reference to a temporal function_instance.
+        // Non-null only when type_ == instance_ref.
+        // Accessing this value always reads the instance's current output.
+        std::shared_ptr<function_instance> instance_ = nullptr;
 
         // ── Constructors ───────────────────────────────────────────────────────
+        // Aggregate constructors for the plain types — instance_ defaults to nullptr.
         static value number(double v)       { return {value_t::number, v, false, 0, nullptr, nullptr}; }
         static value time_ms(double ms)     { return {value_t::time, ms, false, 0, nullptr, nullptr}; }
         static value trigger(bool fired)    { return {value_t::trigger, fired ? 1.0 : 0.0, fired, 0, nullptr, nullptr}; }
@@ -54,75 +63,50 @@ namespace idyl::core {
         static value handle(intptr_t h)     { return {value_t::handle, 0.0, false, h, nullptr, nullptr}; }
         static value function_ref(std::string name) { return {value_t::function, 0.0, false, 0, std::make_shared<std::string>(std::move(name)), nullptr}; }
 
+        // Wraps a live temporal instance.  Reading this value always returns
+        // the instance's current output via read_output().
+        static value instance_ref(std::shared_ptr<function_instance> inst) {
+            value v;
+            v.type_ = value_t::instance_ref;
+            v.instance_ = std::move(inst);
+            return v;
+        }
+
         // Accessor for function-ref values
         const std::string& fn_name() const { static const std::string empty; return string_ ? *string_ : empty; }
 
         // ── Numeric coercion (for operators) ───────────────────────────────────
         // trigger → 1.0 if fired, 0.0 otherwise
         // time → its ms value
+        // instance_ref → delegates to instance's current output
         // nil → 0.0
-        double as_number() const {
-            switch (type_) {
-                case value_t::number:  return number_;
-                case value_t::time:    return number_;
-                case value_t::trigger: return trigger_ ? 1.0 : 0.0;
-                case value_t::handle:  return static_cast<double>(handle_);
-                default:               return 0.0;
-            }
-        }
+        // Defined out-of-line (after function_instance) because instance_ref
+        // cases call read_output() which requires the complete type.
+        double as_number() const;
+        bool is_truthy() const;
+        std::string as_string() const;
 
         intptr_t as_handle() const {
             return (type_ == value_t::handle) ? handle_ : static_cast<intptr_t>(number_);
         }
 
-        bool is_truthy() const {
-            switch (type_) {
-                case value_t::number:  return number_ != 0.0;
-                case value_t::time:    return number_ != 0.0;
-                case value_t::trigger: return trigger_;
-                case value_t::string:  return string_ && !string_->empty();
-                case value_t::handle:  return handle_ != 0;
-                case value_t::function: return string_ && !string_->empty();
-                case value_t::nil:     return false;
-                default:               return true;
-            }
-        }
-
-        // String coercion — used by module authors and string concatenation.
-        // Returns the string content for string values, or a human-readable
-        // representation for other types.
-        std::string as_string() const {
-            switch (type_) {
-                case value_t::string:  return string_ ? *string_ : "";
-                case value_t::number: {
-                    auto s = std::to_string(number_);
-                    auto dot = s.find('.');
-                    if (dot != std::string::npos) {
-                        auto last = s.find_last_not_of('0');
-                        if (last == dot) s.erase(dot);
-                        else s.erase(last + 1);
-                    }
-                    return s;
-                }
-                case value_t::time:    return std::to_string(number_) + "ms";
-                case value_t::trigger: return trigger_ ? "trigger" : "rest";
-                case value_t::handle: {
-                    char buf[32];
-                    std::snprintf(buf, sizeof(buf), "handle@0x%lx",
-                                  static_cast<unsigned long>(handle_));
-                    return std::string(buf);
-                }
-                case value_t::function:
-                    return string_ ? ("<fn:" + *string_ + ">") : "<fn>";
-                default:               return "";
-            }
-        }
     };
 
     // ── Flow data ──────────────────────────────────────────────────────────────
     struct flow_member {
         std::string name_;  // empty for single-member flows
         std::vector<value> elements_;
+
+        // Compound-temporal slots (same size as elements_; entries may be null).
+        // live_exprs_[i] != null  → slot i must be re-evaluated at access time
+        //                           (element is an expression that involves a
+        //                            temporal, e.g. sine(2hz) * 127).
+        // live_deps_[i]  != null  → the temporal instance depended on by live_exprs_[i];
+        //                           set as retick_instance_ during re-evaluation so
+        //                           instantiate_* returns its current output instead
+        //                           of creating a new instance.
+        std::vector<std::shared_ptr<parser::expression>> live_exprs_;
+        std::vector<std::shared_ptr<function_instance>>  live_deps_;
     };
 
     struct flow_data {
@@ -233,6 +217,63 @@ namespace idyl::core {
             next_.clear();
         }
     };
+
+    // ── value coercion methods — defined here so function_instance is complete ──
+    // (as_number / is_truthy / as_string are declared in value but bodies moved
+    //  here because the instance_ref cases call read_output() on function_instance.)
+
+    inline double value::as_number() const {
+        switch (type_) {
+            case value_t::number:       return number_;
+            case value_t::time:         return number_;
+            case value_t::trigger:      return trigger_ ? 1.0 : 0.0;
+            case value_t::handle:       return static_cast<double>(handle_);
+            case value_t::instance_ref: return instance_ ? instance_->read_output().as_number() : 0.0;
+            default:                    return 0.0;
+        }
+    }
+
+    inline bool value::is_truthy() const {
+        switch (type_) {
+            case value_t::number:       return number_ != 0.0;
+            case value_t::time:         return number_ != 0.0;
+            case value_t::trigger:      return trigger_;
+            case value_t::string:       return string_ && !string_->empty();
+            case value_t::handle:       return handle_ != 0;
+            case value_t::function:     return string_ && !string_->empty();
+            case value_t::instance_ref: return instance_ ? instance_->read_output().is_truthy() : false;
+            case value_t::nil:          return false;
+            default:                    return true;
+        }
+    }
+
+    inline std::string value::as_string() const {
+        switch (type_) {
+            case value_t::string:  return string_ ? *string_ : "";
+            case value_t::number: {
+                auto s = std::to_string(number_);
+                auto dot = s.find('.');
+                if (dot != std::string::npos) {
+                    auto last = s.find_last_not_of('0');
+                    if (last == dot) s.erase(dot);
+                    else s.erase(last + 1);
+                }
+                return s;
+            }
+            case value_t::time:         return std::to_string(number_) + "ms";
+            case value_t::trigger:      return trigger_ ? "trigger" : "rest";
+            case value_t::instance_ref: return instance_ ? instance_->read_output().as_string() : "";
+            case value_t::handle: {
+                char buf[32];
+                std::snprintf(buf, sizeof(buf), "handle@0x%lx",
+                              static_cast<unsigned long>(handle_));
+                return std::string(buf);
+            }
+            case value_t::function:
+                return string_ ? ("<fn:" + *string_ + ">") : "<fn>";
+            default: return "";
+        }
+    }
 
     // ── Clock node ─────────────────────────────────────────────────────────────
     // A clock maintains a BPM rate and an optional parent relationship.

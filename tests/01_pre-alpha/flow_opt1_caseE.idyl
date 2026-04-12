@@ -1,0 +1,13 @@
+// Case E: multi-member flow with temporal elements
+lib("stdlib")
+
+flow osc_bank = {
+    slow: [sine(1hz, dt=100ms), sine(2hz, dt=100ms)]
+    fast: [sine(5hz, dt=100ms), sine(7hz, dt=100ms)]
+}
+
+process: {
+    m = metro(dt=300ms)
+    row = osc_bank[m]
+    print("slow:", row.slow, "fast:", row.fast)
+}

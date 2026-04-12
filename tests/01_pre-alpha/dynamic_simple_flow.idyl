@@ -1,0 +1,11 @@
+lib("stdlib")
+
+flow f(i) = [i, -i, i*i]
+
+process: {
+    incr = counter(dt=3s)
+    m = metro(dt=1s) 
+
+    res = f(incr)[m]
+    print(res)
+}

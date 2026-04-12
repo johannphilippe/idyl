@@ -1,0 +1,11 @@
+// Original bug from TODO.md:
+// flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]
+// should update — previously frozen at initial values
+lib("stdlib")
+
+flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]
+
+process: {
+    m = metro(dt=100ms)
+    print(temporal[m])
+}

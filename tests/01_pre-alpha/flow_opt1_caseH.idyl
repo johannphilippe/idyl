@@ -1,0 +1,20 @@
+// Case H: mixed static and temporal slots in the same flow
+// Slots 0 and 2 are plain numbers, slot 1 is a live temporal expression
+lib("stdlib")
+
+flow mult = [1, 2, 4]
+
+flow mixed(i) = [60 * i, sine(1hz, dt=100ms) * 12 + 60, 72]
+
+start_pgm = now()
+
+process: {
+    m0 = metro(dt=750ms)
+    m = metro(dt=250ms)
+    mlt = mult[m0]
+    res = mixed(mlt)[m]
+    print(mlt, res, "         ", as_ms(now() - start_pgm))
+    /*
+        Here, print is called every 100ms. Which is normal, because flow mixed has a member ticking every 100ms.
+    */
+}

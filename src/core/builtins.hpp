@@ -49,6 +49,14 @@ namespace idyl::core {
                                 std::cout << "null flow ";
                             }
                             break;
+                        case value_t::instance_ref:
+                            if (val.instance_) {
+                                value cur = val.instance_->read_output();
+                                std::cout << cur.as_string() << " ";
+                            } else {
+                                std::cout << "<null ref> ";
+                            }
+                            break;
                         case value_t::handle:
                             std::cout << val.as_string() << " ";
                             break;
@@ -145,6 +153,11 @@ namespace idyl::core {
             }, 1, 1
         },
         {
+            "string", [](span<const value> args) -> value {
+                return value::string(args[0].as_string());
+            }, 1, 1
+        },
+        {
             "rint", [](span<const value> args) -> value {
                 return value::number(std::rint(args[0].as_number()));
             }, 1, 1
@@ -230,6 +243,12 @@ namespace idyl::core {
                         case value_t::function:
                             std::cout << v.as_string();
                             break;
+                        case value_t::instance_ref:
+                            if (v.instance_)
+                                std::cout << v.instance_->read_output().as_string();
+                            else
+                                std::cout << "<null ref>";
+                            break;
                         default:
                             std::cout << "<nil>";
                     }
@@ -302,6 +321,7 @@ namespace idyl::core {
                 return value::time_ms(static_cast<double>(ms));
             }, 0, 1
         },
+        // All temporal coercions art internally treated as ms 
         {
             "as_ms", [](span<const value> args) -> value {
                 return value::time_ms(args[0].as_number());

@@ -366,6 +366,25 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 segments[si].reactions = std::move(new_reactions[si]);
         }
 
+        // ── Reset stale trigger bindings after setup ──────────────────────────
+        // The setup loop above calls exec_stmt() for every statement, including
+        // reactions like print(m1, m2).  Temporal instantiation sets the env
+        // binding to trigger(true) as its initial output.  The setup loop's
+        // print call produces the t=0 "both firing" line correctly.  After that
+        // we reset all trigger bindings to rest so the first scheduler tick
+        // starts from a clean state: the scheduler will set them trigger only
+        // when their instance actually fires.
+        if (has_temporal) {
+            for (const auto& seg : segments) {
+                if (!seg.bound_var.empty()) {
+                    value* v = env_.lookup(seg.bound_var);
+                    if (v && v->type_ == value_t::trigger)
+                        *v = value::rest();
+                }
+            }
+            epoch_time_ms_ = 0.0;
+        }
+
         // Subscribe each segment's temporal source to the scheduler.
         // On each tick: update instance → update bound variable → re-run reactions → check catches.
         if (scheduler_ && has_temporal) {
@@ -405,6 +424,21 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         auto si = weak_inst.lock();
                         if (!si || !si->active_) return false;
 
+                        // ── Epoch transition: flush pending resets ──────────
+                        // When a new scheduler time-step begins (t differs from
+                        // the current epoch by more than 0.5 ms), apply all
+                        // deferred trigger resets from the previous epoch.
+                        // This ensures that segments firing at the same scheduler
+                        // time all see each other's trigger bindings as live (!),
+                        // rather than having the first segment's reset clobber the
+                        // env before subsequent segments' reactions run.
+                        if (t > epoch_time_ms_ + 0.5) {
+                            for (value* v : epoch_resets_)
+                                if (v) *v = value::rest();
+                            epoch_resets_.clear();
+                            epoch_time_ms_ = t;
+                        }
+
                         tick_instance(*si, def_ptr.get());
 
                         retick_instance_ = si.get();
@@ -427,6 +461,21 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                                 for (const auto& h : c.handler)
                                     exec_stmt(h);
                             }
+                        }
+
+                        // ── Defer trigger reset to end of epoch ─────────────
+                        // Rather than resetting immediately, push the pointer
+                        // to the trigger env binding onto epoch_resets_.  It will
+                        // be reset to rest at the start of the next epoch (i.e.,
+                        // the next time a callback fires at a different time).
+                        // This lets all segments in the same scheduler tick see
+                        // each other as trigger before any reset occurs.
+                        // NOTE: instance output_ is NOT reset — the retick guard
+                        // reads it on the next tick and must still find trigger(true).
+                        if (!var.empty()) {
+                            value* bound = env_.lookup(var);
+                            if (bound && bound->type_ == value_t::trigger)
+                                epoch_resets_.push_back(bound);
                         }
 
                         return !should_end;
@@ -750,7 +799,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 if (m.name_ == fae.access_->member_) {
                     // Single element → unwrap to scalar value directly
                     if (m.elements_.size() == 1) {
-                        return m.elements_[0];
+                        return resolve_flow_element(m, 0);
                     }
                     // Multiple elements → return as a flow sharing the parent cursors
                     auto fd = std::make_shared<flow_data>();
@@ -796,24 +845,25 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 int n = static_cast<int>(elems.size());
                 const std::string& key = flow.flow_->members_[0].name_;
 
+                const auto& member0 = flow.flow_->members_[0];
                 if (is_trigger) {
                     int& cur = cursors[key];
                     if (idx.trigger_) {
                         int pos = cur % n;
                         cur = (cur + 1) % n;
-                        return elems[pos];
+                        return resolve_flow_element(member0, pos);
                     }
-                    return elems[cur % n];
+                    return resolve_flow_element(member0, cur % n);
                 }
                 if (is_float) {
                     double t = std::fmod(v, 1.0);
                     if (t < 0.0) t += 1.0;
                     int i = static_cast<int>(std::floor(t * n)) % n;
-                    return elems[i];
+                    return resolve_flow_element(member0, i);
                 }
                 // Integer with wrapping
                 int i = ((int_idx % n) + n) % n;
-                return elems[i];
+                return resolve_flow_element(member0, i);
             }
 
             // ── Multi-member flow: return a row slice ──────────────────────
@@ -848,7 +898,9 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     mi = ((int_idx % mn) + mn) % mn;
                 }
 
-                row_m.elements_.push_back(m.elements_[mi]);
+                row_m.elements_.push_back(resolve_flow_element(m, mi));
+                row_m.live_exprs_.push_back(nullptr);
+                row_m.live_deps_.push_back(nullptr);
                 fd->members_.push_back(std::move(row_m));
             }
             value result;
@@ -1326,10 +1378,15 @@ value evaluator::instantiate_native_temporal(const module::function_entry& entry
                                               const named_args_t& named,
                                               const std::vector<parser::expr_ptr>& pos_exprs,
                                               const named_exprs_t& named_exprs) {
-    // Retick guard: if we're inside a scheduler callback for this instance,
-    // just return its current output.
+    // Retick guard: if we're inside a scheduler callback for this instance
+    // (or re-evaluating a compound flow slot whose dep is this function),
+    // return the current output without creating a new instance.
     if (retick_instance_ && retick_instance_->def_name_ == entry.name_)
         return retick_instance_->read_output();
+    for (auto* p : retick_pool_) {
+        if (p && p->def_name_ == entry.name_)
+            return p->read_output();
+    }
 
     auto inst = std::make_shared<function_instance>();
     inst->id_          = next_instance_id_++;
@@ -1383,6 +1440,7 @@ value evaluator::instantiate_native_temporal(const module::function_entry& entry
     }
 
     instances_[inst->id_] = inst;
+    last_instantiated_ = inst;
     return inst->read_output();
 }
 
@@ -1456,8 +1514,11 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
     // name when loaded from a namespaced library, otherwise def.name_.
     const std::string& canon_key = qualified_key.empty() ? def.name_ : qualified_key;
 
-    if (retick_instance_ && retick_instance_->def_name_ == canon_key) {
+    if (retick_instance_ && retick_instance_->def_name_ == canon_key)
         return retick_instance_->read_output();
+    for (auto* p : retick_pool_) {
+        if (p && p->def_name_ == canon_key)
+            return p->read_output();
     }
 
     auto inst = std::make_shared<function_instance>();
@@ -1639,9 +1700,11 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
 
     // ── Store the instance ─────────────────────────────────────────────────
     instances_[inst->id_] = inst;
+    last_instantiated_ = inst;
 
-    // NOTE: subscription is NOT done here — the process block handler
-    // subscribes after collecting the segment's reaction statements.
+    // NOTE: subscription is NOT done here — either the process block handler
+    // subscribes after collecting the segment's reaction statements, or
+    // auto_schedule_flow() subscribes flow-owned instances after flow construction.
 
     // Return the initial output value
     return inst->read_output();
@@ -1764,10 +1827,37 @@ void evaluator::tick_instance(function_instance& inst,
 value evaluator::eval_flow_literal(const parser::flow_literal& fl) {
     auto fd = std::make_shared<flow_data>();
     flow_member fm;
+
     for (const auto& elem : fl.elements_) {
-        fm.elements_.push_back(eval_expr(elem));
+        last_instantiated_ = nullptr;
+        value v = eval_expr(elem);
+
+        if (last_instantiated_) {
+            // Element involved a temporal function call.
+            if (elem->type_ == parser::node_t::function_call_expr) {
+                // Direct call (e.g. sine(5hz, dt=200ms)) → live instance_ref slot.
+                fm.elements_.push_back(value::instance_ref(last_instantiated_));
+                fm.live_exprs_.push_back(nullptr);
+                fm.live_deps_.push_back(nullptr);
+            } else {
+                // Compound expression (e.g. sine(2hz)*127+64) → live-expr slot.
+                // The snapshot value is stored as fallback; the expression is
+                // re-evaluated at access time using last_instantiated_ as dep.
+                fm.elements_.push_back(v);
+                fm.live_exprs_.push_back(
+                    std::static_pointer_cast<parser::expression>(elem));
+                fm.live_deps_.push_back(last_instantiated_);
+            }
+        } else {
+            fm.elements_.push_back(v);
+            fm.live_exprs_.push_back(nullptr);
+            fm.live_deps_.push_back(nullptr);
+        }
     }
+
     fd->members_.push_back(std::move(fm));
+    auto_schedule_flow(*fd);
+
     value result;
     result.type_ = value_t::flow;
     result.flow_ = std::move(fd);
@@ -1801,6 +1891,29 @@ value evaluator::eval_generator(const parser::generator_expr& gen) {
 // Parametric flow evaluation
 // ════════════════════════════════════════════════════════════════════════════════
 
+// Helper: push a single evaluated element (with temporal detection) into fm.
+static void push_flow_element(flow_member& fm,
+                              const parser::expr_ptr& elem,
+                              value v,
+                              std::shared_ptr<function_instance> last_inst) {
+    if (last_inst) {
+        if (elem->type_ == parser::node_t::function_call_expr) {
+            fm.elements_.push_back(value::instance_ref(last_inst));
+            fm.live_exprs_.push_back(nullptr);
+            fm.live_deps_.push_back(nullptr);
+        } else {
+            fm.elements_.push_back(std::move(v));
+            fm.live_exprs_.push_back(
+                std::static_pointer_cast<parser::expression>(elem));
+            fm.live_deps_.push_back(std::move(last_inst));
+        }
+    } else {
+        fm.elements_.push_back(std::move(v));
+        fm.live_exprs_.push_back(nullptr);
+        fm.live_deps_.push_back(nullptr);
+    }
+}
+
 std::shared_ptr<flow_data> evaluator::eval_flow_members(
         const std::vector<std::shared_ptr<parser::flow_member>>& members) {
     auto fd = std::make_shared<flow_data>();
@@ -1812,10 +1925,16 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
             if (member->value_->type_ == parser::node_t::flow_literal_expr) {
                 auto& fle = static_cast<const parser::flow_literal_expr&>(*member->value_);
                 if (fle.flow_) {
-                    for (const auto& elem : fle.flow_->elements_)
-                        fm.elements_.push_back(eval_expr(elem));
+                    for (const auto& elem : fle.flow_->elements_) {
+                        last_instantiated_ = nullptr;
+                        value v = eval_expr(elem);
+                        push_flow_element(fm, elem, std::move(v), last_instantiated_);
+                    }
                 }
             } else if (member->value_->type_ == parser::node_t::generator_expr_node) {
+                // Generator expressions: temporal calls inside a range body would
+                // create one instance per iteration, which is not meaningful.
+                // Evaluate statically (no temporal detection).
                 auto& gn = static_cast<const parser::generator_expr_node&>(*member->value_);
                 if (gn.generator_) {
                     auto& gen = *gn.generator_;
@@ -1825,15 +1944,20 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
                     for (int i = s; i < n; ++i) {
                         env_.define(gen.variable_, value::number(static_cast<double>(i)));
                         fm.elements_.push_back(eval_expr(gen.body_));
+                        fm.live_exprs_.push_back(nullptr);
+                        fm.live_deps_.push_back(nullptr);
                     }
                     env_.pop_scope();
                 }
             } else {
-                fm.elements_.push_back(eval_expr(member->value_));
+                last_instantiated_ = nullptr;
+                value v = eval_expr(member->value_);
+                push_flow_element(fm, member->value_, std::move(v), last_instantiated_);
             }
         }
         fd->members_.push_back(std::move(fm));
     }
+    auto_schedule_flow(*fd);
     return fd;
 }
 
@@ -1927,6 +2051,68 @@ value evaluator::eval_flow_call(const parser::flow_definition& def,
     flow_cache_order_.push_back(key);
     flow_call_cache_[std::move(key)] = result;
     return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Flow element resolution and auto-scheduling
+// ════════════════════════════════════════════════════════════════════════════════
+
+value evaluator::resolve_flow_element(const flow_member& m, int i) {
+    const value& v = m.elements_[i];
+
+    // Direct temporal slot: return current instance output (thread-safe via mutex)
+    if (v.type_ == value_t::instance_ref && v.instance_)
+        return v.instance_->read_output();
+
+    // Compound temporal slot: re-evaluate the stored expression with a retick
+    // guard so the temporal call inside it returns the dep's current output
+    // rather than creating a new instance.
+    if (i < static_cast<int>(m.live_exprs_.size()) && m.live_exprs_[i]) {
+        function_instance* dep =
+            (i < static_cast<int>(m.live_deps_.size()) && m.live_deps_[i])
+            ? m.live_deps_[i].get() : nullptr;
+
+        function_instance* prev = retick_instance_;
+        retick_instance_ = dep;
+        value result = eval_expr(
+            std::static_pointer_cast<parser::expression>(m.live_exprs_[i]));
+        retick_instance_ = prev;
+        return result;
+    }
+
+    return v;
+}
+
+void evaluator::schedule_instance(std::shared_ptr<function_instance> inst) {
+    if (!scheduler_ || !inst || inst->dt_ms_ <= 0.0 || inst->subscription_id_ != 0)
+        return;
+
+    inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
+        [this, weak = std::weak_ptr<function_instance>(inst)]
+        (double /*t*/, double /*dt*/) -> bool {
+            auto si = weak.lock();
+            if (!si || !si->active_) return false;
+            auto def_it = function_defs_.find(si->def_name_);
+            const parser::function_definition* def_ptr =
+                def_it != function_defs_.end() ? def_it->second.get() : nullptr;
+            tick_instance(*si, def_ptr);
+            return true;
+        });
+}
+
+void evaluator::auto_schedule_flow(flow_data& fd) {
+    for (const auto& m : fd.members_) {
+        for (size_t i = 0; i < m.elements_.size(); ++i) {
+            std::shared_ptr<function_instance> inst;
+            if (m.elements_[i].type_ == value_t::instance_ref)
+                inst = m.elements_[i].instance_;
+            else if (i < m.live_deps_.size() && m.live_deps_[i])
+                inst = m.live_deps_[i];
+
+            if (inst)
+                schedule_instance(inst);
+        }
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

@@ -17,8 +17,6 @@ process: {
     i = incr_pattern[m1]
     print(m1, i)
 
-    //print(m1, i)
-    //m = gen_pattern(i)[m2]
     pat = gen_pattern(i)
     m = pat[m2]
     print(m)

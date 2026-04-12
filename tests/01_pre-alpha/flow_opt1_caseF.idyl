@@ -1,0 +1,10 @@
+// Case F: flow element is a compound expression involving a temporal
+// sine(2hz)*64+64 should oscillate between 0 and 128, not be frozen at 64
+lib("stdlib")
+
+flow scaled = [sine(2hz, dt=100ms) * 64 + 64, 0]
+
+process: {
+    m = metro(dt=300ms)
+    print(scaled[m])
+}

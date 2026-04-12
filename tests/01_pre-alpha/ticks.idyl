@@ -1,8 +1,28 @@
-lib("stdlib")
+metro(dt=100ms) = !
 
 process: {
     m1 = metro(dt=500ms)
     m2 = metro(dt=100ms)
-    print("m1", m1)
-    print("\tm2: ", m2)
+    print(m1, m2)
+    //print("m1", m1)
+    //print("\tm2: ", m2)
 }
+/*
+    Expected output 
+    m1 : trigger      m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : trigger      m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : trigger      m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    m1 : rest         m2 : trigger
+    etc 
+*/
