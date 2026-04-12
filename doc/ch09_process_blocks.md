@@ -11,17 +11,19 @@ Process blocks are the **entry points** of an Idƴl program. They are top-level 
 ## Basic process block
 
 ```idyl
+freq(dt=100ms) = v |> {
+    init: { v = 440 }
+    v = v + 1
+}
+
 process: {
     osc = osc_out("127.0.0.1", 9000)
-    freq(dt=100ms) = v |> {
-        init: { v = 440 }
-        v = v + 1
-    }
-    osc_send(osc, "/synth/freq", freq)
+    f = freq()
+    osc_send(osc, "/synth/freq", f)
 }
 ```
 
-A single anonymous process block. This is the simplest program structure.
+Function definitions must live at **global scope** — process blocks can only contain bindings, bare calls, and control statements. This is the simplest program structure.
 
 ---
 
@@ -158,21 +160,25 @@ process: {
 A program can have any number of process blocks. They all share the global scope but run independently:
 
 ```idyl
+show(dt=1000ms) = t |> {
+    init: { t = 0 }
+    t = t + 1
+}
+
+freq_osc(dt=10ms) = v |> {
+    init: { v = 440 }
+    v = v + sin(now() * 0.001) * 100
+}
+
 process clock_display: {
-    show(dt=1000ms) = t |> {
-        init: { t = 0 }
-        t = t + 1
-        print("tick:", t)
-    }
+    t = show()
+    print("tick:", t)
 }
 
 process audio: {
     osc = osc_out("127.0.0.1", 9000)
-    freq(dt=10ms) = v |> {
-        init: { v = 440 }
-        v = v + sin(now() * 0.001) * 100
-    }
-    osc_send(osc, "/freq", freq)
+    f = freq_osc()
+    osc_send(osc, "/freq", f)
 }
 ```
 
@@ -187,11 +193,14 @@ A running process block can start or stop another named process block using the 
 Starts the named process block. The process must have been stored (either loaded in `--listen` mode, or defined as a named block in the same file).
 
 ```idyl
+countdown(dt=500ms) = t |> {
+    init: { t = 0  emit end = _ }
+    t = t + 1
+    emit end = _; ! ? (t >= 4)
+}
+
 process launcher: {
-    timer(dt=500ms) = t |> {
-        init: { t = 0 }
-        t = t + 1
-    }
+    timer = countdown()
     timer catch end: {
         start synth     // start "synth" when timer ends
     }
@@ -208,13 +217,15 @@ process synth: {
 Stops the named process block, unsubscribing all its temporal instances from the scheduler.
 
 ```idyl
+guard(dt=1000ms) = t |> {
+    init: { t = 0  emit timeout = _ }
+    t = t + 1
+    emit timeout = _; ! ? (t >= 10)
+}
+
 process watchdog: {
-    guard(dt=1000ms) = t |> {
-        init: { t = 0 }
-        t = t + 1
-        emit timeout = _; ! ? (t >= 10)
-    }
-    guard catch timeout: {
+    g = guard()
+    g catch timeout: {
         stop audio_loop     // stop "audio_loop" after 10 seconds
     }
 }
@@ -225,12 +236,14 @@ process watchdog: {
 Used without a name, `stop` stops the **current** process block:
 
 ```idyl
+ticking(dt=100ms) = n |> {
+    init: { n = 0  emit done = _ }
+    n = n + 1
+    emit done = _; ! ? (n >= 5)
+}
+
 process oneshot: {
-    counter(dt=100ms) = n |> {
-        init: { n = 0 }
-        n = n + 1
-        emit done = _; ! ? (n >= 5)
-    }
+    counter = ticking()
     counter catch done: {
         print("done, stopping self")
         stop        // stops "oneshot"

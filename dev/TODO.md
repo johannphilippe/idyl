@@ -15,18 +15,20 @@ This must be done in a smart way :
 
 ## Next 
 
+- [essential] hot reload - to define properly before implementation
+- [important] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI  :> modules_cleanup.md
+- [important] : serial utilities (read write) + 2 modules (serial, & MIDI)
+- [fix] Clocks : csound_module_clock.idyl : change only occurs after 12 beats instead of 10 : investigate
 - [implemented] Flows with temporal elements should update (they don't) : e.g. `flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]`
 - [unnecessary] flows inlined inside functions body or assignment - seems not fully working. Also, ambiguous. Add it later ? 
-
-- [important] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI 
-- [important] clock are not well designed (kind of useless) & temporal conversions introduce issues (bpm are not treated as bpm by default etc)
-- [fixed] basic metronome only sends triggers ! . A trigger, if not fired, should always be a rest (case of `metro(dt=100ms)=!`, if called or evaluated, return should be rest when not fired)
-- [fix] Doc ch 9 show erratic examples of functions defined inside process blocs
+- [fixed] (YET TO CHECK) clock are not well designed (kind of useless) & temporal conversions introduce issues (bpm are not treated as bpm by default etc)
+- [fixed] (YET TO CHECK) basic metronome only sends triggers ! . A trigger, if not fired, should always be a rest (case of `metro(dt=100ms)=!`, if called or evaluated, return should be rest when not fired)
+- [fixed] Doc ch 9 show erratic examples of functions defined inside process blocs
 - [later] List of features in syntax.md (traits for example)
 - [later] Audio base runtime option (either system_clock scheduler, either audio clock scheduler with low buffer size - 16 or 32 samples) (for buffer rate accuracy, with pure audio synchronization) (not urgent)
 - [later] Closures : or better way to get full flexibility over function manipulation
 - [later] traits : a way to implement new features to some flows 
-- [later]Reintroduce function definition inside lambdas init scope   
+- [unnecessary]Reintroduce function definition inside lambdas init scope   
 - [unnecessary] on keyword : `on(trig): {// Do something}` where the bloc is only computed when the trigger happens : ternary are ok for this `_; do_something ? condition`
 
 - [semantics] modify a few keywords so they match idyl philosophy : 

@@ -21,11 +21,7 @@ Same for engine implementation.
 ## Philosophy
 
 - **Stateless by default.** Definitions are immutable. State exists only where you ask for it, inside temporal lambda blocks, and every mutation is explicit.
-./idyl path/to/file.idyl
 - **Functional at the core.** No `if/else`, no `while`, no assignment mutation outside lambda blocks. Control flow is ternary selection. Iteration is generator expressions. Composition replaces inheritance.
-./idyl file.idyl --process clock_demo
-
-./idyl file.idyl --listen 9000
 
 ## Features
 
@@ -34,10 +30,10 @@ Same for engine implementation.
 | **Temporal functions** | Clock-driven (`dt=10ms`), trigger-driven (`spike!`), or hybrid. State via `init` + `\|>` lambda blocks. |
 | **Delay operator** | `'(expr)` — one-sample delay. `'(expr, N)` — N-sample delay. Circular buffer, per-expression, independent across call sites. |
 | **Deferred blocks** | `@(500ms): { ... }` — schedules a block to run once after a delay. Time expression can be any value. |
-| **Flows** | Ordered sequences with named members, generator expressions, automatic wrapping. The data structure of the language. |
+| **Flows** | Ordered sequences with named members, generator expressions, parametric flows, live temporal elements per-slot, dynamic rebuilding when arguments change. |
 | **Emit system** | Side-channel output from temporal functions. Read emitted values with the `::` accessor. |
 | **Catch blocks** | React to events emitted by temporal instances — `timer catch finished: { ... }` |
-| **Clock hierarchy** | Create clocks, bind children to parents, change tempo with automatic proportional propagation. |
+| **Clock hierarchy** | Create clocks, bind children to parents, change tempo with automatic proportional propagation. Clock handles are callable: `c(2b)` returns 2 beats at that clock's BPM. Query BPM with `tempo(handle)`. |
 | **First-class functions** | Functions are values. Store them, pass them, select between them with ternary. |
 | **Process control** | `start name` / `stop name` (or just `stop`) — start and stop named process blocks from within a running process. |
 | **Modules** | Built-in OSC and Csound support. Native temporal module functions (`osc_recv`, `cs_chnget`) integrate with the reactive system. External modules via `module()`. Libraries via `lib()` with namespace support. |
@@ -108,7 +104,7 @@ note(degree) = 261; 293; 329; 349; 391 ? (degree % 5)
 
 ### Flows
 
-Ordered sequences — the data structure of Idƴl. Single or multi-member, with generator expressions.
+Ordered sequences — the data structure of Idƴl. Single or multi-member, with generator expressions. Flow slots can hold **live temporal expressions** that update on every tick, and parametric flows can be called with temporal arguments for dynamic rebuilding.
 
 ```idyl
 flow notes = [60, 62, 64, 67, 69]
@@ -120,6 +116,12 @@ flow drum_pattern = {
 }
 
 chromatic(root) = [semitone = 0..11 : root * (2.0 ^ (semitone / 12.0))]
+
+// Live temporal elements — each slot is a running oscillator
+flow oscs = [sine(1hz, dt=100ms), sine(3hz, dt=100ms)]
+
+// Dynamic parametric flow — rebuilt automatically when argument changes
+flow melody(transpose) = [60 + transpose, 62 + transpose, 67 + transpose]
 ```
 
 ### Temporal functions
@@ -202,7 +204,7 @@ process: {
 
     // Change main tempo → children follow
     tempo(240bpm)
-    print("c1:", bpm(c1), "c2:", bpm(c2))
+    print("c1:", tempo(c1), "c2:", tempo(c2))
     // c1 = 120 (ratio 0.5), c2 = 180 (ratio 0.75)
 
     // Hierarchical: c3 is child of c1
@@ -210,6 +212,9 @@ process: {
 
     // Free-running: unaffected by parent changes
     c_free = clock(100bpm, parent=0)
+
+    // Clock handles are callable — returns beat duration at that clock's BPM
+    m = metro(c1(2b))       // fires every 2 beats of c1
 }
 ```
 
@@ -435,10 +440,11 @@ What exists:
 - Deferred execution blocks `@(time): { }` — one-shot scheduler callbacks
 - `start`/`stop` keywords for process-to-process control
 - Dynamic parameter re-evaluation — temporal function parameters can themselves be temporal
+- Flows with live temporal elements (per-slot running instances) and dynamic parametric flows (auto-rebuilt when arguments change)
 - Built-in OSC module: send, receive, `osc_recv` native temporal poller
 - Built-in Csound module: `cs_open`, `cs_note`, `cs_chnset`, `cs_chnget` (native temporal)
 - Native temporal module function system — C++ module functions that tick with state and emit values
-- Clock hierarchy with proportional tempo propagation
+- Clock hierarchy with proportional tempo propagation; clock handles callable as beat-duration functions (`c(2b)`); `tempo(handle)` for BPM queries
 - Library imports with deduplication and namespacing
 - `--process` filter and `--listen` OSC control mode
 - Editor support: VS Code extension, Vim/Neovim syntax

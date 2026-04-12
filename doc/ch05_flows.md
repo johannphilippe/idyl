@@ -78,6 +78,78 @@ Parameters used inside generators must be resolvable at evaluation time.
 
 ---
 
+## Flows with temporal elements
+
+Flow slots can hold **live temporal expressions** — their values update on every tick of the temporal instance:
+
+```idyl
+lib("stdlib")
+
+// Each slot is a running oscillator — values change each time they are read
+flow oscs = [sine(1hz, dt=100ms), sine(3hz, dt=100ms)]
+
+process: {
+    m = metro(dt=300ms)
+    print(oscs[m])    // alternates between the two live sines
+}
+```
+
+Compound expressions involving temporals also stay live:
+
+```idyl
+lib("stdlib")
+
+// scaled[0] oscillates between 0 and 128; scaled[1] is always 0
+flow scaled = [sine(2hz, dt=100ms) * 64 + 64, 0]
+
+process: {
+    m = metro(dt=300ms)
+    print(scaled[m])
+}
+```
+
+Multi-member flows support live slots in any member:
+
+```idyl
+lib("stdlib")
+
+flow osc_bank = {
+    slow: [sine(1hz, dt=100ms), sine(2hz, dt=100ms)]
+    fast: [sine(5hz, dt=100ms), sine(7hz, dt=100ms)]
+}
+
+process: {
+    m = metro(dt=300ms)
+    row = osc_bank[m]
+    print("slow:", row.slow, "fast:", row.fast)
+}
+```
+
+---
+
+## Dynamic parametric flows
+
+Parametric flows can be called with **temporal arguments**. When a parameter changes value (because it is driven by a temporal source), the flow is automatically rebuilt with the new arguments on the next access:
+
+```idyl
+lib("stdlib")
+
+flow mult = [1, 2, 4]
+flow mixed(i) = [60 * i, sine(1hz, dt=100ms) * 12 + 60, 72]
+
+process: {
+    m0 = metro(dt=750ms)
+    m  = metro(dt=250ms)
+    mlt = mult[m0]          // advances through [1, 2, 4] every 750ms
+    res = mixed(mlt)[m]     // mixed is rebuilt whenever mlt changes
+    print(mlt, res)
+}
+```
+
+The flow cursor is preserved across re-evaluations with the same arguments. When the argument changes, a fresh flow is built starting from index 0.
+
+---
+
 ## Flow access
 
 Flows are indexed with brackets:

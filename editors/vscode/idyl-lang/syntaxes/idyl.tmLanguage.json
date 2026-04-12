@@ -2,17 +2,21 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Idyl",
   "scopeName": "source.idyl",
+  "fileTypes": ["idyl"],
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#process-block" },
     { "include": "#flow-definition" },
+    { "include": "#deferred-block" },
     { "include": "#keywords" },
+    { "include": "#builtin-functions" },
     { "include": "#time-literals" },
     { "include": "#trigger" },
     { "include": "#rest" },
     { "include": "#numbers" },
     { "include": "#operators" },
+    { "include": "#delay-operator" },
     { "include": "#function-definition" },
     { "include": "#function-call" },
     { "include": "#namespace-access" },
@@ -50,7 +54,7 @@
     "process-block": {
       "patterns": [
         {
-          "comment": "process keyword followed by optional name and colon",
+          "comment": "process keyword followed by optional name, optional dur parameter",
           "match": "\\b(process)\\b\\s*(?:([a-zA-Z_][a-zA-Z0-9_]*)\\s*)?(?:,\\s*(dur)\\s*=)?",
           "captures": {
             "1": { "name": "keyword.control.process.idyl" },
@@ -63,7 +67,7 @@
     "flow-definition": {
       "patterns": [
         {
-          "comment": "flow keyword followed by name",
+          "comment": "flow keyword followed by name and optional parameters",
           "match": "\\b(flow)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.other.flow.idyl" },
@@ -72,15 +76,28 @@
         }
       ]
     },
+    "deferred-block": {
+      "patterns": [
+        {
+          "comment": "Deferred execution block: @(time_expr): { ... }",
+          "match": "@(?=\\s*\\()",
+          "name": "keyword.operator.deferred.idyl"
+        }
+      ]
+    },
     "keywords": {
       "patterns": [
         {
           "name": "keyword.control.idyl",
-          "match": "\\b(process|catch|emit|end|init)\\b"
+          "match": "\\b(process|catch|emit|init|start|stop)\\b"
         },
         {
           "name": "keyword.other.idyl",
-          "match": "\\b(flow|lib|module|dt|dur)\\b"
+          "match": "\\b(flow|lib|module)\\b"
+        },
+        {
+          "name": "keyword.other.parameter.idyl",
+          "match": "\\b(dt|dur|parent)\\s*(?==)"
         },
         {
           "name": "constant.language.idyl",
@@ -88,11 +105,23 @@
         }
       ]
     },
+    "builtin-functions": {
+      "patterns": [
+        {
+          "comment": "Known builtin and stdlib functions",
+          "match": "\\b(clock|tempo|metro|now|print|len|sin|cos|tan|fmod|abs|floor|ceil|round|sqrt|pow|log|exp|min|max|as_bpm|as_ms|as_hz|as_s|bpm|sine|lfo|osc_out|osc_in|osc_send|osc_recv|osc_close|cs_open|cs_note|cs_chnset|cs_chnget)\\b(?=\\s*\\()",
+          "captures": {
+            "0": { "name": "support.function.builtin.idyl" }
+          }
+        }
+      ]
+    },
     "time-literals": {
       "patterns": [
         {
+          "comment": "Time/frequency literals: 100ms, 1s, 440hz, 120bpm, 2b",
           "name": "constant.numeric.time.idyl",
-          "match": "\\b[0-9]+(?:\\.[0-9]+)?(?:ms|hz|s|b)\\b"
+          "match": "\\b[0-9]+(?:\\.[0-9]+)?(?:bpm|ms|hz|s|b)\\b"
         }
       ]
     },
@@ -105,8 +134,8 @@
         }
       ]
     },
-    "name": "Idyl",
-    "scopeName": "source.idyl",
+    "rest": {
+      "patterns": [
         {
           "comment": "Rest literal (standalone _)",
           "name": "constant.language.rest.idyl",
@@ -123,7 +152,7 @@
         {
           "name": "constant.numeric.integer.idyl",
           "match": "\\b[0-9]+\\b"
-    "fileTypes": ["idyl"],
+        }
       ]
     },
     "operators": {
@@ -133,24 +162,12 @@
           "match": "\\|>"
         },
         {
-          "name": "keyword.operator.namespace.idyl",
-          "match": "::"
-        },
-        {
           "name": "keyword.operator.range.idyl",
           "match": "\\.\\."
         },
         {
-          "name": "keyword.operator.restart.idyl",
-          "match": "\\|\\|"
-        },
-        {
-          "name": "keyword.operator.memory.idyl",
-          "match": "@"
-        },
-        {
           "name": "keyword.operator.comparison.idyl",
-          "match": "==|!=|<=|>=|<<|>>"
+          "match": "==|!=|<=|>="
         },
         {
           "name": "keyword.operator.arithmetic.idyl",
@@ -171,6 +188,15 @@
         {
           "name": "keyword.operator.assignment.idyl",
           "match": "(?<![=!<>])=(?!=)"
+        }
+      ]
+    },
+    "delay-operator": {
+      "patterns": [
+        {
+          "comment": "Delay/sample operator: '(expr) or '(expr, N)",
+          "name": "keyword.operator.delay.idyl",
+          "match": "'(?=\\s*\\()"
         }
       ]
     },
@@ -199,7 +225,7 @@
     "namespace-access": {
       "patterns": [
         {
-          "comment": "Module namespace access: module::func",
+          "comment": "Namespace / emit accessor: name::member  (lib::func or instance::emitted)",
           "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(::)\\s*([a-zA-Z_][a-zA-Z0-9_]*)",
           "captures": {
             "1": { "name": "entity.name.namespace.idyl" },

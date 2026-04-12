@@ -179,9 +179,10 @@ These are handled specially by the evaluator (not plain builtins):
 | `clock(bpm)` | Create a child clock |
 | `clock(bpm, parent=h)` | Create clock with specific parent |
 | `tempo()` | Query main clock BPM |
+| `tempo(handle)` | Query a specific clock's BPM |
 | `tempo(bpm)` | Set main clock BPM |
 | `tempo(handle, bpm)` | Set specific clock BPM |
-| `bpm(handle)` | Query clock BPM |
+| `handle(Nb)` | Duration of N beats at that clock's BPM |
 
 See [Chapter 8 — Clock & tempo](ch08_clock_tempo.md) for full details.
 

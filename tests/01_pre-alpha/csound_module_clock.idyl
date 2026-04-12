@@ -1,0 +1,33 @@
+module("csound")
+lib("stdlib")
+
+handle = cs_open("csound_module.csd")
+
+flow melody(i) = {
+    notes: [50+i, 53+i, 60+i, 65+i, 47+i, 33+i, 20+i]
+    rhythm: [!, !, _, !, !, !, _, _, _, !, _, !, !, !]
+}
+
+flow octaver = [12, 7, 0]
+
+note(spike!, note) = cs_note(handle, "first", 0.3s, 0.3, note)
+
+process: {
+    c1 = clock(60bpm)
+    //c2 = clock(45bpm)
+    c3 = clock(120bpm)
+
+    m1 = metro(dt=c1(1b))
+    //m2 = metro(dt=c2(1b))
+    m3 = metro(dt=c3(1b))
+
+    note(m1, mtof(60))
+    //note(m2, mtof(90))
+    note(m3, mtof(110))
+    @(c1(10b)): {
+        print("change tempo")
+        tempo(240bpm)
+    }
+}
+
+

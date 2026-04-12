@@ -35,13 +35,19 @@ Plug '/path/to/idyl/editors/vim'
 
 | Element | Highlight group |
 |---------|----------------|
-| `process`, `init`, `catch`, `emit`, `end`, `flow`, `lib`, `module`, `dt`, `dur`, `as`, `parent` | **Keyword** |
-| `sin`, `cos`, `clock`, `tempo`, `osc_send`, … | **Function** (builtin) |
+| `process`, `init`, `catch`, `emit`, `start`, `stop` | **Keyword** (control) |
+| `flow`, `lib`, `module` | **Keyword** (declaration) |
+| `dt=`, `dur=`, `parent=` | **Type** (named parameters) |
+| `sin`, `cos`, `clock`, `tempo`, `metro`, `as_bpm`, `osc_send`, … | **Function** (builtin) |
 | `pi`, `tau` | **Constant** |
-| `120bpm`, `500ms`, `1s`, `440hz`, `4b` | **Special** (time) |
+| `120bpm`, `500ms`, `1s`, `440hz`, `4b`, `0.5b` | **Special** (time literals) |
 | Numbers | **Number** / **Float** |
 | `"strings"` and `\"escapes\"` | **String** / **SpecialChar** |
-| `|>`, `::`, `..`, operators | **Operator** |
-| `!` (trigger literal) | **WarningMsg** |
-| `_` (rest literal) | **SpecialChar** |
+| `\|>` lambda, `::` namespace/emit, `..` range | **Operator** |
+| `'(` delay operator, `@(` deferred block | **Operator** |
+| `!` (trigger literal), `name!` (trigger parameter) | **WarningMsg** |
+| `_` (rest literal) | **Comment** |
+| Process block name after `process` | **Title** |
+| Flow name after `flow` | **Type** |
+| Member access `.name` | **Identifier** |
 | `// line` and `/* block */` comments | **Comment** |

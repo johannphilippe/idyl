@@ -1,8 +1,8 @@
 {
   "name": "idyl-lang",
   "displayName": "Idyl Language",
-  "description": "Syntax highlighting for the Idyl programming language (.idyl files)",
-  "version": "0.0.1",
+  "description": "Syntax highlighting for the Idyl programming language — a functional, time-aware language for scheduling, composition, and reactive behavior.",
+  "version": "0.1.0",
   "publisher": "idyl",
   "engines": {
     "vscode": "^1.75.0"

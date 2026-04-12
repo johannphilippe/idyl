@@ -1254,6 +1254,40 @@ value evaluator::eval_call(const parser::function_call& call) {
         }
     }
 
+    // ── Clock handle callable ───────────────────────────────────────────────
+    // If fn_name resolves to a clock handle in the environment, treat the call
+    // as a beat/duration query on that specific clock.
+    //   first_clock(2b)   → 2 * (60000 / clock_bpm) ms
+    //   first_clock(500ms)→ 500 ms  (pass-through of evaluated ms value)
+    //   first_clock()     → 1 beat duration at clock_bpm
+    if (auto* var_val = env_.lookup(fn_name)) {
+        if (var_val->type_ == value_t::handle) {
+            uint64_t clock_id = static_cast<uint64_t>(var_val->as_handle());
+            double clock_bpm = clocks_.bpm(clock_id);
+            double beat_ms = (clock_bpm > 0.0) ? (60000.0 / clock_bpm) : 500.0;
+
+            // Try to intercept raw beat literal before it was converted with main BPM
+            if (!pos_exprs.empty()) {
+                const auto* raw = pos_exprs[0].get();
+                if (raw && raw->type_ == parser::node_t::literal_expr) {
+                    const auto& le = static_cast<const parser::literal_expr&>(*raw);
+                    if (le.literal_ && le.literal_->type_ == parser::node_t::time_literal) {
+                        const auto& tl = static_cast<const parser::time_literal&>(*le.literal_);
+                        if (tl.unit_ == "b") {
+                            double beats = std::stod(tl.value_);
+                            return value::number(beats * beat_ms);
+                        }
+                    }
+                }
+            }
+            // Non-beat arg: return the evaluated value as-is (already in ms)
+            if (!args.empty())
+                return value::number(args[0].as_number());
+            // No args: return 1 beat duration
+            return value::number(beat_ms);
+        }
+    }
+
     // ── Clock / tempo intrinsics ────────────────────────────────────────────
     // These need access to named args and evaluator state, so they are
     // handled before generic builtin dispatch.
@@ -1280,11 +1314,17 @@ value evaluator::eval_call(const parser::function_call& call) {
 
     if (fn_name == "tempo") {
         // tempo()              → return main clock BPM
+        // tempo(handle)        → return BPM of a specific clock
         // tempo(bpm)           → set main clock BPM, propagate
         // tempo(handle, bpm)   → set specific clock BPM, propagate
         if (args.empty()) {
             return value::number(clocks_.main_bpm());
         } else if (args.size() == 1) {
+            if (args[0].type_ == value_t::handle) {
+                // Query BPM of the given clock handle
+                uint64_t clock_id = static_cast<uint64_t>(args[0].as_handle());
+                return value::number(clocks_.bpm(clock_id));
+            }
             double period_ms = args[0].as_number();
             double bpm = (period_ms > 0.0) ? (60000.0 / period_ms) : 120.0;
             clocks_.set_bpm(clocks_.main_id_, bpm);

@@ -60,7 +60,7 @@ Use `clock(bpm)` to create a child clock bound to the main clock:
 process: {
     c1 = clock(60bpm)
     c2 = clock(90bpm)
-    print("c1:", bpm(c1), "c2:", bpm(c2))
+    print("c1:", tempo(c1), "c2:", tempo(c2))
     // c1: 60  c2: 90
 }
 ```
@@ -93,8 +93,8 @@ process: {
 
     tempo(240bpm)             // main → 240
 
-    print("c1:", bpm(c1))    // 240 * 0.5  = 120
-    print("c2:", bpm(c2))    // 240 * 0.75 = 180
+    print("c1:", tempo(c1))  // 240 * 0.5  = 120
+    print("c2:", tempo(c2))  // 240 * 0.75 = 180
 }
 ```
 
@@ -109,7 +109,7 @@ process: {
     // c1 → 120 (0.5 × 240)
     // c3 → 60  (0.5 × 120)
 
-    print("c3:", bpm(c3))                // 60
+    print("c3:", tempo(c3))              // 60
 }
 ```
 
@@ -121,6 +121,28 @@ tempo(c1, 80bpm)          // set c1 to 80, propagate to c1's children
 
 ---
 
+## Clock handles as callables
+
+A clock handle is also **callable**. Calling it with a beat count returns the duration of that many beats at the clock's current BPM:
+
+```idyl
+process: {
+    c1 = clock(60bpm)
+
+    // c1(2b) → duration of 2 beats at 60 BPM = 2000ms
+    m = metro(c1(2b))       // fires every 2 beats of c1
+    m2 = metro(c1(0.5b))    // fires every half-beat of c1
+    m3 = metro(c1(500ms))   // plain ms pass-through
+    m4 = metro(c1())        // 1 beat (default)
+
+    print(m, m2)
+}
+```
+
+This is the primary way to drive temporal functions from a specific clock: the beat literal `2b` is resolved against **that clock's BPM**, not the main clock.
+
+---
+
 ## Clock intrinsics
 
 | Function | Description |
@@ -129,9 +151,12 @@ tempo(c1, 80bpm)          // set c1 to 80, propagate to c1's children
 | `clock(bpm, parent=h)` | Create clock bound to parent `h` |
 | `clock(bpm, parent=0)` | Create free-running clock |
 | `tempo()` | Query main clock BPM |
+| `tempo(handle)` | Query a specific clock's BPM |
 | `tempo(bpm)` | Set main clock BPM (propagates) |
 | `tempo(handle, bpm)` | Set specific clock BPM (propagates) |
-| `bpm(handle)` | Query clock BPM |
+| `handle(Nb)` | Duration of N beats at that clock's BPM |
+| `handle(ms)` | Pass-through: returns the ms value unchanged |
+| `handle()` | Duration of 1 beat at that clock's BPM |
 
 All clocks return **handles** — opaque values that identify the clock in the registry.
 
