@@ -76,6 +76,13 @@ namespace idyl::modules {
             scheduler_ = sched;
         }
 
+        void cleanup() noexcept override {
+            // Stop all dt-driven scheduled sends, then close every open connection.
+            do_osc_stop();
+            std::lock_guard<std::mutex> lock(mutex_);
+            connections_.clear();
+        }
+
         std::vector<module::function_entry> functions() override {
             using namespace module;
 

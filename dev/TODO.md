@@ -16,9 +16,9 @@ This must be done in a smart way :
 ## Next 
 
 - [essential] hot reload - to define properly before implementation
-- [important] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI  :> modules_cleanup.md
+- [fixed] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI  :> modules_cleanup.md
 - [important] : serial utilities (read write) + 2 modules (serial, & MIDI)
-- [fix] Clocks : csound_module_clock.idyl : change only occurs after 12 beats instead of 10 : investigate
+- [later_fix] Clocks : csound_module_clock.idyl : change only occurs after 12 beats instead of 10 : investigate
 - [implemented] Flows with temporal elements should update (they don't) : e.g. `flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]`
 - [unnecessary] flows inlined inside functions body or assignment - seems not fully working. Also, ambiguous. Add it later ? 
 - [fixed] (YET TO CHECK) clock are not well designed (kind of useless) & temporal conversions introduce issues (bpm are not treated as bpm by default etc)

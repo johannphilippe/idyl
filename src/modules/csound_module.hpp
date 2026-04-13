@@ -109,6 +109,27 @@ struct csound_module : base_module {
                "(rebuild with -DIDYL_MODULE_CSOUND=ON)";
     }
 
+    void cleanup() noexcept override {
+        // Snapshot all live handles, then stop each instance outside the map lock.
+        std::vector<intptr_t> keys;
+        {
+            std::lock_guard<std::mutex> lock(map_mutex_);
+            keys.reserve(instances_.size());
+            for (auto& [k, _] : instances_) keys.push_back(k);
+        }
+        for (intptr_t k : keys) {
+            std::shared_ptr<cs_instance> inst;
+            {
+                std::lock_guard<std::mutex> lock(map_mutex_);
+                auto it = instances_.find(k);
+                if (it == instances_.end()) continue;
+                inst = std::move(it->second);
+                instances_.erase(it);
+            }
+            try { inst->stop(); } catch (...) {}
+        }
+    }
+
     std::vector<function_entry> functions() override {
 
         // ── cs_open(path) → handle ─────────────────────────────────────────
@@ -242,6 +263,7 @@ private:
         }
 
         csoundSetOption(cs, "-d");   // suppress console output; remove for debug
+        csoundSetOption(cs, "-m 16");   // suppress console output; remove for debug
 
         const char* argv[] = { "csound", path.c_str() };
         int ret = csoundCompile(cs, 2, argv);

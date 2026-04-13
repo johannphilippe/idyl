@@ -164,10 +164,6 @@ int main(int argc, char** argv) {
         idyl::time::sys_clock_scheduler scheduler;
         scheduler.start();
 
-        // Install signal handlers for clean shutdown (Ctrl+C)
-        std::signal(SIGINT,  signal_handler);
-        std::signal(SIGTERM, signal_handler);
-
         // Provide the scheduler to modules that need timing (e.g. osc dt sends)
         module_registry.provide_scheduler(&scheduler);
 
@@ -177,6 +173,12 @@ int main(int argc, char** argv) {
         eval.process_filter_ = process_filter;
         eval.listen_mode_ = listen_mode;
         eval.run(*program);
+
+        // Install signal handlers AFTER eval.run() so they override any handlers
+        // installed by modules during setup (e.g. Csound overrides SIGINT in
+        // csoundCreate/csoundCompile).  This guarantees Ctrl+C always reaches us.
+        std::signal(SIGINT,  signal_handler);
+        std::signal(SIGTERM, signal_handler);
 
         if (!eval.warnings_.empty()) {
             eval.print_warnings();
@@ -299,6 +301,7 @@ int main(int argc, char** argv) {
         }
 
         scheduler.stop();
+        module_registry.cleanup_all();
         idyl::debug("Evaluation completed.");
 
         return 0;

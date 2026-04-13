@@ -13,20 +13,24 @@ flow octaver = [12, 7, 0]
 note(spike!, note) = cs_note(handle, "first", 0.3s, 0.3, note)
 
 process: {
+    tempo(60bpm)
     c1 = clock(60bpm)
     //c2 = clock(45bpm)
     c3 = clock(120bpm)
 
     m1 = metro(dt=c1(1b))
+    count1 = counter(dt=c1(1b))
+    print("Counter : ", count1)
     //m2 = metro(dt=c2(1b))
     m3 = metro(dt=c3(1b))
 
     note(m1, mtof(60))
     //note(m2, mtof(90))
     note(m3, mtof(110))
+
     @(c1(10b)): {
         print("change tempo")
-        tempo(240bpm)
+        tempo(120bpm)
     }
 }
 

@@ -84,6 +84,21 @@ typedef idyl_fn_entry* (*idyl_module_init_fn)(int* count);
 #define IDYL_MODULE_INIT __attribute__((visibility("default"))) idyl_fn_entry* idyl_module_init(int* count)
 #endif
 
+/* ── Optional cleanup hook ───────────────────────────────────────────────── */
+/* If a module exports `idyl_module_cleanup`, idyl calls it once after the   */
+/* scheduler has stopped and all modules have been cleaned up, just before    */
+/* the shared library is unloaded.  Use it to release threads, file handles, */
+/* network sockets, or any other resource the module owns globally.          */
+/* Must not throw.                                                            */
+/*                                                                            */
+/* Example:                                                                   */
+/*   IDYL_MODULE_CLEANUP { close_my_socket(); }                              */
+#ifdef _WIN32
+#define IDYL_MODULE_CLEANUP __declspec(dllexport) void idyl_module_cleanup(void)
+#else
+#define IDYL_MODULE_CLEANUP __attribute__((visibility("default"))) void idyl_module_cleanup(void)
+#endif
+
 #ifdef __cplusplus
 }
 #endif

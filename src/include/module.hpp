@@ -115,6 +115,11 @@ namespace idyl::module {
         // Optional: called after the scheduler is available.
         // Modules that need timing (dt-driven sends, etc.) override this.
         virtual void set_scheduler(time::sys_clock_scheduler* /*sched*/) {}
+
+        // Optional: called once after the scheduler has stopped, before process exit.
+        // Override to release sockets, threads, external resources, etc.
+        // Must not throw.
+        virtual void cleanup() noexcept {}
     };
 
     // ── Module registry ────────────────────────────────────────────────────
@@ -163,6 +168,22 @@ namespace idyl::module {
             sched_ = sched;
             for (auto& m : modules_)
                 m->set_scheduler(sched);
+        }
+
+        // Call cleanup() on every registered module in reverse registration order,
+        // then call the optional idyl_module_cleanup symbol on each dlopen handle.
+        // Invoked once after the scheduler has stopped, before process exit.
+        void cleanup_all() noexcept {
+            for (auto it = modules_.rbegin(); it != modules_.rend(); ++it) {
+                try { (*it)->cleanup(); } catch (...) {}
+            }
+            for (auto* h : dl_handles_) {
+                if (!h) continue;
+                using cleanup_fn_t = void(*)();
+                auto fn = reinterpret_cast<cleanup_fn_t>(
+                    dlsym(h, "idyl_module_cleanup"));
+                if (fn) { try { fn(); } catch (...) {} }
+            }
         }
 
         // ── Built-in module catalog ────────────────────────────────────────
