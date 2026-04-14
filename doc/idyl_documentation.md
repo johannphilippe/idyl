@@ -4,8 +4,6 @@ Welcome to the Idƴl language documentation.
 
 Idƴl is a functional, time-aware language for scheduling, composition, and reactive behavior. These pages walk through every feature of the language, from first install to the internals of the engine.
 
-> Time is not an afterthought here. It is the material the language is made of.
-
 ---
 
 ## Table of contents

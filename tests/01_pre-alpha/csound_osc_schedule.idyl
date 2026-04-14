@@ -16,7 +16,7 @@ process: {
     fl = melody[met]
     print(fl.notes, fl.rhythm)
 
-    // Equivalent of "on" : ternary condition to trigger event or not : rest, or event depending on trigger
+    // ternary condition to trigger event or not : rest, or event depending on trigger
     _; osc_send(handle, "/csound/scheduler", mtof(80)) ? met
     _; osc_send(handle, "/csound/scheduler", mtof(fl.notes)) ? fl.rhythm
 

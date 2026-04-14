@@ -49,7 +49,7 @@ static bool location_initialized = false;
 
 DIGIT       [0-9]
 DIGITS      {DIGIT}+
-FLOAT       {DIGITS}\.{DIGITS}
+FLOAT       {DIGITS}\.{DIGITS}|\.{DIGITS}
 NUMBER      ({DIGITS}|{FLOAT})
 IDENTIFIER  [a-zA-Z_][a-zA-Z0-9_]*
 WHITESPACE  [ \t\r]

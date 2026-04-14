@@ -15,12 +15,15 @@ This must be done in a smart way :
 
 ## Next 
 
-- [essential] hot reload - to define properly before implementation
-- [fixed] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI  :> modules_cleanup.md
+- [bug] a function expecting trigger also fires when trigger is rest
+- [bug] hot reload works on flows, not on processes
+- [in_progress] hot reload - to define properly before implementation
 - [important] : serial utilities (read write) + 2 modules (serial, & MIDI)
 - [later_fix] Clocks : csound_module_clock.idyl : change only occurs after 12 beats instead of 10 : investigate
 - [implemented] Flows with temporal elements should update (they don't) : e.g. `flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]`
 - [unnecessary] flows inlined inside functions body or assignment - seems not fully working. Also, ambiguous. Add it later ? 
+- [fixed] allow .2 alias for 0.2
+- [fixed] automatic nice cleanup of handles (Csound, OSC) when program catches Ctrl+c on CLI  :> modules_cleanup.md
 - [fixed] (YET TO CHECK) clock are not well designed (kind of useless) & temporal conversions introduce issues (bpm are not treated as bpm by default etc)
 - [fixed] (YET TO CHECK) basic metronome only sends triggers ! . A trigger, if not fired, should always be a rest (case of `metro(dt=100ms)=!`, if called or evaluated, return should be rest when not fired)
 - [fixed] Doc ch 9 show erratic examples of functions defined inside process blocs
@@ -95,3 +98,16 @@ process dynamic: {
 It involves to treat flows that have parameters differently than others : 
 - If any of the parameters is dynamic : recompute when the smallest parameters dt ticks 
 - If all static : compute once 
+
+## Vim Plugin 
+
+Vim plugin insde editors/vim 
+The plugin is intended for live-coding contextx. 
+It is used to send code to idyl through OSC (port 9000, local IP address) using /idyl/eval address
+The shortcuts to trigger evaluation are : 
+- `t` in normal mode 
+- Ctrl+e in edit/insert mode 
+
+When cursor is placed in a function body, it sends the function for evaluation
+Same for flow 
+When cursor is placed on a process, same  

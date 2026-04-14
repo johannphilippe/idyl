@@ -121,3 +121,8 @@ install(TARGETS idyl
 install(DIRECTORY lib/
     DESTINATION ${IDYL_LIB_INSTALL_DIR}
     FILES_MATCHING PATTERN "*.idyl")
+
+# Include directory 
+install(DIRECTORY src/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/idyl
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.hh")

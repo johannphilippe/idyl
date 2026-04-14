@@ -8,23 +8,26 @@ flow melody(i) = {
     rhythm: [!, !, _, !, !, !, _, _, _, !, _, !, !, !]
 }
 
-flow octaver = [12, 7, 0]
+flow octaver = [12, 7, 0, 3, 5]
 
-note(spike!, note) = cs_note(handle, "first", 0.3s, 0.3, note)
+note(spike!, note) = _; cs_note(handle, "first", 2s, 0.3, note) ? spike // This shows an error in triggered functions
 
-process: {
+process cs: {
     m1 = counter(dt=3s)
     i = octaver[m1]
     print(i)
 
-    met = metro(dt = 0.3s)
-    print(met)
-    fl = melody(i)[met]
+    met = metro(dt=0.3s)
+    cnt = counter(dt = 0.3s)
+    print(cnt)
+    fl = melody(i)[cnt]
+    fl2 = melody(i)[-cnt]
     print(fl.notes, fl.rhythm)
 
     a = note(fl.rhythm, mtof(fl.notes))
+    b = note(fl2.rhythm, mtof(fl2.notes + 3))
 
-    b = note(met, mtof(83) )
+    //c = note(met, mtof(83) )
     @(60s): {
         print("End of instance")
         stop

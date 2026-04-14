@@ -6,6 +6,7 @@
 #include <memory>
 #include <list>
 #include <set>
+#include <shared_mutex>
 #include <unordered_map>
 
 #include "parser/ast.hpp"
@@ -111,10 +112,76 @@ namespace idyl::core {
         std::unordered_map<std::string, std::vector<uint64_t>>
             active_process_instances_;
 
+        // ── Hot-reload support structures ──────────────────────────────────────
+        //
+        // catch_info: monitors an emitted variable and fires a handler once.
+        struct catch_info {
+            std::string                   watched_emit;
+            std::vector<parser::stmt_ptr> handler;
+            bool                          fired = false;
+        };
+
+        // reaction_set: the mutable "behaviour" part of one temporal segment.
+        // Shared between the segment record and the scheduler closure so that
+        // hot reload can update reactions without re-subscribing.
+        struct reaction_set {
+            parser::stmt_ptr               binding_stmt;
+            std::vector<parser::stmt_ptr>  reactions;
+            std::vector<catch_info>        catches;
+        };
+
+        // live_segment: everything known about one temporal binding in a
+        // running named process.
+        struct live_segment {
+            uint64_t                        instance_id;
+            std::string                     bound_var;
+            std::string                     def_name;
+            double                          dt_ms   = 0.0;
+            std::shared_ptr<reaction_set>   rxn;    // shared with scheduler closure
+        };
+
+        // live_process: complete live state of one running named process.
+        struct live_process {
+            std::string                                     name;
+            std::shared_ptr<parser::process_block>          ast;
+            std::vector<live_segment>                       segments;
+            std::size_t                                     scope_depth = 0;
+        };
+
+        // Authoritative live state for all running named processes.
+        // Replaces active_process_instances_ for named processes.
+        std::unordered_map<std::string, live_process> live_processes_;
+
+        // Reader/writer mutex protecting function_defs_ and flow_defs_.
+        // Scheduler thread takes a shared (read) lock on every tick lookup;
+        // hot_reload() takes an exclusive (write) lock when updating definitions.
+        mutable std::shared_mutex defs_mutex_;
+
         // ── Process start / stop (listen mode) ─────────────────────────────────
         bool start_process(const std::string& name);
         bool stop_process(const std::string& name);
         std::vector<std::string> list_stored_processes() const;
+
+        // ── Hot reload ─────────────────────────────────────────────────────────
+        // Parse and apply a fragment of idyl source to the running evaluator.
+        // Global definition updates take effect on the next tick of any
+        // instance that calls the redefined function.  Named process diffs
+        // are applied with minimal disruption: unchanged instances keep state.
+        void hot_reload(const std::string& source);
+
+        // ── Internal helpers ────────────────────────────────────────────────────
+        // Deactivate and unsubscribe a single temporal instance.
+        void kill_instance(uint64_t id);
+
+        // Redistribute reactions across segments so each reaction fires on the
+        // tick of the fastest segment it depends on.
+        void redistribute_reactions(std::vector<live_segment>& segments);
+
+        // Apply a process diff: compare lp (currently running) against new_proc
+        // (new AST) and apply the minimal set of changes.
+        void diff_and_apply(live_process& lp,
+                            const parser::process_block& new_proc,
+                            const std::shared_ptr<parser::process_block>& new_ast);
 
         // ── Instance bindings ───────────────────────────────────────────────────
         // Maps variable names to temporal instance IDs.  Populated when a
@@ -183,11 +250,13 @@ namespace idyl::core {
         // each other as trigger before any reset happens.
         //
         // Implementation: instead of resetting trigger env bindings immediately
-        // after each callback, defer resets to an "epoch_resets_" list.  At the
-        // START of the first callback whose time differs from the current epoch,
-        // all pending resets are applied, then the new epoch begins.
+        // after each callback, defer resets to an "epoch_reset_vars_" list.
+        // At the START of the first callback whose time differs from the current
+        // epoch, all pending resets are applied, then the new epoch begins.
+        // Stored as variable names (not raw pointers) so they remain valid even
+        // if scope frames are rebuilt during hot reload.
         double epoch_time_ms_ = -1.0;
-        std::vector<value*> epoch_resets_;
+        std::vector<std::string> epoch_reset_vars_;
 
         // Runtime warnings (non-fatal)
         struct runtime_warning {

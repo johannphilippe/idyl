@@ -188,8 +188,8 @@ int main(int argc, char** argv) {
         // Commands are queued from the listener thread and dispatched on the
         // main thread to avoid concurrent evaluator access.
         struct listen_command {
-            enum class type { start, stop, list } type_;
-            std::string name_;
+            enum class type { start, stop, list, eval } type_;
+            std::string name_;   // process name for start/stop; source code for eval
         };
         std::mutex cmd_mutex;
         std::deque<listen_command> cmd_queue;
@@ -238,6 +238,12 @@ int main(int argc, char** argv) {
                             } else if (addr == "/idyl/process/list") {
                                 std::lock_guard<std::mutex> lk(cmd_mutex);
                                 cmd_queue.push_back(listen_command{listen_command::type::list, {}});
+                            } else if (addr == "/idyl/eval") {
+                                auto code = msg.try_get<std::string>(0);
+                                if (code) {
+                                    std::lock_guard<std::mutex> lk(cmd_mutex);
+                                    cmd_queue.push_back(listen_command{listen_command::type::eval, *code});
+                                }
                             }
                         } catch (...) {
                             // Malformed OSC packet — skip silently
@@ -283,6 +289,9 @@ int main(int argc, char** argv) {
                             std::cerr << "\n";
                             break;
                         }
+                        case listen_command::type::eval:
+                            eval.hot_reload(cmd.name_);
+                            break;
                         }
                     }
                 }

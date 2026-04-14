@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <limits>
 #include <set>
+#include <sstream>
 #include <unordered_set>
 
 namespace idyl::core {
@@ -209,18 +210,19 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         auto& proc = static_cast<const parser::process_block&>(*stmt);
         if (!proc.body_) break;
 
+        // Always store named process ASTs so hot_reload() can diff against them.
+        if (!proc.name_.empty()) {
+            stored_processes_[proc.name_] =
+                std::static_pointer_cast<parser::process_block>(
+                    std::const_pointer_cast<parser::node>(
+                        std::shared_ptr<const parser::node>(stmt, &proc)));
+        }
+
         // ── Listen mode: store blocks for OSC start, pre-start filtered ones ──
         if (listen_mode_) {
             bool pre_start = !process_filter_.empty() && proc.name_ == process_filter_;
             if (!pre_start) {
-                // Store for later start via OSC
-                if (!proc.name_.empty()) {
-                    stored_processes_[proc.name_] =
-                        std::static_pointer_cast<parser::process_block>(
-                            std::const_pointer_cast<parser::node>(
-                                std::shared_ptr<const parser::node>(stmt, &proc)));
-                }
-                break;
+                break;  // stored above; wait for OSC start command
             }
             // Fall through to execute pre-started process
         } else {
@@ -238,23 +240,8 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             dur_ms = dv.as_number();   // time → ms, number → raw
         }
 
-        // ── Catch info: monitors an emitted variable from a temporal instance ──
-        struct catch_info {
-            std::string watched_emit;               // emitted variable name to watch
-            std::vector<parser::stmt_ptr> handler;   // handler statements
-            bool fired = false;                      // fire once then deactivate
-        };
-
-        struct temporal_segment {
-            uint64_t    instance_id;
-            std::string bound_var;
-            parser::stmt_ptr binding_stmt;  // the original binding statement
-            std::vector<parser::stmt_ptr> reactions;
-            std::vector<catch_info> catches;
-        };
-
-        std::vector<temporal_segment> segments;
-        temporal_segment* current_seg = nullptr;
+        std::vector<live_segment> segments;
+        live_segment* current_seg = nullptr;
         bool has_temporal = false;
 
         // Collect catch blocks separately for linking after instance creation
@@ -291,14 +278,19 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             if (created_instance) {
                 has_temporal = true;
                 uint64_t inst_id = next_instance_id_ - 1;
-                segments.push_back({inst_id, binding_name, s, {}, {}});
+                auto rxn = std::make_shared<reaction_set>();
+                rxn->binding_stmt = s;
+                auto inst_it = instances_.find(inst_id);
+                double seg_dt  = inst_it != instances_.end() ? inst_it->second->dt_ms_  : 0.0;
+                std::string dn = inst_it != instances_.end() ? inst_it->second->def_name_ : "";
+                segments.push_back({inst_id, binding_name, dn, seg_dt, rxn});
                 current_seg = &segments.back();
                 // Register binding so the :: accessor can find this instance
                 if (!binding_name.empty())
                     instance_bindings_[binding_name] = inst_id;
             } else if (current_seg) {
                 // Statement follows a temporal binding → reaction
-                current_seg->reactions.push_back(s);
+                current_seg->rxn->reactions.push_back(s);
             }
         }
 
@@ -314,57 +306,14 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
             for (auto& seg : segments) {
                 if (seg.bound_var == source_var) {
-                    seg.catches.push_back({cb->event_type_, cb->handler_, false});
+                    seg.rxn->catches.push_back({cb->event_type_, cb->handler_, false});
                     break;
                 }
             }
         }
 
         // ── Redistribute reactions to the fastest segment they depend on ──────
-        // A reaction belongs to the segment whose bound variable it references
-        // with the smallest dt (highest frequency).  This ensures that, e.g.,
-        // `print(m1)` placed after `m2` in source still fires at m1's rate
-        // rather than m2's rate, because it only depends on m1.
-        //
-        // Only direct references to segment bound-variables matter here.
-        // Derived variables (computed in reactions) are not segment-bound, so
-        // a reaction like `print(x)` where x is a reaction-computed variable
-        // stays in whatever segment it currently belongs to.
-        if (segments.size() > 1) {
-            // Map: bound variable name → segment index
-            std::unordered_map<std::string, size_t> var_to_seg;
-            for (size_t si = 0; si < segments.size(); ++si)
-                if (!segments[si].bound_var.empty())
-                    var_to_seg[segments[si].bound_var] = si;
-
-            std::vector<std::vector<parser::stmt_ptr>> new_reactions(segments.size());
-
-            for (size_t si = 0; si < segments.size(); ++si) {
-                for (const auto& reaction : segments[si].reactions) {
-                    std::unordered_set<std::string> ids;
-                    collect_stmt_ids(reaction, ids);
-
-                    // Find the fastest (smallest dt) segment bound-var referenced.
-                    double min_dt   = std::numeric_limits<double>::max();
-                    size_t target   = si;   // default: keep in current segment
-
-                    for (const auto& id : ids) {
-                        auto vit = var_to_seg.find(id);
-                        if (vit == var_to_seg.end()) continue;
-                        size_t ref_si  = vit->second;
-                        auto   iit     = instances_.find(segments[ref_si].instance_id);
-                        if (iit == instances_.end()) continue;
-                        double ref_dt  = iit->second->dt_ms_;
-                        if (ref_dt < min_dt) { min_dt = ref_dt; target = ref_si; }
-                    }
-
-                    new_reactions[target].push_back(reaction);
-                }
-            }
-
-            for (size_t si = 0; si < segments.size(); ++si)
-                segments[si].reactions = std::move(new_reactions[si]);
-        }
+        redistribute_reactions(segments);
 
         // ── Reset stale trigger bindings after setup ──────────────────────────
         // The setup loop above calls exec_stmt() for every statement, including
@@ -386,7 +335,8 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         }
 
         // Subscribe each segment's temporal source to the scheduler.
-        // On each tick: update instance → update bound variable → re-run reactions → check catches.
+        // The closure captures rxn by shared_ptr — not by value — so hot_reload()
+        // can swap the reaction content without re-subscribing or causing a gap.
         if (scheduler_ && has_temporal) {
             for (auto& seg : segments) {
                 auto inst_it = instances_.find(seg.instance_id);
@@ -403,15 +353,12 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                     def_ptr = def_it->second;
                 }
 
-                std::string var = seg.bound_var;
-                auto binding    = seg.binding_stmt;
-                auto reactions  = seg.reactions;
-                auto weak_inst  = std::weak_ptr<function_instance>(inst);
-                // Shared so the fired flag persists across ticks
-                auto catches    = std::make_shared<std::vector<catch_info>>(std::move(seg.catches));
+                std::string var  = seg.bound_var;
+                auto rxn         = seg.rxn;   // shared_ptr — live read each tick
+                auto weak_inst   = std::weak_ptr<function_instance>(inst);
 
                 inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
-                    [this, def_ptr, weak_inst, var, binding, reactions, catches,
+                    [this, def_ptr, weak_inst, var, rxn,
                      dur_ms, start_t = scheduler_->now_ms()]
                     (double t, double /*dt*/) -> bool {
                         // ── Duration check ─────────────────────────────────
@@ -433,27 +380,29 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         // rather than having the first segment's reset clobber the
                         // env before subsequent segments' reactions run.
                         if (t > epoch_time_ms_ + 0.5) {
-                            for (value* v : epoch_resets_)
+                            for (const auto& vname : epoch_reset_vars_) {
+                                value* v = env_.lookup(vname);
                                 if (v) *v = value::rest();
-                            epoch_resets_.clear();
+                            }
+                            epoch_reset_vars_.clear();
                             epoch_time_ms_ = t;
                         }
 
                         tick_instance(*si, def_ptr.get());
 
                         retick_instance_ = si.get();
-                        if (binding)
-                            exec_stmt(binding);
+                        if (rxn->binding_stmt)
+                            exec_stmt(rxn->binding_stmt);   // live read
                         retick_instance_ = nullptr;
 
-                        for (const auto& r : reactions)
+                        for (const auto& r : rxn->reactions)  // live read
                             exec_stmt(r);
 
                         // ── Check catch registrations ──────────────────────
                         bool should_end = false;
-                        for (auto& c : *catches) {
+                        for (auto& c : rxn->catches) {         // live read
                             if (c.fired) continue;
-                            if (c.watched_emit == "end") continue;  // handled on subscription end
+                            if (c.watched_emit == "end") continue;
 
                             auto emit_it = si->emitted_.find(c.watched_emit);
                             if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
@@ -464,18 +413,10 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         }
 
                         // ── Defer trigger reset to end of epoch ─────────────
-                        // Rather than resetting immediately, push the pointer
-                        // to the trigger env binding onto epoch_resets_.  It will
-                        // be reset to rest at the start of the next epoch (i.e.,
-                        // the next time a callback fires at a different time).
-                        // This lets all segments in the same scheduler tick see
-                        // each other as trigger before any reset occurs.
-                        // NOTE: instance output_ is NOT reset — the retick guard
-                        // reads it on the next tick and must still find trigger(true).
                         if (!var.empty()) {
                             value* bound = env_.lookup(var);
                             if (bound && bound->type_ == value_t::trigger)
-                                epoch_resets_.push_back(bound);
+                                epoch_reset_vars_.push_back(var);
                         }
 
                         return !should_end;
@@ -483,11 +424,22 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             }
         }
 
-        // Track which instances belong to this process (for stop_process)
+        // Track which instances belong to this process.
+        // active_process_instances_ keeps backward compat for stop_process.
+        // live_processes_ is the authoritative record for named processes
+        // and enables hot reload diffing.
         if (!proc.name_.empty() && has_temporal) {
             auto& ids = active_process_instances_[proc.name_];
             for (const auto& seg : segments)
                 ids.push_back(seg.instance_id);
+
+            live_process lp;
+            lp.name        = proc.name_;
+            lp.ast         = stored_processes_.count(proc.name_)
+                                 ? stored_processes_[proc.name_] : nullptr;
+            lp.segments    = segments;   // copies shared_ptr<reaction_set> per segment
+            lp.scope_depth = env_.scopes_.size() - 1;
+            live_processes_[proc.name_] = std::move(lp);
         }
 
         // Keep scope alive for tick callbacks if temporal instances exist
@@ -2228,6 +2180,389 @@ std::vector<std::string> evaluator::list_stored_processes() const {
     for (const auto& [name, _] : stored_processes_)
         names.push_back(name);
     return names;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// redistribute_reactions — move each reaction to the fastest segment it depends on
+// ════════════════════════════════════════════════════════════════════════════════
+
+void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
+    if (segments.size() <= 1) return;
+
+    // Map: bound variable name → segment index
+    std::unordered_map<std::string, size_t> var_to_seg;
+    for (size_t si = 0; si < segments.size(); ++si)
+        if (!segments[si].bound_var.empty())
+            var_to_seg[segments[si].bound_var] = si;
+
+    std::vector<std::vector<parser::stmt_ptr>> new_reactions(segments.size());
+
+    for (size_t si = 0; si < segments.size(); ++si) {
+        for (const auto& reaction : segments[si].rxn->reactions) {
+            std::unordered_set<std::string> ids;
+            collect_stmt_ids(reaction, ids);
+
+            // Find the fastest (smallest dt) segment bound-var referenced.
+            double min_dt = std::numeric_limits<double>::max();
+            size_t target = si;   // default: keep in current segment
+
+            for (const auto& id : ids) {
+                auto vit = var_to_seg.find(id);
+                if (vit == var_to_seg.end()) continue;
+                size_t ref_si = vit->second;
+                auto   iit    = instances_.find(segments[ref_si].instance_id);
+                if (iit == instances_.end()) continue;
+                double ref_dt = iit->second->dt_ms_;
+                if (ref_dt < min_dt) { min_dt = ref_dt; target = ref_si; }
+            }
+
+            new_reactions[target].push_back(reaction);
+        }
+    }
+
+    for (size_t si = 0; si < segments.size(); ++si)
+        segments[si].rxn->reactions = std::move(new_reactions[si]);
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// kill_instance — deactivate and unsubscribe a single temporal instance
+// ════════════════════════════════════════════════════════════════════════════════
+
+void evaluator::kill_instance(uint64_t id) {
+    auto it = instances_.find(id);
+    if (it == instances_.end()) return;
+    it->second->active_ = false;
+    if (scheduler_ && it->second->subscription_id_ != 0) {
+        scheduler_->unsubscribe(it->second->subscription_id_);
+        it->second->subscription_id_ = 0;
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// diff_and_apply — minimal live update of a running named process
+// ════════════════════════════════════════════════════════════════════════════════
+
+void evaluator::diff_and_apply(live_process& lp,
+                                const parser::process_block& new_proc,
+                                const std::shared_ptr<parser::process_block>& new_ast) {
+    // Build a name→index map for the new process body (same walk as setup loop).
+    // new_segs[varname] = {binding_stmt, reactions, dt_ms, def_name}
+    struct new_seg_info {
+        std::string              def_name;
+        double                   dt_ms   = 0.0;
+        parser::stmt_ptr         binding_stmt;
+        std::vector<parser::stmt_ptr> reactions;
+    };
+    std::unordered_map<std::string, new_seg_info> new_segs;
+    std::vector<std::string> new_order;   // preserves source order for later
+
+    {
+        new_seg_info* cur = nullptr;
+        for (const auto& s : new_proc.body_->statements_) {
+            if (!s) continue;
+            if (s->type_ == parser::node_t::catch_block) continue;
+            if (s->type_ == parser::node_t::at_block)    continue;
+
+            std::string bname;
+            if (s->type_ == parser::node_t::function_definition)
+                bname = static_cast<const parser::function_definition&>(*s).name_;
+            else if (s->type_ == parser::node_t::assignment)
+                bname = static_cast<const parser::assignment&>(*s).name_;
+
+            // Check if this statement would create a temporal instance by looking
+            // at how it resolves — we need to call the same logic as exec_stmt.
+            // Simpler approach: speculatively eval in a temporary scope.
+            uint64_t id_before = next_instance_id_;
+            env_.push_scope();
+            exec_stmt(s);
+            bool created = (next_instance_id_ > id_before);
+            env_.pop_scope();
+
+            if (created) {
+                uint64_t new_id = next_instance_id_ - 1;
+                // Immediately kill this trial instance — we only needed to find
+                // the def_name and dt_ms from it.
+                auto inst_it = instances_.find(new_id);
+                std::string dn;
+                double      dt = 0.0;
+                if (inst_it != instances_.end()) {
+                    dn = inst_it->second->def_name_;
+                    dt = inst_it->second->dt_ms_;
+                    kill_instance(new_id);
+                    instances_.erase(inst_it);
+                }
+                --next_instance_id_;
+
+                new_seg_info nsi;
+                nsi.def_name     = dn;
+                nsi.dt_ms        = dt;
+                nsi.binding_stmt = s;
+                new_segs[bname]  = std::move(nsi);
+                new_order.push_back(bname);
+                cur = &new_segs[bname];
+            } else if (cur) {
+                cur->reactions.push_back(s);
+            }
+        }
+    }
+
+    // Track which old segments survive, to avoid double-killing
+    std::unordered_set<std::string> handled;
+
+    // ── Pass 1: update or remove existing segments ─────────────────────────
+    for (auto& old_seg : lp.segments) {
+        auto nit = new_segs.find(old_seg.bound_var);
+
+        if (nit == new_segs.end()) {
+            // Variable removed → kill instance
+            kill_instance(old_seg.instance_id);
+            instance_bindings_.erase(old_seg.bound_var);
+            continue;
+        }
+
+        auto& ns = nit->second;
+        handled.insert(old_seg.bound_var);
+
+        if (ns.def_name != old_seg.def_name) {
+            // Different temporal function → kill old; will create new in pass 2
+            kill_instance(old_seg.instance_id);
+            instance_bindings_.erase(old_seg.bound_var);
+            handled.erase(old_seg.bound_var);  // let pass 2 create it
+            continue;
+        }
+
+        // Same function — instance survives with all its state.
+        // Update dt if changed.
+        if (std::abs(ns.dt_ms - old_seg.dt_ms) > 0.01) {
+            auto inst_it = instances_.find(old_seg.instance_id);
+            if (inst_it != instances_.end() && scheduler_) {
+                scheduler_->update_dt(inst_it->second->subscription_id_, ns.dt_ms);
+                inst_it->second->dt_ms_ = ns.dt_ms;
+                old_seg.dt_ms = ns.dt_ms;
+            }
+        }
+
+        // ── Hot swap the reaction set ──────────────────────────────────────
+        // The scheduler closure holds a shared_ptr to old_seg.rxn.
+        // Writing new content here takes effect on the very next tick —
+        // no unsubscribe, no re-subscribe, no scheduling gap.
+        old_seg.rxn->binding_stmt = ns.binding_stmt;
+        old_seg.rxn->reactions    = std::move(ns.reactions);
+        // Reset fired flags on catches so re-used catch names fire again.
+        old_seg.rxn->catches.clear();
+    }
+
+    // Remove dead segments from lp (those not in handled and not already erased).
+    lp.segments.erase(
+        std::remove_if(lp.segments.begin(), lp.segments.end(),
+            [&](const live_segment& s) {
+                // Dead = variable removed or function changed (and not re-added yet)
+                if (new_segs.find(s.bound_var) == new_segs.end()) return true;
+                if (!handled.count(s.bound_var)) return true;
+                return false;
+            }),
+        lp.segments.end());
+
+    // ── Pass 2: create new segments ────────────────────────────────────────
+    for (const auto& varname : new_order) {
+        if (handled.count(varname)) continue;  // already handled in pass 1
+
+        auto& ns = new_segs[varname];
+
+        // Instantiate fresh in the existing process scope
+        // (env_.scopes_[lp.scope_depth] is still live on the stack).
+        uint64_t id_before = next_instance_id_;
+        exec_stmt(ns.binding_stmt);
+        if (next_instance_id_ <= id_before) continue;  // instantiation failed
+
+        uint64_t new_id = next_instance_id_ - 1;
+        auto inst_it = instances_.find(new_id);
+        if (inst_it == instances_.end()) continue;
+        auto inst = inst_it->second;
+
+        auto rxn = std::make_shared<reaction_set>();
+        rxn->binding_stmt = ns.binding_stmt;
+        rxn->reactions    = std::move(ns.reactions);
+
+        live_segment new_seg;
+        new_seg.instance_id = new_id;
+        new_seg.bound_var   = varname;
+        new_seg.def_name    = inst->def_name_;
+        new_seg.dt_ms       = inst->dt_ms_;
+        new_seg.rxn         = rxn;
+
+        instance_bindings_[varname] = new_id;
+
+        // Subscribe with the same generic closure
+        if (scheduler_ && inst->dt_ms_ > 0.0) {
+            std::shared_ptr<parser::function_definition> def_ptr;
+            if (!inst->native_update_) {
+                std::shared_lock lock(defs_mutex_);
+                auto dit = function_defs_.find(inst->def_name_);
+                if (dit != function_defs_.end()) def_ptr = dit->second;
+            }
+
+            auto weak_inst = std::weak_ptr<function_instance>(inst);
+            std::string var = varname;
+
+            inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
+                [this, def_ptr, weak_inst, var, rxn,
+                 start_t = scheduler_->now_ms()]
+                (double t, double) -> bool {
+                    auto si = weak_inst.lock();
+                    if (!si || !si->active_) return false;
+
+                    if (t > epoch_time_ms_ + 0.5) {
+                        for (const auto& vname : epoch_reset_vars_) {
+                            value* v = env_.lookup(vname);
+                            if (v) *v = value::rest();
+                        }
+                        epoch_reset_vars_.clear();
+                        epoch_time_ms_ = t;
+                    }
+
+                    tick_instance(*si, def_ptr.get());
+
+                    retick_instance_ = si.get();
+                    if (rxn->binding_stmt) exec_stmt(rxn->binding_stmt);
+                    retick_instance_ = nullptr;
+
+                    for (const auto& r : rxn->reactions) exec_stmt(r);
+
+                    for (auto& c : rxn->catches) {
+                        if (c.fired) continue;
+                        auto emit_it = si->emitted_.find(c.watched_emit);
+                        if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
+                            c.fired = true;
+                            for (const auto& h : c.handler) exec_stmt(h);
+                        }
+                    }
+
+                    if (!var.empty()) {
+                        value* bound = env_.lookup(var);
+                        if (bound && bound->type_ == value_t::trigger)
+                            epoch_reset_vars_.push_back(var);
+                    }
+                    return true;
+                });
+        }
+
+        lp.segments.push_back(std::move(new_seg));
+
+        // Keep active_process_instances_ in sync
+        active_process_instances_[lp.name].push_back(new_id);
+    }
+
+    // ── Pass 3: redistribute reactions and update metadata ─────────────────
+    redistribute_reactions(lp.segments);
+    lp.ast = new_ast;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// hot_reload — parse and apply a source fragment to the running evaluator
+// ════════════════════════════════════════════════════════════════════════════════
+
+void evaluator::hot_reload(const std::string& source) {
+    std::istringstream ss(source);
+    auto prog = parser::parse_stream(ss, false);
+    if (!prog) {
+        std::cerr << "[hot_reload] parse failed\n";
+        return;
+    }
+
+    for (const auto& stmt : prog->statements_) {
+        if (!stmt) continue;
+
+        switch (stmt->type_) {
+
+        // ── Global function redefinition ───────────────────────────────────
+        case parser::node_t::function_definition: {
+            auto& def = static_cast<const parser::function_definition&>(*stmt);
+
+            if (def.parameters_.empty() && !def.lambda_block_ && def.body_) {
+                // Zero-param constant: re-evaluate and update env binding.
+                // No defs_mutex_ needed — env_ is not read by the scheduler thread.
+                value result = eval_expr(def.body_);
+                env_.define(def.name_, std::move(result));
+            } else {
+                auto def_ptr = std::static_pointer_cast<parser::function_definition>(
+                    std::const_pointer_cast<parser::node>(
+                        std::shared_ptr<const parser::node>(stmt, &def)));
+                {
+                    std::unique_lock lock(defs_mutex_);
+                    function_defs_[def.name_] = def_ptr;
+                }
+                env_.define(def.name_, value::function_ref(def.name_));
+            }
+            std::cerr << "[hot_reload] updated function '" << def.name_ << "'\n";
+            break;
+        }
+
+        // ── Flow redefinition ──────────────────────────────────────────────
+        case parser::node_t::flow_definition: {
+            auto& def = static_cast<const parser::flow_definition&>(*stmt);
+
+            {
+                std::unique_lock lock(defs_mutex_);
+                // Evict stale cache entries for this flow name
+                std::erase_if(flow_call_cache_,
+                    [&](const auto& kv) { return kv.first.name == def.name_; });
+                flow_cache_order_.remove_if(
+                    [&](const auto& k) { return k.name == def.name_; });
+
+                if (def.parameters_.empty()) {
+                    // Eager zero-param flow: re-evaluate immediately.
+                    // Release lock before eval (eval doesn't touch flow_defs_).
+                }  else {
+                    auto fp = std::static_pointer_cast<parser::flow_definition>(
+                        std::const_pointer_cast<parser::statement>(stmt));
+                    flow_defs_[def.name_] = fp;
+                }
+            }
+
+            if (def.parameters_.empty()) {
+                value fv;
+                fv.type_  = value_t::flow;
+                fv.flow_  = eval_flow_members(def.members_);
+                env_.define(def.name_, std::move(fv));
+            } else {
+                env_.define(def.name_, value::function_ref(def.name_));
+            }
+            std::cerr << "[hot_reload] updated flow '" << def.name_ << "'\n";
+            break;
+        }
+
+        // ── Named process block ────────────────────────────────────────────
+        case parser::node_t::process_block: {
+            auto& proc = static_cast<const parser::process_block&>(*stmt);
+            if (proc.name_.empty()) {
+                std::cerr << "[hot_reload] anonymous process blocks cannot be hot-reloaded\n";
+                break;
+            }
+            if (!proc.body_) break;
+
+            auto new_ast = std::static_pointer_cast<parser::process_block>(
+                std::const_pointer_cast<parser::node>(
+                    std::shared_ptr<const parser::node>(stmt, &proc)));
+
+            auto lp_it = live_processes_.find(proc.name_);
+            if (lp_it == live_processes_.end()) {
+                // Not currently running — just update the stored AST.
+                stored_processes_[proc.name_] = new_ast;
+                std::cerr << "[hot_reload] stored process '" << proc.name_ << "' (not running)\n";
+            } else {
+                diff_and_apply(lp_it->second, proc, new_ast);
+                stored_processes_[proc.name_] = new_ast;
+                std::cerr << "[hot_reload] updated process '" << proc.name_ << "'\n";
+            }
+            break;
+        }
+
+        default:
+            std::cerr << "[hot_reload] unsupported statement type — skipped\n";
+            break;
+        }
+    }
 }
 
 } // --- idyl::core ---

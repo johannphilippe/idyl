@@ -259,13 +259,12 @@ Idƴl draws inspiration from several domains:
 
 | System | Shared concept |
 |--------|---------------|
-| **ChucK** | Strongly-timed audio programming |
-| **SuperCollider** | OSC integration, server architecture |
-| **Tidal Cycles** | Pattern-based temporal sequencing |
+| **Csound** | The most fully featured musical programming language |
 | **Faust** | Functional signal processing |
-| **Max/MSP** | Dataflow, real-time scheduling |
-
-The key differentiator is Idƴl's approach to **temporal functions as first-class values** — time is embedded in the function definition itself, not managed externally.
+| **Cordelia** | Live coding tenderness |
+| **Lua** | Flexible and elegant general purpose language  |
+| **Antescofo** | Timed, reactive programming language |
+| **ChucK** | Strongly-timed audio programming |
 
 ---
 
