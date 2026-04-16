@@ -1,13 +1,18 @@
 lib("stdlib")
 
-fun(spike!) = _;! ? spike
-f2(spike!) = spike
+flow rhythm = [!, !, _, !, !, !, _, _, _, !, _, !, !, !]
+printable(rhythm!) = rhythm
+|> {
+    print("trig", rhythm)
+} 
 
 trig(dt=100ms) = !
 
 process: {
-    a = fun(trig())
-    b = f2(trig())
-    print(a, b)
+    m = metro(dt=200ms)
+    r = rhythm[m]
+    res = printable(r)
+    print(res)
+
 
 }

@@ -390,25 +390,39 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
                         tick_instance(*si, def_ptr.get());
 
+                        // Snapshot reactions under lock so that hot_reload()
+                        // can safely replace them on the main thread.
+                        parser::stmt_ptr binding_snap;
+                        std::vector<parser::stmt_ptr> reactions_snap;
+                        {
+                            std::lock_guard<std::mutex> lk(rxn->mutex);
+                            binding_snap   = rxn->binding_stmt;
+                            reactions_snap = rxn->reactions;
+                        }
+
                         retick_instance_ = si.get();
-                        if (rxn->binding_stmt)
-                            exec_stmt(rxn->binding_stmt);   // live read
+                        if (binding_snap) exec_stmt(binding_snap);
                         retick_instance_ = nullptr;
 
-                        for (const auto& r : rxn->reactions)  // live read
-                            exec_stmt(r);
+                        for (const auto& r : reactions_snap) exec_stmt(r);
 
-                        // ── Check catch registrations ──────────────────────
+                        // Catches: lock to guard against concurrent clear()
+                        // during hot swap.  Handlers execute while holding the
+                        // lock — they are short statements and cannot call
+                        // hot_reload, so no deadlock risk.
                         bool should_end = false;
-                        for (auto& c : rxn->catches) {         // live read
-                            if (c.fired) continue;
-                            if (c.watched_emit == "end") continue;
+                        {
+                            std::lock_guard<std::mutex> lk(rxn->mutex);
+                            for (auto& c : rxn->catches) {
+                                if (c.fired) continue;
+                                if (c.watched_emit == "end") continue;
 
-                            auto emit_it = si->emitted_.find(c.watched_emit);
-                            if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
-                                c.fired = true;
-                                for (const auto& h : c.handler)
-                                    exec_stmt(h);
+                                auto emit_it = si->emitted_.find(c.watched_emit);
+                                if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
+                                    c.fired = true;
+                                    for (const auto& h : c.handler)
+                                        exec_stmt(h);
+                                }
                             }
                         }
 
@@ -1316,7 +1330,7 @@ value evaluator::eval_call(const parser::function_call& call) {
     if (it != function_defs_.end() && it->second) {
         // Pass fn_name as the qualified_key so temporal instances get the right
         // def_name_ (the key that function_defs_ and fn_library_scope_ use).
-        return eval_user_function(*it->second, args, named, fn_name, pos_exprs, named_exprs);
+        return eval_user_function(*it->second, args, named, fn_name, pos_exprs, named_exprs, &call);
     }
 
     // ── Check parametric flow definitions ──────────────────────────────────
@@ -1441,34 +1455,162 @@ value evaluator::eval_user_function(const parser::function_definition& def,
                                     const named_args_t& named,
                                     const std::string& qualified_key,
                                     const std::vector<parser::expr_ptr>& pos_exprs,
-                                    const named_exprs_t& named_exprs) {
-    // Temporal function: has |> lambda block → instantiate with scheduler
+                                    const named_exprs_t& named_exprs,
+                                    const parser::function_call* call_site) {
+    // ── Scan parameters for trigger / dt flags ─────────────────────────────
+    bool has_trigger_param = false;
+    bool has_dt_param      = false;
+    for (const auto& p : def.parameters_) {
+        if (!p) continue;
+        if (p->is_trigger_parameter_)                    has_trigger_param = true;
+        if (p->name_ == "dt" || p->has_default_time_)   has_dt_param = true;
+    }
+
+    // ── Trigger-driven function ────────────────────────────────────────────
+    // A function with trigger parameter(s) and no dt is gated by the trigger:
+    //  • If any trigger param is rest  → short-circuit, return rest.
+    //  • If trigger is live            → run lambda update block (if any),
+    //                                    evaluate body, return result.
+    // This keeps the function as a plain *reaction* in the process block
+    // (no temporal instance, no scheduler subscription) while still
+    // allowing it to maintain per-call-site state via trigger_driven_instances_.
+    if (has_trigger_param && !has_dt_param) {
+        // Bind all parameters into a fresh scope
+        env_.push_scope();
+        size_t pos_idx = 0;
+        for (const auto& p : def.parameters_) {
+            if (!p) continue;
+            value v;
+            auto nit = named.find(p->name_);
+            if (nit != named.end()) {
+                v = nit->second;
+            } else if (pos_idx < args.size()) {
+                v = args[pos_idx++];
+            } else if (p->default_value_) {
+                v = eval_expr(p->default_value_);
+            } else {
+                v = value::number(0.0);
+            }
+            env_.define(p->name_, v);
+        }
+
+        // Check whether every trigger parameter is currently live
+        bool any_trigger_live = false;
+        for (const auto& p : def.parameters_) {
+            if (!p || !p->is_trigger_parameter_) continue;
+            value* vp = env_.lookup(p->name_);
+            if (vp && vp->type_ == value_t::trigger && vp->trigger_) {
+                any_trigger_live = true;
+                break;
+            }
+        }
+
+        // Trigger is rest → short-circuit without running body / update block
+        if (!any_trigger_live) {
+            env_.pop_scope();
+            return value::rest();
+        }
+
+        // Trigger is live — handle stateful lambda update block if present
+        if (def.lambda_block_) {
+            // Find or create the persistent instance for this call site
+            std::shared_ptr<function_instance> tdi;
+            if (call_site) {
+                auto it = trigger_driven_instances_.find(call_site);
+                if (it == trigger_driven_instances_.end()) {
+                    // First firing: create instance for state, run init block
+                    tdi = std::make_shared<function_instance>();
+                    tdi->id_       = 0; // not scheduler-tracked
+                    tdi->active_   = true;
+                    tdi->def_name_ = qualified_key.empty() ? def.name_ : qualified_key;
+
+                    // Bind current param values into instance
+                    pos_idx = 0;
+                    for (const auto& p : def.parameters_) {
+                        if (!p) continue;
+                        value* vp = env_.lookup(p->name_);
+                        tdi->params_[p->name_] = vp ? *vp : value::number(0.0);
+                    }
+
+                    // Run init block
+                    if (def.lambda_block_->init_) {
+                        for (const auto& stmt : def.lambda_block_->init_->statements_) {
+                            if (!stmt) continue;
+                            if (stmt->type_ == parser::node_t::assignment) {
+                                auto& a = static_cast<const parser::assignment&>(*stmt);
+                                value v = eval_expr(a.value_);
+                                tdi->current_[a.name_] = v;
+                                env_.define(a.name_, v);
+                            } else if (stmt->type_ == parser::node_t::function_definition) {
+                                auto& fd = static_cast<const parser::function_definition&>(*stmt);
+                                if (fd.parameters_.empty() && fd.body_) {
+                                    value v = eval_expr(fd.body_);
+                                    tdi->current_[fd.name_] = v;
+                                    env_.define(fd.name_, v);
+                                }
+                            }
+                        }
+                    }
+                    trigger_driven_instances_[call_site] = tdi;
+                } else {
+                    tdi = it->second;
+                    // Restore persisted state into current scope
+                    for (const auto& [n, v] : tdi->current_)
+                        env_.define(n, v);
+                }
+            }
+
+            // Run the update block (trigger fired)
+            if (tdi) tdi->next_.clear();
+            for (const auto& stmt : def.lambda_block_->update_statements_) {
+                if (!stmt) continue;
+                if (stmt->type_ == parser::node_t::expression_stmt) {
+                    eval_expr(static_cast<const parser::expression_stmt&>(*stmt).expression_);
+                } else if (stmt->type_ == parser::node_t::assignment) {
+                    auto& a = static_cast<const parser::assignment&>(*stmt);
+                    value v = eval_expr(a.value_);
+                    if (tdi) { tdi->next_[a.name_] = v; }
+                    env_.define(a.name_, v);
+                    if (a.is_emit_ && tdi) tdi->emitted_[a.name_] = v;
+                } else if (stmt->type_ == parser::node_t::function_definition) {
+                    auto& upd = static_cast<const parser::function_definition&>(*stmt);
+                    if (upd.parameters_.empty() && upd.body_) {
+                        value v = eval_expr(upd.body_);
+                        if (tdi) tdi->next_[upd.name_] = v;
+                        env_.define(upd.name_, v);
+                    }
+                }
+            }
+            if (tdi) tdi->commit();
+        }
+
+        // Evaluate body
+        value result = def.body_ ? eval_expr(def.body_) : value::rest();
+        env_.pop_scope();
+        return result;
+    }
+
+    // ── Standard temporal function: has |> lambda block → instantiate ──────
     if (def.lambda_block_) {
         return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs);
     }
 
-    // Constant temporal: no lambda block but has a dt parameter
-    // (e.g. trig(dt=100ms) = !) — must still be scheduled for periodic ticking.
-    bool has_dt = false;
-    for (const auto& p : def.parameters_) {
-        if (p && (p->name_ == "dt" || p->has_default_time_)) { has_dt = true; break; }
-    }
-    if (has_dt) {
+    // ── Constant temporal: no lambda block but has dt parameter ────────────
+    // e.g. trig(dt=100ms) = ! — must be scheduled for periodic ticking.
+    if (has_dt_param) {
         return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs);
     }
 
     if (!def.body_) return value::nil();
 
-    // Push a new scope for parameters
+    // ── Pure function evaluation ────────────────────────────────────────────
     env_.push_scope();
 
-    // Bind parameters: positional first, then named overrides, then defaults
     size_t pos_idx = 0;
     for (size_t i = 0; i < def.parameters_.size(); ++i) {
         if (!def.parameters_[i]) continue;
         const auto& name = def.parameters_[i]->name_;
 
-        // Check named args first
         auto nit = named.find(name);
         if (nit != named.end()) {
             env_.define(name, nit->second);
@@ -1481,9 +1623,7 @@ value evaluator::eval_user_function(const parser::function_definition& def,
         }
     }
 
-    // Evaluate body expression
     value result = eval_expr(def.body_);
-
     env_.pop_scope();
     return result;
 }
@@ -2189,39 +2329,143 @@ std::vector<std::string> evaluator::list_stored_processes() const {
 void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
     if (segments.size() <= 1) return;
 
-    // Map: bound variable name → segment index
-    std::unordered_map<std::string, size_t> var_to_seg;
-    for (size_t si = 0; si < segments.size(); ++si)
-        if (!segments[si].bound_var.empty())
-            var_to_seg[segments[si].bound_var] = si;
-
-    std::vector<std::vector<parser::stmt_ptr>> new_reactions(segments.size());
-
+    // Map: variable name → (segment index, dt_ms).
+    // Populated from segment bound vars, then augmented with reaction LHS
+    // names after the first pass (so downstream reactions like print(c)
+    // follow c = counter(m) to the fastest segment in pass 2).
+    std::unordered_map<std::string, std::pair<size_t, double>> var_to_seg;
     for (size_t si = 0; si < segments.size(); ++si) {
-        for (const auto& reaction : segments[si].rxn->reactions) {
-            std::unordered_set<std::string> ids;
-            collect_stmt_ids(reaction, ids);
+        if (segments[si].bound_var.empty()) continue;
+        auto iit = instances_.find(segments[si].instance_id);
+        if (iit == instances_.end()) continue;
+        var_to_seg[segments[si].bound_var] = {si, iit->second->dt_ms_};
+    }
 
-            // Find the fastest (smallest dt) segment bound-var referenced.
-            double min_dt = std::numeric_limits<double>::max();
-            size_t target = si;   // default: keep in current segment
+    // Map: variable name → ALL segment indices where it is assigned.
+    // When a reaction LHS (e.g. c = rcounter(m, reset)) is placed in
+    // multiple segments, downstream reactions (e.g. print(c)) must fire
+    // in every one of those segments — not just the fastest one.
+    // Populated during the augment step between pass 1 and pass 2.
+    std::unordered_map<std::string, std::unordered_set<size_t>> var_all_segs;
 
-            for (const auto& id : ids) {
-                auto vit = var_to_seg.find(id);
-                if (vit == var_to_seg.end()) continue;
-                size_t ref_si = vit->second;
-                auto   iit    = instances_.find(segments[ref_si].instance_id);
-                if (iit == instances_.end()) continue;
-                double ref_dt = iit->second->dt_ms_;
-                if (ref_dt < min_dt) { min_dt = ref_dt; target = ref_si; }
+    // Helper: one redistribution pass over all reactions.
+    // When a reaction references variables from multiple distinct segments,
+    // it is placed in ALL of those segments so that every trigger can fire it.
+    // When it references only one segment (or none), it goes to that one only.
+    auto one_pass = [&](std::vector<std::vector<parser::stmt_ptr>>& current)
+        -> std::vector<std::vector<parser::stmt_ptr>>
+    {
+        std::vector<std::vector<parser::stmt_ptr>> result(segments.size());
+
+        for (size_t si = 0; si < segments.size(); ++si) {
+            for (const auto& reaction : current[si]) {
+                std::unordered_set<std::string> ids;
+                collect_stmt_ids(reaction, ids);
+
+                // Collect every distinct segment referenced by this reaction.
+                std::unordered_set<size_t> ref_segs;
+                double min_dt = std::numeric_limits<double>::max();
+                size_t fastest = si;
+
+                for (const auto& id : ids) {
+                    auto vit = var_to_seg.find(id);
+                    if (vit == var_to_seg.end()) continue;
+
+                    // If this variable is assigned in multiple segments (e.g.
+                    // c = rcounter(m, reset) lives in both seg0 and seg1),
+                    // expand to all of those segments so downstream reactions
+                    // like print(c) fire whenever c is recomputed — not just
+                    // on the fastest segment's tick.
+                    auto mit = var_all_segs.find(id);
+                    if (mit != var_all_segs.end() && mit->second.size() > 1) {
+                        for (size_t seg_idx : mit->second) {
+                            ref_segs.insert(seg_idx);
+                            auto iit = instances_.find(segments[seg_idx].instance_id);
+                            if (iit == instances_.end()) continue;
+                            double seg_dt = iit->second->dt_ms_;
+                            if (seg_dt > 0.0 && seg_dt < min_dt) {
+                                min_dt = seg_dt;
+                                fastest = seg_idx;
+                            }
+                        }
+                    } else {
+                        double ref_dt = vit->second.second;
+                        size_t ref_si = vit->second.first;
+                        if (ref_dt > 0.0) {
+                            ref_segs.insert(ref_si);
+                            if (ref_dt < min_dt) {
+                                min_dt = ref_dt;
+                                fastest = ref_si;
+                            }
+                        }
+                    }
+                }
+
+                if (ref_segs.size() > 1) {
+                    // Multi-segment reaction (e.g. rcounter(m, reset)): add to
+                    // every referenced segment so any trigger can fire it.
+                    for (size_t target : ref_segs)
+                        result[target].push_back(reaction);
+                } else {
+                    // Single-segment or unresolved: assign to fastest (or keep current).
+                    result[fastest].push_back(reaction);
+                }
             }
+        }
 
-            new_reactions[target].push_back(reaction);
+        // Deduplicate each bucket by AST node pointer.  A multi-segment
+        // reaction placed in bucket A and B will appear in both input buckets
+        // on the second pass, causing duplicates without this step.
+        for (auto& bucket : result) {
+            std::unordered_set<const parser::statement*> seen;
+            auto it = std::remove_if(bucket.begin(), bucket.end(),
+                [&seen](const parser::stmt_ptr& r) {
+                    return r && !seen.insert(r.get()).second;
+                });
+            bucket.erase(it, bucket.end());
+        }
+
+        return result;
+    };
+
+    // Collect the initial per-segment reaction lists into a working copy
+    std::vector<std::vector<parser::stmt_ptr>> work(segments.size());
+    for (size_t si = 0; si < segments.size(); ++si)
+        work[si] = segments[si].rxn->reactions;
+
+    // Pass 1 — redistribute using segment bound vars only
+    work = one_pass(work);
+
+    // Augment var_to_seg with assignment LHS names produced by pass-1 reactions,
+    // so that downstream reactions (e.g. print(c) where c = counter(m)) can be
+    // moved to the correct segment in pass 2.
+    for (size_t si = 0; si < segments.size(); ++si) {
+        auto iit = instances_.find(segments[si].instance_id);
+        if (iit == instances_.end()) continue;
+        double seg_dt = iit->second->dt_ms_;
+        if (seg_dt <= 0.0) continue; // skip unscheduled segments
+
+        for (const auto& reaction : work[si]) {
+            if (!reaction || reaction->type_ != parser::node_t::assignment) continue;
+            const auto& a = static_cast<const parser::assignment&>(*reaction);
+            if (!a.name_.empty()) {
+                // Track every segment this variable is assigned in.
+                var_all_segs[a.name_].insert(si);
+                // Also keep the fastest-segment entry for single-seg lookups.
+                auto vit = var_to_seg.find(a.name_);
+                if (vit == var_to_seg.end() || seg_dt < vit->second.second)
+                    var_to_seg[a.name_] = {si, seg_dt};
+            }
         }
     }
 
-    for (size_t si = 0; si < segments.size(); ++si)
-        segments[si].rxn->reactions = std::move(new_reactions[si]);
+    // Pass 2 — re-check with augmented var_to_seg (handles chained deps)
+    work = one_pass(work);
+
+    for (size_t si = 0; si < segments.size(); ++si) {
+        std::lock_guard<std::mutex> lk(segments[si].rxn->mutex);
+        segments[si].rxn->reactions = std::move(work[si]);
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2256,6 +2500,13 @@ void evaluator::diff_and_apply(live_process& lp,
     std::unordered_map<std::string, new_seg_info> new_segs;
     std::vector<std::string> new_order;   // preserves source order for later
 
+    // Index of existing live segments by bound variable name.
+    // Used below to implement the trigger-parameter fallback.
+    std::unordered_map<std::string, const live_segment*> old_seg_by_var;
+    for (const auto& seg : lp.segments)
+        if (!seg.bound_var.empty())
+            old_seg_by_var[seg.bound_var] = &seg;
+
     {
         new_seg_info* cur = nullptr;
         for (const auto& s : new_proc.body_->statements_) {
@@ -2269,9 +2520,18 @@ void evaluator::diff_and_apply(live_process& lp,
             else if (s->type_ == parser::node_t::assignment)
                 bname = static_cast<const parser::assignment&>(*s).name_;
 
-            // Check if this statement would create a temporal instance by looking
-            // at how it resolves — we need to call the same logic as exec_stmt.
-            // Simpler approach: speculatively eval in a temporary scope.
+            // Only named bindings can create temporal instances.
+            // Pure reaction statements (bname empty) never do, so skip
+            // speculative exec to avoid unintended side effects (e.g. print()
+            // firing during the diff pass).
+            if (bname.empty()) {
+                if (cur) cur->reactions.push_back(s);
+                continue;
+            }
+
+            // Speculative exec: run the statement in a temporary scope to find
+            // out whether it creates a temporal instance (and if so, what
+            // def_name and dt the new instance has).
             uint64_t id_before = next_instance_id_;
             env_.push_scope();
             exec_stmt(s);
@@ -2280,8 +2540,6 @@ void evaluator::diff_and_apply(live_process& lp,
 
             if (created) {
                 uint64_t new_id = next_instance_id_ - 1;
-                // Immediately kill this trial instance — we only needed to find
-                // the def_name and dt_ms from it.
                 auto inst_it = instances_.find(new_id);
                 std::string dn;
                 double      dt = 0.0;
@@ -2300,8 +2558,35 @@ void evaluator::diff_and_apply(live_process& lp,
                 new_segs[bname]  = std::move(nsi);
                 new_order.push_back(bname);
                 cur = &new_segs[bname];
-            } else if (cur) {
-                cur->reactions.push_back(s);
+            } else {
+                // No instance was created.  This can happen for two reasons:
+                //   (a) bname was never a segment (regular assignment) — treat
+                //       it as a reaction of the current segment.
+                //   (b) bname IS an existing live segment but the temporal
+                //       function was not called because its trigger parameter
+                //       happened to be rest (!-dependent functions like
+                //       note(spike!, ...) only call the inner temporal when
+                //       spike is truthy).
+                //
+                // For case (b), falling through to "reaction" would kill the
+                // live segment on the next pass-1 iteration.  Guard against
+                // this by checking old_seg_by_var: if bname was a segment
+                // before, preserve it as a surviving segment with the old
+                // def_name and dt.
+                auto old_it = old_seg_by_var.find(bname);
+                if (old_it != old_seg_by_var.end()) {
+                    // Trigger-parameter fallback: preserve the old segment.
+                    const live_segment& oldseg = *old_it->second;
+                    new_seg_info nsi;
+                    nsi.def_name     = oldseg.def_name;
+                    nsi.dt_ms        = oldseg.dt_ms;
+                    nsi.binding_stmt = s;
+                    new_segs[bname]  = std::move(nsi);
+                    new_order.push_back(bname);
+                    cur = &new_segs[bname];
+                } else if (cur) {
+                    cur->reactions.push_back(s);
+                }
             }
         }
     }
@@ -2339,6 +2624,29 @@ void evaluator::diff_and_apply(live_process& lp,
                 scheduler_->update_dt(inst_it->second->subscription_id_, ns.dt_ms);
                 inst_it->second->dt_ms_ = ns.dt_ms;
                 old_seg.dt_ms = ns.dt_ms;
+
+                // Also update instance_param_exprs_ so that tick_instance
+                // doesn't re-evaluate the OLD dt AST expression and revert
+                // the scheduler interval back on the very next tick.
+                auto extract_dt_expr = [](const parser::stmt_ptr& s) -> parser::expr_ptr {
+                    if (!s || s->type_ != parser::node_t::assignment) return nullptr;
+                    const auto& assign = static_cast<const parser::assignment&>(*s);
+                    if (!assign.value_ ||
+                        assign.value_->type_ != parser::node_t::function_call_expr)
+                        return nullptr;
+                    const auto& fce =
+                        static_cast<const parser::function_call_expr&>(*assign.value_);
+                    if (!fce.call_) return nullptr;
+                    for (const auto& arg : fce.call_->arguments_)
+                        if (arg && arg->name_ == "dt") return arg->value_;
+                    return nullptr;
+                };
+
+                auto& pexprs = instance_param_exprs_[old_seg.instance_id];
+                if (auto new_dt_expr = extract_dt_expr(ns.binding_stmt))
+                    pexprs["dt"] = new_dt_expr;
+                else
+                    pexprs.erase("dt");
             }
         }
 
@@ -2346,10 +2654,15 @@ void evaluator::diff_and_apply(live_process& lp,
         // The scheduler closure holds a shared_ptr to old_seg.rxn.
         // Writing new content here takes effect on the very next tick —
         // no unsubscribe, no re-subscribe, no scheduling gap.
-        old_seg.rxn->binding_stmt = ns.binding_stmt;
-        old_seg.rxn->reactions    = std::move(ns.reactions);
-        // Reset fired flags on catches so re-used catch names fire again.
-        old_seg.rxn->catches.clear();
+        // Lock to prevent a data race with the scheduler thread, which reads
+        // these fields on every tick.
+        {
+            std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
+            old_seg.rxn->binding_stmt = ns.binding_stmt;
+            old_seg.rxn->reactions    = std::move(ns.reactions);
+            // Reset fired flags on catches so re-used catch names fire again.
+            old_seg.rxn->catches.clear();
+        }
     }
 
     // Remove dead segments from lp (those not in handled and not already erased).
@@ -2423,18 +2736,31 @@ void evaluator::diff_and_apply(live_process& lp,
 
                     tick_instance(*si, def_ptr.get());
 
+                    // Snapshot reactions under lock (same pattern as the
+                    // process-setup closure above).
+                    parser::stmt_ptr binding_snap;
+                    std::vector<parser::stmt_ptr> reactions_snap;
+                    {
+                        std::lock_guard<std::mutex> lk(rxn->mutex);
+                        binding_snap   = rxn->binding_stmt;
+                        reactions_snap = rxn->reactions;
+                    }
+
                     retick_instance_ = si.get();
-                    if (rxn->binding_stmt) exec_stmt(rxn->binding_stmt);
+                    if (binding_snap) exec_stmt(binding_snap);
                     retick_instance_ = nullptr;
 
-                    for (const auto& r : rxn->reactions) exec_stmt(r);
+                    for (const auto& r : reactions_snap) exec_stmt(r);
 
-                    for (auto& c : rxn->catches) {
-                        if (c.fired) continue;
-                        auto emit_it = si->emitted_.find(c.watched_emit);
-                        if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
-                            c.fired = true;
-                            for (const auto& h : c.handler) exec_stmt(h);
+                    {
+                        std::lock_guard<std::mutex> lk(rxn->mutex);
+                        for (auto& c : rxn->catches) {
+                            if (c.fired) continue;
+                            auto emit_it = si->emitted_.find(c.watched_emit);
+                            if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
+                                c.fired = true;
+                                for (const auto& h : c.handler) exec_stmt(h);
+                            }
                         }
                     }
 

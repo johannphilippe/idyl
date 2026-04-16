@@ -1,0 +1,19 @@
+metro(dt=200ms) = !
+rcounter(incr!, reset!) = cnt 
+|> {
+    init: {cnt = 0}
+    cnt = cnt + 1; 0 ? reset
+}
+
+counter(incr!) = cnt
+|> {
+    init: {cnt = 0}
+    cnt = cnt + 1
+}
+
+process: {
+    m = metro(dt=500ms)
+    reset = metro(dt=3.1s)
+    c = rcounter(m, reset)
+    print(c)
+}

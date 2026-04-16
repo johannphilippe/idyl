@@ -1,0 +1,6 @@
+lib("stdlib")
+
+process cnt: {
+    c = counter(dt=200ms)
+    print(c)
+}

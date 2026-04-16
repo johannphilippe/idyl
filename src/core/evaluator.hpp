@@ -6,6 +6,7 @@
 #include <memory>
 #include <list>
 #include <set>
+#include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 
@@ -77,6 +78,15 @@ namespace idyl::core {
         std::unordered_map<uint64_t, std::shared_ptr<function_instance>> instances_;
         uint64_t next_instance_id_ = 1;
 
+        // ── Trigger-driven function instances ──────────────────────────────────
+        // For functions with trigger parameter(s) and no dt: they are not
+        // scheduled on a timer but fire inline when their trigger param is live.
+        // Persistent state (current_ map) is preserved across firings.
+        // Keyed by the AST function_call node pointer (stable identity per site).
+        std::unordered_map<const parser::function_call*,
+                           std::shared_ptr<function_instance>>
+            trigger_driven_instances_;
+
         // Scheduler (owned externally, nullable for Phase 1 compatibility)
         time::sys_clock_scheduler* scheduler_ = nullptr;
 
@@ -124,7 +134,12 @@ namespace idyl::core {
         // reaction_set: the mutable "behaviour" part of one temporal segment.
         // Shared between the segment record and the scheduler closure so that
         // hot reload can update reactions without re-subscribing.
+        //
+        // mutex protects binding_stmt, reactions, and catches against the data
+        // race between hot_reload() (main thread) and scheduler tick callbacks
+        // (engine thread).  Always lock before reading or writing these fields.
         struct reaction_set {
+            std::mutex                     mutex;   // guards the fields below
             parser::stmt_ptr               binding_stmt;
             std::vector<parser::stmt_ptr>  reactions;
             std::vector<catch_info>        catches;
@@ -298,12 +313,16 @@ namespace idyl::core {
         // function_defs_ (may differ from def.name_ for namespaced library fns).
         // pos_exprs / named_exprs: raw AST expressions parallel to args/named,
         // stored on the instance for dynamic re-evaluation each tick.
+        // call_site: pointer to the AST function_call node at the call site.
+        // Non-null when called from eval_call; used as key for trigger-driven
+        // instance state persistence (trigger-param functions with lambda blocks).
         value eval_user_function(const parser::function_definition& def,
                                  const std::vector<value>& args,
                                  const named_args_t& named = {},
                                  const std::string& qualified_key = {},
                                  const std::vector<parser::expr_ptr>& pos_exprs = {},
-                                 const named_exprs_t& named_exprs = {});
+                                 const named_exprs_t& named_exprs = {},
+                                 const parser::function_call* call_site = nullptr);
 
         // ── Temporal function instantiation ────────────────────────────────────
         value instantiate_temporal(const parser::function_definition& def,

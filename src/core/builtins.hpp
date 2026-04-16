@@ -213,6 +213,21 @@ namespace idyl::core {
         // ── General utilities ───────────────────────────────────────────────────
         {
             "print", [](span<const value> args) -> value {
+                // If there are any trigger-type args, at least one must be live.
+                // This allows print(incr, reset) inside a lambda body to fire
+                // when either trigger is active, while still suppressing output
+                // when all triggers are at rest (e.g. print(res) where res=rest).
+                bool has_trigger_arg = false;
+                bool any_trigger_live = false;
+                for (size_t i = 0; i < args.size_; ++i) {
+                    const value& v = args[i];
+                    if (v.type_ == value_t::trigger) {
+                        has_trigger_arg = true;
+                        if (v.trigger_) any_trigger_live = true;
+                    }
+                }
+                if (has_trigger_arg && !any_trigger_live)
+                    return value::nil();
                 for (size_t i = 0; i < args.size_; ++i) {
                     if (i > 0) std::cout << " ";
                     const value& v = args[i];

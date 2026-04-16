@@ -15,8 +15,9 @@ This must be done in a smart way :
 
 ## Next 
 
-- [bug] a function expecting trigger also fires when trigger is rest
-- [bug] hot reload works on flows, not on processes
+- [bug] trigger functions : result update on first trigger, not on second ... 
+- [fixed] function with trigger parameters work fine in update bloc, but function body is updated even if trig is rest
+- [fixed] hot reload works on flows, not on processes
 - [in_progress] hot reload - to define properly before implementation
 - [important] : serial utilities (read write) + 2 modules (serial, & MIDI)
 - [later_fix] Clocks : csound_module_clock.idyl : change only occurs after 12 beats instead of 10 : investigate
