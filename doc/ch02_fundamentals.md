@@ -153,7 +153,7 @@ Top-level (global) scope is **purely declarative**: only function definitions, c
 // Valid at global scope
 silence = 0
 square(x) = x * x
-lib("scales.idyl")
+import("scales.idyl")
 module("osc")
 
 // NOT valid at global scope

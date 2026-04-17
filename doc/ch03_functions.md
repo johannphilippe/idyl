@@ -152,6 +152,24 @@ The following functions are always available:
 | `int(x)` | 1 | Truncate to integer (for bitwise ops) |
 | `float(x)` | 1 | Ensure float |
 | `rint(x)` | 1 | Round to nearest integer |
+| `string(x)` | 1 | Convert value to string |
+| `trigger(x)` | 1 | Convert value to trigger type |
+
+### Time unit conversion
+
+| Function | Arity | Description |
+|----------|-------|-------------|
+| `as_ms(x)` | 1 | Interpret value as milliseconds |
+| `as_s(x)` | 1 | Interpret value as seconds |
+| `as_hz(x)` | 1 | Interpret value as Hz (period in ms) |
+| `as_bpm(x)` | 1 | Interpret value as BPM (period in ms) |
+
+### MIDI / frequency
+
+| Function | Arity | Description |
+|----------|-------|-------------|
+| `mtof(note)` | 1 | MIDI note number → frequency in Hz |
+| `ftom(freq)` | 1 | Frequency → MIDI note number |
 
 ### Random
 
@@ -160,6 +178,7 @@ The following functions are always available:
 | `rnd()` | 0 | Random in [0, 1) |
 | `rnd(lo, hi)` | 2 | Random in [lo, hi) |
 | `rnd(lo, hi, step)` | 3 | Quantized random |
+| `seed(n)` | 1 | Seed the random number generator |
 
 ### Utility
 
@@ -168,6 +187,7 @@ The following functions are always available:
 | `len(flow)` | 1 | Length of a flow |
 | `bit(val, idx)` | 2 | Bit at index (0 or 1) |
 | `print(...)` | 1+ | Print values to stdout |
+| `printf(fmt, ...)` | 1+ | C-style formatted print |
 | `now()` | 0–1 | Current time (`"ms"` or `"s"`) |
 
 ### Temporal intrinsics
@@ -183,6 +203,7 @@ These are handled specially by the evaluator (not plain builtins):
 | `tempo(bpm)` | Set main clock BPM |
 | `tempo(handle, bpm)` | Set specific clock BPM |
 | `handle(Nb)` | Duration of N beats at that clock's BPM |
+| `bpm(handle)` | Alias for `tempo(handle)` — query a clock's BPM |
 
 See [Chapter 8 — Clock & tempo](ch08_clock_tempo.md) for full details.
 

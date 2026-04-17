@@ -166,7 +166,7 @@ Built-in math functions and module functions are not in the scope stack — they
 
 #### Library-local scopes for namespaced imports
 
-When a library is loaded under a namespace (e.g. `std = lib("stdlib")`), two things happen:
+When a library is loaded under a namespace (e.g. `std = import("stdlib")`), two things happen:
 
 1. **Global registration**: every function is stored in `function_defs_` under its qualified name (`"std::lfo"`, `"std::sine"`, ...). Bare names are never added to the global scope.
 

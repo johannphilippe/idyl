@@ -86,7 +86,7 @@ square(x) = x * x
 
 blend(a, b, mix) = a * (1 - mix) + b * mix
 
-midi_to_freq(note) = 440 * (2.0 ^ ((note - 69) / 12.0))
+midi_to_freq(note) = 440 * pow(2.0, (note - 69) / 12.0)
 ```
 
 No `return` keyword — the body *is* the result.
@@ -116,7 +116,7 @@ flow drum_pattern = {
     hat:   [!, !, !, !]
 }
 
-chromatic(root) = [semitone = 0..11 : root * (2.0 ^ (semitone / 12.0))]
+chromatic(root) = [semitone = 0..11 : root * pow(2.0, semitone / 12.0)]
 
 // Live temporal elements — each slot is a running oscillator
 flow oscs = [sine(1hz, dt=100ms), sine(3hz, dt=100ms)]

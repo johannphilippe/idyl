@@ -1,3 +1,4 @@
+import("stdlib")
 flow pattern = {
     rhythm  : [!, _, _, !, !, _]
     melody on rhythm : [60, 63, 65]

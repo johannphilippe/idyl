@@ -73,13 +73,17 @@ syn keyword idylConstant      pi tau
 " ── Built-in functions ───────────────────────────────────────────────────────
 " Math
 syn keyword idylBuiltin       sin cos tan log exp pow sqrt abs
-syn keyword idylBuiltin       floor ceil round fmod min max
+syn keyword idylBuiltin       floor ceil round rint fmod min max
 " Conversion
+syn keyword idylBuiltin       int float string trigger
 syn keyword idylBuiltin       as_bpm as_ms as_hz as_s
+syn keyword idylBuiltin       mtof ftom
 " Clock / tempo
-syn keyword idylBuiltin       clock tempo
+syn keyword idylBuiltin       clock tempo bpm
+" Random
+syn keyword idylBuiltin       rnd seed
 " Utility
-syn keyword idylBuiltin       len print now
+syn keyword idylBuiltin       len bit print printf now
 " Stdlib temporal
 syn keyword idylBuiltin       metro sine lfo
 " OSC module

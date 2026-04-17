@@ -73,7 +73,7 @@ flow pattern = {
 When indexed with a trigger, `rhythm` advances on every tick as normal. `melody` only advances on the ticks where `rhythm` produces `!` — it stays frozen on `_` ticks.
 
 ```idyl
-lib("stdlib")
+import("stdlib")
 
 flow pattern = {
     rhythm  : [!, _, _, !, !, _]
@@ -116,7 +116,7 @@ Parameters used inside generators must be resolvable at evaluation time.
 Flow slots can hold **live temporal expressions** — their values update on every tick of the temporal instance:
 
 ```idyl
-lib("stdlib")
+import("stdlib")
 
 // Each slot is a running oscillator — values change each time they are read
 flow oscs = [sine(1hz, dt=100ms), sine(3hz, dt=100ms)]
@@ -130,7 +130,7 @@ process: {
 Compound expressions involving temporals also stay live:
 
 ```idyl
-lib("stdlib")
+import("stdlib")
 
 // scaled[0] oscillates between 0 and 128; scaled[1] is always 0
 flow scaled = [sine(2hz, dt=100ms) * 64 + 64, 0]
@@ -144,7 +144,7 @@ process: {
 Multi-member flows support live slots in any member:
 
 ```idyl
-lib("stdlib")
+import("stdlib")
 
 flow osc_bank = {
     slow: [sine(1hz, dt=100ms), sine(2hz, dt=100ms)]
@@ -165,7 +165,7 @@ process: {
 Parametric flows can be called with **temporal arguments**. When a parameter changes value (because it is driven by a temporal source), the flow is automatically rebuilt with the new arguments on the next access:
 
 ```idyl
-lib("stdlib")
+import("stdlib")
 
 flow mult = [1, 2, 4]
 flow mixed(i) = [60 * i, sine(1hz, dt=100ms) * 12 + 60, 72]
@@ -189,7 +189,7 @@ Flows are indexed with brackets:
 
 ```idyl
 process: {
-    scale = [i = 0..11 : 440 * (2.0 ^ (i / 12.0))]
+    scale = [i = 0..11 : 440 * pow(2.0, i / 12.0)]
     first_note = scale[0]
     fifth_note = scale[4]
     print(first_note, fifth_note)

@@ -48,12 +48,12 @@ Options are separated by `;` (semicolons), not commas — this avoids ambiguity 
 | `*` | Multiplication |
 | `/` | Division |
 | `%` | Modulo |
-| `^` | Power |
+| `pow(x, e)` | Power (use the builtin — see Chapter 3) |
 
 ```idyl
 sum = 3 + 4
 product = 2 * 5
-power = 2 ^ 10       // 1024
+power = pow(2, 10)   // 1024
 modulo = 17 % 5      // 2
 ```
 
@@ -104,7 +104,7 @@ Operate on integer-converted values:
 |----------|-------------|
 | `&` | Bitwise AND |
 | `\|` | Bitwise OR |
-| `^` | Bitwise XOR (context-dependent: power on floats) |
+| `^` | Bitwise XOR |
 | `<<` | Left shift |
 | `>>` | Right shift |
 | `~` | Bitwise NOT |
@@ -131,13 +131,13 @@ From highest to lowest:
 
 1. Parentheses `()`
 2. Unary `-`, `~`
-3. `^` (power)
-4. `*`, `/`, `%`
-5. `+`, `-`
-6. `<<`, `>>`
-7. `<`, `>`, `<=`, `>=`
-8. `==`, `!=`
-9. `&`
+3. `*`, `/`, `%`
+4. `+`, `-`
+5. `<<`, `>>`
+6. `<`, `>`, `<=`, `>=`
+7. `==`, `!=`
+8. `&`
+9. `^` (XOR)
 10. `|`
 11. `;` ... `?` (ternary)
 
@@ -165,7 +165,7 @@ numbers = [i = 0..10 : i]
 table = [i = 0..256 : sin(i / 256 * 2 * pi)]
 
 // Chromatic scale
-chromatic(root) = [s = 0..11 : root * (2.0 ^ (s / 12.0))]
+chromatic(root) = [s = 0..11 : root * pow(2.0, s / 12.0)]
 ```
 
 Generators are declarative, composable, and produce flows directly.
@@ -200,10 +200,10 @@ process: {
 }
 ```
 
-The single-statement form (no braces, no colon) is also valid:
+The single-statement form (braces optional, colon required) is also valid:
 
 ```idyl
-@(1s) print("one second later")
+@(1s): print("one second later")
 ```
 
 ### Time expression

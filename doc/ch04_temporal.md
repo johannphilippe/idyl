@@ -217,7 +217,7 @@ process: {
 
 ### Semantics
 
-- On the first tick(s), delayed slots are filled with `0` until the buffer is populated.
+- On the first tick, all slots in the circular buffer are pre-filled with the initial value of the expression (not `0`). For most counters starting at `0` this makes no practical difference, but for arbitrary expressions the initial output is the expression's first value repeated N times.
 - The delay is measured in **ticks**, not in time. A two-sample delay on a `dt=100ms` function returns the value from 200ms ago.
 - Each delay expression has its own independent circular buffer, keyed to that specific expression in the AST. Multiple delays in the same function do not interfere.
 

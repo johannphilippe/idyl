@@ -87,7 +87,7 @@ When the elapsed time exceeds the duration, the evaluator automatically unsubscr
 The `--listen` flag starts the program without running any process blocks. Instead, it waits for **OSC commands** to start and stop them on demand.
 
 ```bash
-idyl song.idyl --listen          # default port 7771
+idyl song.idyl --listen          # default port 9000
 idyl song.idyl --listen 9090     # custom port
 idyl song.idyl -l                # short form
 idyl song.idyl -l 9090
@@ -106,19 +106,19 @@ idyl song.idyl -l 9090
 Terminal 1:
 
 ```bash
-idyl song.idyl --listen 7771
+idyl song.idyl --listen 9000
 # Output:
-# idyl: listening on port 7771
+# idyl: listening on port 9000
 # Stored process blocks: drums, bass, lead
 ```
 
 Terminal 2 (using `oscsend` or similar):
 
 ```bash
-oscsend localhost 7771 /idyl/process/start s "drums"
-oscsend localhost 7771 /idyl/process/start s "bass"
-oscsend localhost 7771 /idyl/process/stop  s "drums"
-oscsend localhost 7771 /idyl/process/list
+oscsend localhost 9000 /idyl/process/start s "drums"
+oscsend localhost 9000 /idyl/process/start s "bass"
+oscsend localhost 9000 /idyl/process/stop  s "drums"
+oscsend localhost 9000 /idyl/process/list
 ```
 
 ### Combining `--listen` and `--process`
@@ -233,7 +233,7 @@ process watchdog: {
 
 ### `stop` (no name)
 
-Used without a name, `stop` stops the **current** process block:
+Used without a name, `stop` stops **all** currently running process blocks:
 
 ```idyl
 ticking(dt=100ms) = n |> {
@@ -245,8 +245,8 @@ ticking(dt=100ms) = n |> {
 process oneshot: {
     counter = ticking()
     counter catch done: {
-        print("done, stopping self")
-        stop        // stops "oneshot"
+        print("done, stopping everything")
+        stop        // stops all running processes
     }
 }
 ```
@@ -291,7 +291,7 @@ process: {
 `on` blocks compose naturally with flow gates. Use a flow's trigger member as the guard:
 
 ```idyl
-lib("stdlib")
+import("stdlib")
 
 flow pattern = {
     rhythm  : [!, _, _, !, !, _]
@@ -317,7 +317,7 @@ An `on` block is a **reaction** — it is placed in the scheduler segment that d
 |---|---|---|
 | Fires when | expression is a live trigger | instance emits a named event |
 | Guard | value type (trigger/rest) | event name from `emit` |
-| Repeats | every trigger tick | every emit of that event |
+| Repeats | every trigger tick | **once** — deactivated after first fire |
 
 ---
 
