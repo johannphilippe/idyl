@@ -1,0 +1,13 @@
+import("stdlib")
+
+flow rhythm = [!, _, _, !, ! ,!]
+
+process: {
+    m = metro(dt=500ms)
+
+    r = rhythm[m]
+
+    on r: {
+        print("tick")
+    }
+}

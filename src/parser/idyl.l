@@ -68,7 +68,7 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 
 "flow"          { TRACK_LOCATION(); return yy::parser::token::FLOW; }
 "process"       { TRACK_LOCATION(); return yy::parser::token::PROCESS; }
-"lib"           { TRACK_LOCATION(); return yy::parser::token::LIB; }
+"import"        { TRACK_LOCATION(); return yy::parser::token::IMPORT; }
 "module"        { TRACK_LOCATION(); return yy::parser::token::MODULE; }
 "init"          { TRACK_LOCATION(); return yy::parser::token::INIT; }
 "emit"          { TRACK_LOCATION(); return yy::parser::token::EMIT; }
@@ -78,6 +78,7 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 "dur"           { TRACK_LOCATION(); return yy::parser::token::DUR; }
 "stop"          { TRACK_LOCATION(); return yy::parser::token::STOP; }
 "start"         { TRACK_LOCATION(); return yy::parser::token::START; }
+"on"            { TRACK_LOCATION(); return yy::parser::token::ON; }
 
 {NUMBER}"ms"    { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 {NUMBER}"s"     { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
@@ -170,8 +171,8 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_FLOW(yylloc);
         case yy::parser::token::PROCESS: 
             return yy::parser::make_PROCESS(yylloc);
-        case yy::parser::token::LIB: 
-            return yy::parser::make_LIB(yylloc);
+        case yy::parser::token::IMPORT:
+            return yy::parser::make_IMPORT(yylloc);
         case yy::parser::token::MODULE: 
             return yy::parser::make_MODULE(yylloc);
         case yy::parser::token::INIT: 
@@ -266,6 +267,8 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_STOP(yylloc);
         case yy::parser::token::START:
             return yy::parser::make_START(yylloc);
+        case yy::parser::token::ON:
+            return yy::parser::make_ON(yylloc);
         default: 
             return yy::parser::make_YYEOF(yylloc);
     }

@@ -15,7 +15,7 @@ This must be done in a smart way :
 
 ## Next 
 
-- [bug] trigger functions : result update on first trigger, not on second ... 
+- [fixed] trigger functions : result update on first trigger, not on second ... 
 - [fixed] function with trigger parameters work fine in update bloc, but function body is updated even if trig is rest
 - [fixed] hot reload works on flows, not on processes
 - [in_progress] hot reload - to define properly before implementation

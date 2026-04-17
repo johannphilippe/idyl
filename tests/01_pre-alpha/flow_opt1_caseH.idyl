@@ -1,6 +1,6 @@
 // Case H: mixed static and temporal slots in the same flow
 // Slots 0 and 2 are plain numbers, slot 1 is a live temporal expression
-lib("stdlib")
+import("stdlib")
 
 flow mult = [1, 2, 4]
 

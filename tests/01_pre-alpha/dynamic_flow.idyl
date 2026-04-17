@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 flow pattern(i) = {
     notes: [40+i, 42+i, 60+i, 62+i]
     rhythm: [!, _, !, !]

@@ -1,5 +1,5 @@
 
-lib("stdlib")
+import("stdlib")
 process: {
     a = clock(60bpm)
     m = metro(as_bpm(bpm(a)))

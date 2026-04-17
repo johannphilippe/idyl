@@ -260,4 +260,65 @@ process oneshot: {
 
 ---
 
+## `on` blocks — trigger reactions
+
+An `on` block fires its body every time a trigger expression is **live** (`!`). On rest ticks, the body is skipped entirely.
+
+```idyl
+process: {
+    m = metro(dt=100ms)
+    on m: {
+        print("fired")
+    }
+}
+```
+
+This is equivalent to checking `m` manually in a reaction, but reads as a clear intent: *"when m fires, do this"*.
+
+### Single-statement form
+
+The braces are optional for a single statement:
+
+```idyl
+process: {
+    m = metro(dt=500ms)
+    on m: print("tick")
+}
+```
+
+### With rhythm gates
+
+`on` blocks compose naturally with flow gates. Use a flow's trigger member as the guard:
+
+```idyl
+lib("stdlib")
+
+flow pattern = {
+    rhythm  : [!, _, _, !, !, _]
+    melody on rhythm : [60, 63, 65]
+}
+
+process: {
+    m = metro(dt=200ms)
+    p = pattern[m]
+    on p.rhythm: {
+        print("note:", p.melody)
+    }
+}
+```
+
+### Placement and redistribution
+
+An `on` block is a **reaction** — it is placed in the scheduler segment that drives its trigger expression. If the expression references multiple temporal sources, the block is placed in all of them (the same redistribution logic that governs other reactions applies).
+
+### Difference from `catch`
+
+| | `on expr: { }` | `expr catch event: { }` |
+|---|---|---|
+| Fires when | expression is a live trigger | instance emits a named event |
+| Guard | value type (trigger/rest) | event name from `emit` |
+| Repeats | every trigger tick | every emit of that event |
+
+---
+
 [Next: Modules & libraries →](ch10_modules_libraries.md)

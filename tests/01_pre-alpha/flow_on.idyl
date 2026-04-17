@@ -1,0 +1,10 @@
+flow pattern = {
+    rhythm  : [!, _, _, !, !, _]
+    melody on rhythm : [60, 63, 65]
+}
+
+process: {
+    m = metro(dt=200ms)
+    p = pattern[m]
+    print(p.rhythm, p.melody)
+}

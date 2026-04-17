@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 process cnt: {
     c = counter(dt=200ms)

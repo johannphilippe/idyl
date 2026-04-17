@@ -1,0 +1,17 @@
+module("csound")
+import("stdlib")
+
+flow pattern = {
+    rhythm:  [!, _, !, _, _, ! , ! ,!, ! ]
+    melody on rhythm: [60, 62]
+}
+
+handle = cs_open("csound_module.csd")
+
+process: {
+    m = metro(dt= 300ms)
+    c = counter(dt=300ms)
+    p = pattern[m] 
+    _; cs_note(handle, "first", 2s, 0.3, mtof(p.melody) ) ? p.rhythm
+
+}

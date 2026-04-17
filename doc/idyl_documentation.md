@@ -25,7 +25,7 @@ Idƴl is a functional, time-aware language for scheduling, composition, and reac
 
 ### Integration
 
-10. [Modules & libraries](ch10_modules_libraries.md) — OSC, `module()`, `lib()`, namespaces
+10. [Modules & libraries](ch10_modules_libraries.md) — OSC, `module()`, `import()`, namespaces
 
 ### Internals
 

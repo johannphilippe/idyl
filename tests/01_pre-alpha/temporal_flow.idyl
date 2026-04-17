@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 flow moving = [sine(1hz), square[1hz]]
 

@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 flow pattern(i) = [40+i, 50+i, 60+i]
 

@@ -89,11 +89,11 @@
       "patterns": [
         {
           "name": "keyword.control.idyl",
-          "match": "\\b(process|catch|emit|init|start|stop)\\b"
+          "match": "\\b(process|catch|emit|init|start|stop|on)\\b"
         },
         {
           "name": "keyword.other.idyl",
-          "match": "\\b(flow|lib|module)\\b"
+          "match": "\\b(flow|import|module)\\b"
         },
         {
           "name": "keyword.other.parameter.idyl",

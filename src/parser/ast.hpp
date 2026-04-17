@@ -29,7 +29,7 @@ enum class node_t {
     memory_op_expr, generator_expr_node, flow_literal_expr, function_call_expr,
     flow_access_expr, module_access_expr, parenthesized_expr,
     // Statements
-    expression_stmt, assignment, catch_block, at_block,
+    expression_stmt, assignment, catch_block, at_block, on_block,
     function_definition, process_block_body, process_block,
     library_import, module_import, stop_statement, start_statement, sched_statement,
     // Top-level
@@ -293,13 +293,16 @@ struct repetition_marker : node {
 
 struct flow_member : node {
     std::string name_;
+    std::string gate_name_; // non-empty → only advance cursor when this member's trigger is live
     expr_ptr value_; // generator_expr or flow_literal
-    
+
     flow_member() : node(node_t::flow_member) {}
-    
+
     void print(int indent = 0) const override {
         printIndent(indent);
-        std::cout << "FlowMember(" << name_ << ")\n";
+        std::cout << "FlowMember(" << name_;
+        if (!gate_name_.empty()) std::cout << " on " << gate_name_;
+        std::cout << ")\n";
         if (value_) value_->print(indent + 1);
     }
 };
@@ -671,6 +674,21 @@ struct at_block : statement {
     }
 };
 
+struct on_block : statement {
+    expr_ptr trigger_expr_;
+    std::vector<stmt_ptr> handler_;
+
+    on_block() : statement(node_t::on_block) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "OnBlock\n";
+        if (trigger_expr_) trigger_expr_->print(indent + 1);
+        for (const auto& s : handler_)
+            if (s) s->print(indent + 1);
+    }
+};
+
 struct stop_statement : statement {
     // Empty = stop the current process.  Non-empty = stop the named process.
     std::string target_;
@@ -776,7 +794,7 @@ struct library_import : statement {
         if (namespace_.empty()) {
             std::cout << "LibraryImport(\"" << path_ << "\")\n";
         } else {
-            std::cout << "LibraryImport(" << namespace_ << " = lib(\"" << path_ << "\"))\n";
+            std::cout << "LibraryImport(" << namespace_ << " = import(\"" << path_ << "\"))\n";
         }
     }
 };

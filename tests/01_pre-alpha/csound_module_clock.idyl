@@ -1,5 +1,5 @@
 module("csound")
-lib("stdlib")
+import("stdlib")
 
 handle = cs_open("csound_module.csd")
 

@@ -40,7 +40,7 @@ Source (.idyl)
 
 The lexer is defined in `src/parser/idyl.l`. It recognises:
 
-- Keywords: `process`, `init`, `emit`, `catch`, `lib`, `module`, `clock`, `tempo`
+- Keywords: `process`, `init`, `emit`, `catch`, `import`, `module`, `clock`, `tempo`
 - Literals: numbers, time suffixes (`ms`, `s`, `hz`, `b`, `bpm`), strings, triggers (`!`), rest (`_`)
 - Operators: `|>`, `::`, arithmetic, comparison, bitwise
 - Structural tokens: braces, brackets, commas, colons, equals
@@ -76,7 +76,7 @@ The parser is defined in `src/parser/idyl.y`. It builds an **Abstract Syntax Tre
 | `CatchBlock` | `instance catch name: { ... }` |
 | `EmitAccess` | `instance::name` |
 | `Assignment` | `x = expr` |
-| `LibImport` | `lib("path")` |
+| `LibImport` | `import("path")` |
 | `ModuleImport` | `module("name")` |
 
 ---
@@ -86,7 +86,7 @@ The parser is defined in `src/parser/idyl.y`. It builds an **Abstract Syntax Tre
 The semantic analyzer (`src/semantic/analyzer.cpp`) performs **7 ordered passes**:
 
 ### Pass 1 — Library collection
-Collects all `lib()` imports, resolves paths, detects circular dependencies.
+Collects all `import()` calls, resolves paths, detects circular dependencies.
 
 ### Pass 2 — Module collection
 Collects `module()` imports, validates module names.

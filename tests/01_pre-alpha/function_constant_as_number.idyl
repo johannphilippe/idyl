@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 process: {
     s = lfo(1hz, waveform = int(wav_square) )

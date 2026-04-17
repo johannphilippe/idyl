@@ -59,10 +59,10 @@ syn match   idylOperator      '[+\-*/%<>&|^~?]'
 syn match   idylAssign        '=\ze[^>=]'
 
 " ── Control keywords ────────────────────────────────────────────────────────
-syn keyword idylControl       process catch emit init start stop
+syn keyword idylControl       process catch emit init start stop on
 
 " ── Declaration keywords ────────────────────────────────────────────────────
-syn keyword idylDecl          flow lib module
+syn keyword idylDecl          flow import module
 
 " ── Named parameter keywords (dt=, dur=, parent=) ───────────────────────────
 syn match   idylParam         '\<\(dt\|dur\|parent\)\ze\s*='

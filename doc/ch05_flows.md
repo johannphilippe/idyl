@@ -59,6 +59,39 @@ Each member is a named sequence. Members are accessed with dot notation: `drum_p
 
 ---
 
+## Gated members (`on`)
+
+A multi-member flow can declare that one member **only advances when another member's current value is a live trigger**. This is written with the `on` keyword between the member name and the colon:
+
+```idyl
+flow pattern = {
+    rhythm  : [!, _, _, !, !, _]
+    melody on rhythm : [60, 63, 65]
+}
+```
+
+When indexed with a trigger, `rhythm` advances on every tick as normal. `melody` only advances on the ticks where `rhythm` produces `!` — it stays frozen on `_` ticks.
+
+```idyl
+lib("stdlib")
+
+flow pattern = {
+    rhythm  : [!, _, _, !, !, _]
+    melody on rhythm : [60, 63, 65]
+}
+
+process: {
+    m = metro(dt=200ms)
+    p = pattern[m]
+    print(p.rhythm, p.melody)
+    // rhythm advances each tick; melody only advances when rhythm is !
+}
+```
+
+The gate member must appear **before** the gated member in the flow body — members are processed in order and the gate is read from the current tick's already-resolved values.
+
+---
+
 ## Parameterized flows
 
 Flows are functions. They can take parameters:

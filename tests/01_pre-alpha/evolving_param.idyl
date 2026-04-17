@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 another_sine(freq, amp, dt=10ms) = sin(tau * phase) * amp
 |> {

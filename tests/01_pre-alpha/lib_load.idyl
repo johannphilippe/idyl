@@ -1,4 +1,4 @@
-std = lib("stdlib")
+std = import("stdlib")
 
 process: {
     l = std::lfo(1hz, waveform=std::wav_square, dt=50ms)

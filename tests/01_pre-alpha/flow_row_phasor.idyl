@@ -5,7 +5,7 @@
             61, ..., 48, ..., 59, ..., 39, 61, ...
 */
 
-lib("stdlib")
+import("stdlib")
 
 flow cflow = {
     kick:  [!, _, !, !]

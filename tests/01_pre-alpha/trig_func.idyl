@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 flow rhythm = [!, !, _, !, !, !, _, _, _, !, _, !, !, !]
 printable(rhythm!) = rhythm

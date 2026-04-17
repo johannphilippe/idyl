@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 process: {
     amp = pos(square(0.3hz))

@@ -129,6 +129,11 @@ static void collect_stmt_ids(const parser::stmt_ptr& stmt,
             collect_expr_ids(fd.body_, out);
             break;
         }
+        case parser::node_t::on_block: {
+            auto& ob = static_cast<const parser::on_block&>(*stmt);
+            collect_expr_ids(ob.trigger_expr_, out);
+            break;
+        }
         default: break;
     }
 }
@@ -501,6 +506,21 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         break;
     }
 
+    // ── on expr: { handler } → conditional reaction ────────────────────────
+    // Evaluates the trigger expression; runs the body only when it is a live
+    // trigger.  Executed as a normal reaction on every tick of its driving
+    // segment — redistribution places it in the right segment automatically.
+    case parser::node_t::on_block: {
+        auto& ob = static_cast<const parser::on_block&>(*stmt);
+        if (!ob.trigger_expr_) break;
+        value guard = eval_expr(ob.trigger_expr_);
+        if (guard.type_ == value_t::trigger && guard.trigger_) {
+            for (const auto& h : ob.handler_)
+                exec_stmt(h);
+        }
+        break;
+    }
+
     case parser::node_t::stop_statement: {
         // Iterate through all active processes and stop those matching the target name (or all if target is empty)
         auto& stop_stmt = static_cast<const parser::stop_statement&>(*stmt);
@@ -835,6 +855,9 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
             // ── Multi-member flow: return a row slice ──────────────────────
             // Each member is indexed independently based on its own size.
             auto fd = std::make_shared<flow_data>();
+            // Track resolved elements by name so gated members can read the
+            // gate member's output for this tick (members are processed in order).
+            std::unordered_map<std::string, value> resolved_this_tick;
             for (const auto& m : flow.flow_->members_) {
                 flow_member row_m;
                 row_m.name_ = m.name_;
@@ -846,9 +869,18 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 int mi;
 
                 if (is_trigger) {
-                    // Per-member cursor: each member wraps independently
+                    // Per-member cursor: each member wraps independently.
+                    // A gated member (on <gate>) only advances when the gate
+                    // member's element for this tick is a live trigger.
                     int& cur = cursors[m.name_];
-                    if (idx.trigger_) {
+                    bool should_advance = idx.trigger_;
+                    if (should_advance && !m.gate_name_.empty()) {
+                        auto git = resolved_this_tick.find(m.gate_name_);
+                        should_advance = (git != resolved_this_tick.end() &&
+                                          git->second.type_ == value_t::trigger &&
+                                          git->second.trigger_);
+                    }
+                    if (should_advance) {
                         mi = cur % mn;
                         cur = (cur + 1) % mn;
                     } else {
@@ -864,7 +896,10 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     mi = ((int_idx % mn) + mn) % mn;
                 }
 
-                row_m.elements_.push_back(resolve_flow_element(m, mi));
+                value elem = resolve_flow_element(m, mi);
+                if (!m.name_.empty())
+                    resolved_this_tick[m.name_] = elem;
+                row_m.elements_.push_back(std::move(elem));
                 row_m.live_exprs_.push_back(nullptr);
                 row_m.live_deps_.push_back(nullptr);
                 fd->members_.push_back(std::move(row_m));
@@ -2052,7 +2087,8 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
     for (const auto& member : members) {
         if (!member) continue;
         flow_member fm;
-        fm.name_ = member->name_;
+        fm.name_      = member->name_;
+        fm.gate_name_ = member->gate_name_;
         if (member->value_) {
             if (member->value_->type_ == parser::node_t::flow_literal_expr) {
                 auto& fle = static_cast<const parser::flow_literal_expr&>(*member->value_);
@@ -2513,6 +2549,7 @@ void evaluator::diff_and_apply(live_process& lp,
             if (!s) continue;
             if (s->type_ == parser::node_t::catch_block) continue;
             if (s->type_ == parser::node_t::at_block)    continue;
+            if (s->type_ == parser::node_t::on_block)    continue;
 
             std::string bname;
             if (s->type_ == parser::node_t::function_definition)

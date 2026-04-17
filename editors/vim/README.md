@@ -58,7 +58,7 @@ relative path — no extra steps needed.
 | Element | Highlight group |
 |---------|----------------|
 | `process`, `init`, `catch`, `emit`, `start`, `stop` | **Keyword** (control) |
-| `flow`, `lib`, `module` | **Keyword** (declaration) |
+| `flow`, `import`, `module` | **Keyword** (declaration) |
 | `dt=`, `dur=`, `parent=` | **Type** (named parameters) |
 | `sin`, `cos`, `clock`, `tempo`, `metro`, `as_bpm`, `osc_send`, … | **Function** (builtin) |
 | `pi`, `tau` | **Constant** |

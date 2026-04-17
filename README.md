@@ -33,10 +33,11 @@ Same for engine implementation.
 | **Flows** | Ordered sequences with named members, generator expressions, parametric flows, live temporal elements per-slot, dynamic rebuilding when arguments change. |
 | **Emit system** | Side-channel output from temporal functions. Read emitted values with the `::` accessor. |
 | **Catch blocks** | React to events emitted by temporal instances — `timer catch finished: { ... }` |
+| **`on` blocks** | Trigger-gated reaction blocks — `on m: { ... }` fires only when `m` is a live trigger. Also gates flow members: `melody on rhythm: [60, 63, 65]` advances only on rhythm's trigger ticks. |
 | **Clock hierarchy** | Create clocks, bind children to parents, change tempo with automatic proportional propagation. Clock handles are callable: `c(2b)` returns 2 beats at that clock's BPM. Query BPM with `tempo(handle)`. |
 | **First-class functions** | Functions are values. Store them, pass them, select between them with ternary. |
 | **Process control** | `start name` / `stop name` (or just `stop`) — start and stop named process blocks from within a running process. |
-| **Modules** | Built-in OSC and Csound support. Native temporal module functions (`osc_recv`, `cs_chnget`) integrate with the reactive system. External modules via `module()`. Libraries via `lib()` with namespace support. |
+| **Modules** | Built-in OSC and Csound support. Native temporal module functions (`osc_recv`, `cs_chnget`) integrate with the reactive system. External modules via `module()`. Libraries via `import()` with namespace support. |
 | **Process blocks** | The only executable entry points. Named, with optional duration. Start and stop them via OSC in `--listen` mode or from within other processes. |
 | **7-pass semantic analysis** | Symbol collection, name resolution, arity checking, type inference, temporal validation, flow validation, scope validation — all before a single line runs. |
 
@@ -231,6 +232,33 @@ process: {
 }
 ```
 
+### `on` blocks
+
+`on expr: { }` is a trigger-gated reaction — the body runs only when the expression is a live trigger, and is skipped on rest ticks:
+
+```idyl
+import("stdlib")
+
+flow rhythm = [!, _, _, !, !, _]
+
+process: {
+    m = metro(dt=200ms)
+    r = rhythm[m]
+    on r: {
+        print("beat")
+    }
+}
+```
+
+The same keyword gates flow members. `melody on rhythm: [...]` means melody only advances its cursor when rhythm's value for that tick is `!`:
+
+```idyl
+flow pattern = {
+    rhythm : [!, _, _, !, !, _]
+    melody on rhythm : [60, 63, 65]
+}
+```
+
 ### Deferred execution
 
 `@(time_expr): { }` schedules statements to run once after a delay:
@@ -333,8 +361,8 @@ process: {
 Import `.idyl` files with optional namespacing:
 
 ```idyl
-lib("scales.idyl")
-util = lib("utils.idyl")
+import("scales.idyl")
+util = import("utils.idyl")
 
 process: {
     scale = util::major_scale(440)
@@ -441,6 +469,7 @@ What exists:
 - `start`/`stop` keywords for process-to-process control
 - Dynamic parameter re-evaluation — temporal function parameters can themselves be temporal
 - Flows with live temporal elements (per-slot running instances) and dynamic parametric flows (auto-rebuilt when arguments change)
+- `on` blocks — trigger-gated reaction blocks (`on m: { ... }`) and flow member gates (`melody on rhythm: [...]`)
 - Built-in OSC module: send, receive, `osc_recv` native temporal poller
 - Built-in Csound module: `cs_open`, `cs_note`, `cs_chnset`, `cs_chnget` (native temporal)
 - Native temporal module function system — C++ module functions that tick with state and emit values

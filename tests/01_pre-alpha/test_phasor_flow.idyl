@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 flow notes = [61, 48, 59, 39, 77]
 

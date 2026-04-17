@@ -1,5 +1,5 @@
 // Case E: multi-member flow with temporal elements
-lib("stdlib")
+import("stdlib")
 
 flow osc_bank = {
     slow: [sine(1hz, dt=100ms), sine(2hz, dt=100ms)]

@@ -1,7 +1,7 @@
 // Case D: direct temporal elements in a flow
 // Each flow slot IS a temporal instance (sine/square).
 // Indexing should return the current live output of each instance, not a snapshot.
-lib("stdlib")
+import("stdlib")
 
 flow oscs = [sine(1hz, dt=100ms), sine(3hz, dt=100ms)]
 

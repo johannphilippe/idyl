@@ -39,7 +39,7 @@
 %token <std::string> TIME_LITERAL
 %token <std::string> STRING_LITERAL
 
-%token FLOW PROCESS LIB MODULE INIT EMIT CATCH END DT DUR STOP START 
+%token FLOW PROCESS IMPORT MODULE INIT EMIT CATCH END DT DUR STOP START
 %token LAMBDA_BLOCK NAMESPACE_DOT RESTART_MARKER MEMORY_OP RANGE REST AT_OP
 %token PLUS MINUS MUL DIV MOD
 %token EQ NEQ LT GT LE GE
@@ -47,6 +47,7 @@
 %token QUESTION
 %token ASSIGN COLON SEMICOLON COMMA DOT TRIGGER
 %token LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE
+%token ON
 %token YYEOF 0
 
 /* Precedence and associativity */
@@ -105,6 +106,7 @@
 %type <idyl::parser::stmt_ptr> process_body_statement
 %type <std::shared_ptr<idyl::parser::catch_block>> catch_block
 %type <std::shared_ptr<idyl::parser::at_block>> at_block
+%type <std::shared_ptr<idyl::parser::on_block>> on_block
 
 %%
 
@@ -140,7 +142,7 @@ top_level_statements
 top_level_statement
     : function_or_flow_definition { $$ = $1; }
     | process_block { $$ = $1; }
-    | LIB LPAREN STRING_LITERAL RPAREN
+    | IMPORT LPAREN STRING_LITERAL RPAREN
     {
         auto lib_import = std::make_shared<idyl::parser::library_import>();
         lib_import->path_ = $3;
@@ -148,7 +150,7 @@ top_level_statement
         lib_import->column_ = @1.begin.column;
         $$ = lib_import;
     }
-    | IDENTIFIER ASSIGN LIB LPAREN STRING_LITERAL RPAREN
+    | IDENTIFIER ASSIGN IMPORT LPAREN STRING_LITERAL RPAREN
     {
         auto lib_import = std::make_shared<idyl::parser::library_import>();
         lib_import->namespace_ = $1;
@@ -311,12 +313,34 @@ flow_members
         member->column_ = @2.begin.column;
         $$.push_back(member);
     }
+    | flow_members IDENTIFIER ON IDENTIFIER COLON flow_literal
+    {
+        $$ = $1;
+        auto member = std::make_shared<idyl::parser::flow_member>();
+        member->name_ = $2;
+        member->gate_name_ = $4;
+        member->value_ = $6;
+        member->line_ = @2.begin.line;
+        member->column_ = @2.begin.column;
+        $$.push_back(member);
+    }
     | IDENTIFIER COLON flow_literal
     {
         $$ = {};
         auto member = std::make_shared<idyl::parser::flow_member>();
         member->name_ = $1;
         member->value_ = $3;
+        member->line_ = @1.begin.line;
+        member->column_ = @1.begin.column;
+        $$.push_back(member);
+    }
+    | IDENTIFIER ON IDENTIFIER COLON flow_literal
+    {
+        $$ = {};
+        auto member = std::make_shared<idyl::parser::flow_member>();
+        member->name_ = $1;
+        member->gate_name_ = $3;
+        member->value_ = $5;
         member->line_ = @1.begin.line;
         member->column_ = @1.begin.column;
         $$.push_back(member);
@@ -481,6 +505,10 @@ process_body_statement
     {
         $$ = $1;
     }
+    | on_block
+    {
+        $$ = $1;
+    }
     | expression
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
@@ -512,8 +540,29 @@ at_block
     }
     ;
 
+on_block
+    : ON expression COLON LBRACE process_body_statements RBRACE
+    {
+        auto on_stmt = std::make_shared<idyl::parser::on_block>();
+        on_stmt->trigger_expr_ = $2;
+        on_stmt->handler_ = $5;
+        on_stmt->line_ = @1.begin.line;
+        on_stmt->column_ = @1.begin.column;
+        $$ = on_stmt;
+    }
+    | ON expression COLON process_body_statement
+    {
+        auto on_stmt = std::make_shared<idyl::parser::on_block>();
+        on_stmt->trigger_expr_ = $2;
+        on_stmt->handler_ = {$4};
+        on_stmt->line_ = @1.begin.line;
+        on_stmt->column_ = @1.begin.column;
+        $$ = on_stmt;
+    }
+    ;
+
 stop_statement
-    : STOP IDENTIFIER 
+    : STOP IDENTIFIER
     {
         auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
         stop_stmt->target_ = $2;

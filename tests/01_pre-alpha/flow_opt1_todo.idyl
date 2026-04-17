@@ -1,7 +1,7 @@
 // Original bug from TODO.md:
 // flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]
 // should update — previously frozen at initial values
-lib("stdlib")
+import("stdlib")
 
 flow temporal = [sine(5hz, dt=200ms), square(5hz, dt=100ms)]
 

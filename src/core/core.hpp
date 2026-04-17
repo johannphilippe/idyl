@@ -94,7 +94,8 @@ namespace idyl::core {
 
     // ── Flow data ──────────────────────────────────────────────────────────────
     struct flow_member {
-        std::string name_;  // empty for single-member flows
+        std::string name_;      // empty for single-member flows
+        std::string gate_name_; // non-empty → only advance when this member's trigger is live
         std::vector<value> elements_;
 
         // Compound-temporal slots (same size as elements_; entries may be null).

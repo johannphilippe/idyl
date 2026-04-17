@@ -1,4 +1,4 @@
-lib("stdlib")
+import("stdlib")
 
 process: {
     l1 = lfo(10hz, 0.5)

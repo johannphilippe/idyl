@@ -8,12 +8,12 @@ Idƴl supports importing external code through **libraries** and connecting to e
 
 ---
 
-## Libraries — `lib()`
+## Libraries — `import()`
 
 Import another `.idyl` file to reuse its definitions:
 
 ```idyl
-lib("utils.idyl")
+import("utils.idyl")
 ```
 
 All top-level bindings from `utils.idyl` become available in the current scope.
@@ -23,7 +23,7 @@ All top-level bindings from `utils.idyl` become available in the current scope.
 To avoid name collisions, assign the import to a name:
 
 ```idyl
-u = lib("utils.idyl")
+u = import("utils.idyl")
 
 process: {
     result = u::my_function(42)
@@ -41,7 +41,7 @@ For example, if `stdlib` defines both `sine_shape` and `lfo` (which calls `sine_
 internally), this works correctly even when loaded under a namespace:
 
 ```idyl
-std = lib("stdlib")
+std = import("stdlib")
 
 process: {
     l = std::lfo(1hz)   // internally, lfo calls sine_shape — no namespace prefix needed
@@ -61,18 +61,18 @@ executes, then immediately removed. As a result:
 
 | What you write | What resolves |
 |---|---|
-| `lib("stdlib")` | `sine`, `lfo`, ... added to global scope |
-| `std = lib("stdlib")` | only `std::sine`, `std::lfo`, ... in global scope |
-| `std = lib("stdlib")` then `lfo(...)` | **error** — `lfo` is not in global scope |
-| `std = lib("stdlib")` then `std::lfo(...)` | works correctly |
+| `import("stdlib")` | `sine`, `lfo`, ... added to global scope |
+| `std = import("stdlib")` | only `std::sine`, `std::lfo`, ... in global scope |
+| `std = import("stdlib")` then `lfo(...)` | **error** — `lfo` is not in global scope |
+| `std = import("stdlib")` then `std::lfo(...)` | works correctly |
 
 ### Deduplication
 
 If the same library is imported multiple times (directly or transitively), it is only loaded once:
 
 ```idyl
-lib("core.idyl")
-lib("helpers.idyl")    // if helpers.idyl also imports core.idyl, it's not loaded again
+import("core.idyl")
+import("helpers.idyl")    // if helpers.idyl also imports core.idyl, it's not loaded again
 ```
 
 ---
