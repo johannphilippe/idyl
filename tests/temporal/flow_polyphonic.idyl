@@ -1,0 +1,17 @@
+import("stdlib")
+flow pattern = {
+    rhythm: [!, _, !, !, _, ! , !, !, _]
+    notes: [60 ,50, 40, 30]
+}
+
+beg = now()
+
+process: {
+    m1 = metro(dt=500ms)
+    m2 = metro(dt=250ms)
+
+    p1 = pattern[m1]
+    p2 = pattern[m2]
+
+    print( p1.notes, p2.notes, now() - beg)
+}

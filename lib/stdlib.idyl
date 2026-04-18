@@ -69,7 +69,7 @@ saw(freq, amplitude=1, dt=10ms) = out |> {
 // Uses pure shape functions so first-class function dispatch works correctly.
 lfo(freq, amplitude=1, waveform=0, dt=10ms) = out |> {
     init: { phase = 0 }
-    out = sine_shape(phase, amplitude); tri_shape(phase, amplitude); square_shape(phase, amplitude); saw_shape(phase, amplitude) ? waveform
+    out = (waveform) ? sine_shape(phase, amplitude); tri_shape(phase, amplitude); square_shape(phase, amplitude); saw_shape(phase, amplitude)
     phase = fmod(phase + dt / freq, 1)
 }
 wav_sin     = 0
@@ -121,7 +121,7 @@ euclid(hits, steps, dt=10ms) = trig |> {
     phase = fmod(phase + dt / (steps * dt), 1)
     curr = int(phase * steps)
     onset = fmod(curr * hits, steps) < hits
-    trig = trigger((curr != prev) * onset)
+    trig = trigger( (curr != prev) * onset)
 }
 
 // Coin — trigger that fires with probability `p` (0…1) on each tick.
@@ -138,8 +138,7 @@ counter(dt=10ms) = cnt |> {
 
 rcounter(incr!, reset!, dt=10ms) = count |> {
     init: {count = 0}
-    count = count; count + 1 ? (incr)
-    count = count; reset ? (reset)
+    count = (reset) ? count + 1; 0
 }
 
 // Gate — hold a trigger high for a given `hold` duration, then rest.

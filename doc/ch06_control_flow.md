@@ -12,30 +12,51 @@ Idƴl has no `if/else`, no `while`, no `for`. Control flow is expression-based: 
 
 The ternary operator selects between options based on a condition.
 
-**Syntax**: `option0; option1 ? condition`
+**Syntax**: `condition ? option0; option1`
 
 - If `condition` is `0` (false) → returns `option0`
 - If `condition` is non-zero (true) → returns `option1`
 
 ```idyl
-abs_value(x) = (0 - x); x ? (x >= 0)
+abs_value(x) = (x >= 0) ? (0 - x); x
 
-safe_divide(a, b) = 0; (a / b) ? (b != 0)
-```
-
-### Multi-way selection
-
-More than two options — the condition wraps around:
-
-```idyl
-// condition % N selects the option
-note(degree) = 261; 293; 329; 349; 391 ? (degree % 5)
-
-state_out(state, idle, attack, sustain) =
-    idle; attack; sustain ? state
+safe_divide(a, b) = (b != 0) ? 0; (a / b)
 ```
 
 Options are separated by `;` (semicolons), not commas — this avoids ambiguity with function argument separators.
+
+### Single-option shorthand
+
+When only one option is given, the implicit second option is `_` (rest):
+
+```idyl
+// (m) ? expr   is equivalent to   m ? _; expr
+// → evaluates expr only when m is truthy; returns _ otherwise
+(m) ? osc_send(handle, "/gate", 1)
+```
+
+This is the idiomatic way to make an expression conditional on a trigger.
+
+### Multi-way selection
+
+More than two options — selected by integer index:
+
+```idyl
+// condition selects by index: 0 → first, 1 → second, …
+note(degree) = (degree % 5) ? 261; 293; 329; 349; 391
+
+state_out(state, idle, attack, sustain) =
+    state ? idle; attack; sustain
+```
+
+### Style note
+
+Wrapping the condition in parentheses is recommended for clarity but not required:
+
+```idyl
+x > 0 ? 0; 1      // works
+(x > 0) ? 0; 1    // clearer — recommended
+```
 
 ---
 
@@ -139,7 +160,7 @@ From highest to lowest:
 8. `&`
 9. `^` (XOR)
 10. `|`
-11. `;` ... `?` (ternary)
+11. `?` ... `;` (ternary condition, then options)
 
 Use parentheses when in doubt:
 

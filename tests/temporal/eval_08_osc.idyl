@@ -20,7 +20,7 @@ sender(dt=100ms) = handle
     res = o::osc_send(handle, "/synth/name", "sine")
     res = o::osc_send(handle, "/control/mix", 0.75, "wet")
     cnt = cnt + 1
-    emit kill = _;! ? (cnt == 10)
+    emit kill = (cnt == 10) ? _; !
 } 
 
 process: {

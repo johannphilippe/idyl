@@ -336,7 +336,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         *v = value::rest();
                 }
             }
-            epoch_time_ms_ = 0.0;
+            epoch_flush_pending_ = false;
         }
 
         // Subscribe each segment's temporal source to the scheduler.
@@ -376,22 +376,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         auto si = weak_inst.lock();
                         if (!si || !si->active_) return false;
 
-                        // ── Epoch transition: flush pending resets ──────────
-                        // When a new scheduler time-step begins (t differs from
-                        // the current epoch by more than 0.5 ms), apply all
-                        // deferred trigger resets from the previous epoch.
-                        // This ensures that segments firing at the same scheduler
-                        // time all see each other's trigger bindings as live (!),
-                        // rather than having the first segment's reset clobber the
-                        // env before subsequent segments' reactions run.
-                        if (t > epoch_time_ms_ + 0.5) {
-                            for (const auto& vname : epoch_reset_vars_) {
-                                value* v = env_.lookup(vname);
-                                if (v) *v = value::rest();
-                            }
-                            epoch_reset_vars_.clear();
-                            epoch_time_ms_ = t;
-                        }
+                        // (epoch-transition flush removed — see epoch_flush below)
 
                         tick_instance(*si, def_ptr.get());
 
@@ -399,17 +384,28 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         // can safely replace them on the main thread.
                         parser::stmt_ptr binding_snap;
                         std::vector<parser::stmt_ptr> reactions_snap;
+                        std::vector<parser::stmt_ptr> shared_snap;
                         {
                             std::lock_guard<std::mutex> lk(rxn->mutex);
                             binding_snap   = rxn->binding_stmt;
                             reactions_snap = rxn->reactions;
+                            shared_snap    = rxn->shared_reactions;
                         }
 
                         retick_instance_ = si.get();
                         if (binding_snap) exec_stmt(binding_snap);
                         retick_instance_ = nullptr;
 
+                        // Run segment-local reactions immediately.
                         for (const auto& r : reactions_snap) exec_stmt(r);
+
+                        // Queue shared reactions for the end of this epoch.
+                        // Dedup by AST pointer so they fire exactly once even
+                        // when multiple segments fire at the same scheduler time.
+                        for (const auto& r : shared_snap) {
+                            if (r && epoch_deferred_dedup_.insert(r.get()).second)
+                                epoch_deferred_.push_back(r);
+                        }
 
                         // Catches: lock to guard against concurrent clear()
                         // during hot swap.  Handlers execute while holding the
@@ -436,6 +432,26 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                             value* bound = env_.lookup(var);
                             if (bound && bound->type_ == value_t::trigger)
                                 epoch_reset_vars_.push_back(var);
+                        }
+
+                        // ── Schedule epoch flush (0.1ms one-shot) ────────────
+                        // Fires after all same-time callbacks complete, giving
+                        // shared reactions a fully-consistent snapshot.
+                        if (!epoch_flush_pending_) {
+                            epoch_flush_pending_ = true;
+                            scheduler_->subscribe(0.1, [this](double, double) -> bool {
+                                for (const auto& r : epoch_deferred_)
+                                    exec_stmt(r);
+                                epoch_deferred_.clear();
+                                epoch_deferred_dedup_.clear();
+                                for (const auto& vname : epoch_reset_vars_) {
+                                    value* v = env_.lookup(vname);
+                                    if (v) *v = value::rest();
+                                }
+                                epoch_reset_vars_.clear();
+                                epoch_flush_pending_ = false;
+                                return false;
+                            });
                         }
 
                         return !should_end;
@@ -823,7 +839,13 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 if (!is_float) int_idx = static_cast<int>(v);
             }
 
-            auto& cursors = *flow.flow_->cursors_;
+            // Per-call-site cursors: each index expression in the source owns
+            // an independent cursor map so multiple reads of the same flow
+            // (polyphony) never interfere with each other.
+            auto& site_cursor_ptr = flow_site_cursors_[fae.access_.get()];
+            if (!site_cursor_ptr)
+                site_cursor_ptr = std::make_shared<std::unordered_map<std::string, int>>();
+            auto& cursors = *site_cursor_ptr;
 
             // ── Single-member flow: return element directly ────────────────
             if (flow.flow_->members_.size() == 1) {
@@ -2502,6 +2524,37 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
         std::lock_guard<std::mutex> lk(segments[si].rxn->mutex);
         segments[si].rxn->reactions = std::move(work[si]);
     }
+
+    // ── Separate shared reactions from local ones ─────────────────────────────
+    // A reaction that appears in more than one segment's list must fire exactly
+    // once per epoch (not once per firing segment).  Move those reactions from
+    // reactions → shared_reactions so the scheduler callback can queue them
+    // with epoch-level deduplication rather than running them immediately.
+    {
+        std::unordered_map<const parser::statement*, int> refcount;
+        for (size_t si = 0; si < segments.size(); ++si)
+            for (const auto& r : segments[si].rxn->reactions)
+                if (r) refcount[r.get()]++;
+
+        std::unordered_set<const parser::statement*> shared_set;
+        for (const auto& [ptr, cnt] : refcount)
+            if (cnt > 1) shared_set.insert(ptr);
+
+        if (!shared_set.empty()) {
+            for (size_t si = 0; si < segments.size(); ++si) {
+                std::lock_guard<std::mutex> lk(segments[si].rxn->mutex);
+                std::vector<parser::stmt_ptr> local, shared;
+                for (const auto& r : segments[si].rxn->reactions) {
+                    if (r && shared_set.count(r.get()))
+                        shared.push_back(r);
+                    else
+                        local.push_back(r);
+                }
+                segments[si].rxn->reactions        = std::move(local);
+                segments[si].rxn->shared_reactions = std::move(shared);
+            }
+        }
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2762,25 +2815,18 @@ void evaluator::diff_and_apply(live_process& lp,
                     auto si = weak_inst.lock();
                     if (!si || !si->active_) return false;
 
-                    if (t > epoch_time_ms_ + 0.5) {
-                        for (const auto& vname : epoch_reset_vars_) {
-                            value* v = env_.lookup(vname);
-                            if (v) *v = value::rest();
-                        }
-                        epoch_reset_vars_.clear();
-                        epoch_time_ms_ = t;
-                    }
-
                     tick_instance(*si, def_ptr.get());
 
                     // Snapshot reactions under lock (same pattern as the
                     // process-setup closure above).
                     parser::stmt_ptr binding_snap;
                     std::vector<parser::stmt_ptr> reactions_snap;
+                    std::vector<parser::stmt_ptr> shared_snap;
                     {
                         std::lock_guard<std::mutex> lk(rxn->mutex);
                         binding_snap   = rxn->binding_stmt;
                         reactions_snap = rxn->reactions;
+                        shared_snap    = rxn->shared_reactions;
                     }
 
                     retick_instance_ = si.get();
@@ -2788,6 +2834,11 @@ void evaluator::diff_and_apply(live_process& lp,
                     retick_instance_ = nullptr;
 
                     for (const auto& r : reactions_snap) exec_stmt(r);
+
+                    for (const auto& r : shared_snap) {
+                        if (r && epoch_deferred_dedup_.insert(r.get()).second)
+                            epoch_deferred_.push_back(r);
+                    }
 
                     {
                         std::lock_guard<std::mutex> lk(rxn->mutex);
@@ -2806,6 +2857,24 @@ void evaluator::diff_and_apply(live_process& lp,
                         if (bound && bound->type_ == value_t::trigger)
                             epoch_reset_vars_.push_back(var);
                     }
+
+                    if (!epoch_flush_pending_) {
+                        epoch_flush_pending_ = true;
+                        scheduler_->subscribe(0.1, [this](double, double) -> bool {
+                            for (const auto& r : epoch_deferred_)
+                                exec_stmt(r);
+                            epoch_deferred_.clear();
+                            epoch_deferred_dedup_.clear();
+                            for (const auto& vname : epoch_reset_vars_) {
+                                value* v = env_.lookup(vname);
+                                if (v) *v = value::rest();
+                            }
+                            epoch_reset_vars_.clear();
+                            epoch_flush_pending_ = false;
+                            return false;
+                        });
+                    }
+
                     return true;
                 });
         }

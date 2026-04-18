@@ -10,7 +10,7 @@ flow melody(i) = {
 
 flow octaver = [12, 7, 0, 3, 5]
 
-note(spike!, note) = _; cs_note(handle, "first", 2s, 0.3, note) ? spike // This reveals an error in triggered functions That should only be triggered when the trigger is true
+note(spike!, note) = (spike) ? _; cs_note(handle, "first", 2s, 0.3, note) // This reveals an error in triggered functions That should only be triggered when the trigger is true
 
 
 process cs: {

@@ -12,6 +12,6 @@ process: {
     m = metro(dt= 300ms)
     c = counter(dt=300ms)
     p = pattern[m] 
-    _; cs_note(handle, "first", 2s, 0.3, mtof(p.melody) ) ? p.rhythm
+    (p.rhythm) ? _; cs_note(handle, "first", 2s, 0.3, mtof(p.melody))
 
 }

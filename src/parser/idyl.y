@@ -52,8 +52,6 @@
 
 /* Precedence and associativity */
 %right ASSIGN
-%left SEMICOLON
-%left QUESTION
 //%left OR
 //%left AND
 %left EQ NEQ
@@ -765,11 +763,23 @@ assignment_expression
 
 ternary_expression
     : logical_or_expression { $$ = $1; }
-    | ternary_options QUESTION logical_or_expression
+    | logical_or_expression QUESTION ternary_options
     {
         auto ternary = std::make_shared<idyl::parser::ternary_op>();
-        ternary->options_ = $1;
-        ternary->condition_ = $3;
+        ternary->options_ = $3;
+        // Single-option form: cond ? expr  →  cond ? _ ; expr
+        // options_[0] = false/rest branch, options_[1] = true branch
+        if (ternary->options_.size() == 1) {
+            auto rest = std::make_shared<idyl::parser::rest_literal>();
+            rest->line_ = @2.begin.line;
+            rest->column_ = @2.begin.column;
+            auto rest_expr = std::make_shared<idyl::parser::literal_expr>();
+            rest_expr->literal_ = rest;
+            rest_expr->line_ = @2.begin.line;
+            rest_expr->column_ = @2.begin.column;
+            ternary->options_.insert(ternary->options_.begin(), rest_expr);
+        }
+        ternary->condition_ = $1;
         ternary->line_ = @2.begin.line;
         ternary->column_ = @2.begin.column;
         auto expr = std::make_shared<idyl::parser::ternary_op_expr>();
@@ -786,7 +796,7 @@ ternary_options
         $$ = $1;
         $$.push_back($3);
     }
-    | logical_or_expression 
+    | logical_or_expression
     {
         $$ = {$1};
     }

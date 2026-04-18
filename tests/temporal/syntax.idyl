@@ -61,11 +61,11 @@ half(x) = x / 2
 // Frequency conversions
 midi_to_freq(midi_note) = 440 * (2.0 ^ ((midi_note - 69) / 12.0))
 
-// Utility: Is this number positive?  (ternary: false_val; true_val ? cond)
-is_positive(x) = 0; 1 ? (x > 0)
+// Utility: Is this number positive?
+is_positive(x) = (x > 0) ? 0; 1
 
 // Utility: Is this number in range?
-in_range(x) = 0; 1 ? ((x >= 0) & (x <= 1))
+in_range(x) = ((x >= 0) & (x <= 1)) ? 0; 1
 
 
 // ============================================================================
@@ -158,24 +158,24 @@ full_name = "idyl" + " " + "lang"
 // SECTION 9: CONDITIONAL EXPRESSIONS (TERNARY)
 // ============================================================================
 
-// Two-way selection: false_option; true_option ? condition
-abs_value(x) = (0 - x); x ? (x >= 0)
+// Two-way selection: condition ? false_option ; true_option
+abs_value(x) = (x >= 0) ? (0 - x); x
 
 // Safe division — return 0 if dividing by zero
-safe_divide(a, b) = 0; (a / b) ? (b != 0)
+safe_divide(a, b) = (b != 0) ? 0; (a / b)
 
 // Select between two waveforms
 waveform_select(is_sine, freq) = 
-    sin(freq); cos(freq) ? is_sine
+    (is_sine) ? sin(freq); cos(freq)
 
 // Multi-way selection (wraps around) — all options must be valid expressions
 // Use numeric constants for note frequencies (C4, D4, E4, F4, G4):
 note_from_degree(degree) = 
-    261; 293; 329; 349; 391 ? (degree % 5)
+    (degree % 5) ? 261; 293; 329; 349; 391
 
 // State machine: select output based on state index
 state_output(state, idle_val, attack_val, sustain_val) = 
-    idle_val; attack_val; sustain_val ? state
+    (state) ? idle_val; attack_val; sustain_val
 
 
 // ============================================================================
@@ -292,7 +292,7 @@ smooth_control(input, smoothing_factor, dt=10ms) = smoothed |> {
 envelope_follower(input, attack_coeff, release_coeff, dt=10ms) = env_out |> {
     init: { env = 0 }
     env_out = env
-    env = (env * release_coeff); (input * attack_coeff + env * (1 - attack_coeff)) ? (input > env)
+    env = (input > env) ? (env * release_coeff); (input * attack_coeff + env * (1 - attack_coeff))
 }
 
 
@@ -327,15 +327,15 @@ seq_selector(elements, advance!) = current_element |> {
 // Smart decay: triggers set to maximum, then continuously decays over time
 decay_on_trigger(trigger!, decay_rate, dt=50ms) = level |> {
     init: { level = 0 }
-    level = (0; 1 ? trigger) + level * (1 - decay_rate)
+    level = ((trigger) ? 0; 1) + level * (1 - decay_rate)
 }
 
 // Ducking envelope: responds to trigger with release over time
 ducker(trigger!, release_ms, dt=10ms) = gate_out |> {
     init: { target = 0  current = 0 }
     gate_out = current
-    target = (0; 1 ? trigger)
-    current = target; current; current * (1 - release_ms / 1000) ? (0; 1 ? trigger)
+    target = (trigger) ? 0; 1
+    current = (trigger) ? target; current; current * (1 - release_ms / 1000)
 }
 
 
@@ -357,7 +357,7 @@ step_counter(dt=100ms) = count |> {
 countdown(dt=100ms) = remaining |> {
     init: { remaining = 10  emit finished = _ }
     remaining = remaining - 1
-    emit finished = _; ! ? (remaining == 0)
+    emit finished = (remaining == 0) ? _; !
 }
 
 
@@ -380,7 +380,7 @@ countdown(dt=100ms) = remaining |> {
 // A function name used as an expression returns a function reference.
 
 // Ternary selector chooses between functions:
-wave_select(selector) = sin; cos ? selector
+wave_select(selector) = (selector) ? sin; cos
 
 // The selected function can be called indirectly in a process block.
 // (Demonstrated in Section 21)

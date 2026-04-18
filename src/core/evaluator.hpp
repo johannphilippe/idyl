@@ -9,6 +9,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "parser/ast.hpp"
 #include "core/core.hpp"
@@ -141,7 +142,8 @@ namespace idyl::core {
         struct reaction_set {
             std::mutex                     mutex;   // guards the fields below
             parser::stmt_ptr               binding_stmt;
-            std::vector<parser::stmt_ptr>  reactions;
+            std::vector<parser::stmt_ptr>  reactions;        // local to this segment
+            std::vector<parser::stmt_ptr>  shared_reactions; // fire once per epoch, after all local
             std::vector<catch_info>        catches;
         };
 
@@ -235,6 +237,17 @@ namespace idyl::core {
         };
         std::unordered_map<const parser::node*, memory_buffer> delay_memories_;
 
+        // ── Per-call-site flow cursors ──────────────────────────────────────────
+        // Each flow index expression (flow[idx]) in the source gets its own
+        // cursor map, keyed by its stable AST node pointer.  This makes every
+        // call site advance independently, enabling polyphonic use:
+        //   p1 = pattern[m1]  — owns cursor set A
+        //   p2 = pattern[m2]  — owns cursor set B (separate, no interference)
+        // Covers static flows, parametric flows, and mixed cases uniformly
+        // because the fix sits at the one place all index evaluations pass through.
+        std::unordered_map<const parser::node*,
+            std::shared_ptr<std::unordered_map<std::string, int>>> flow_site_cursors_;
+
         // Convenience: current main clock BPM.
         double main_clock_bpm() const { return clocks_.main_bpm(); }
 
@@ -270,8 +283,24 @@ namespace idyl::core {
         // epoch, all pending resets are applied, then the new epoch begins.
         // Stored as variable names (not raw pointers) so they remain valid even
         // if scope frames are rebuilt during hot reload.
-        double epoch_time_ms_ = -1.0;
+        // ── Epoch trigger-reset accumulator ────────────────────────────────────
+        // Variable names whose trigger binding must be reset to rest after the
+        // current epoch ends.  Flushed by the epoch_flush callback.
         std::vector<std::string> epoch_reset_vars_;
+
+        // ── Epoch-level shared reaction queue ───────────────────────────────────
+        // Reactions that live in multiple segments (e.g. print(p1, p2)) are
+        // queued here — once per epoch, deduplicated — and executed by the
+        // epoch flush callback that fires 0.1 ms after the LAST same-epoch
+        // segment callback.  By that time all local bindings are up to date
+        // and shared reactions see a fully consistent snapshot.
+        std::vector<parser::stmt_ptr>                    epoch_deferred_;
+        std::unordered_set<const parser::statement*>     epoch_deferred_dedup_;
+
+        // True while a flush is already scheduled for the current epoch.
+        // Prevents multiple same-epoch callbacks from each scheduling their
+        // own 0.1 ms flush subscription.
+        bool epoch_flush_pending_ = false;
 
         // Runtime warnings (non-fatal)
         struct runtime_warning {

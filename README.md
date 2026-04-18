@@ -93,14 +93,17 @@ No `return` keyword — the body *is* the result.
 
 ### Conditional expressions
 
-No `if/else`. Selection uses the ternary operator with semicolons separating options:
+No `if/else`. Selection uses the ternary operator — condition first, options after `?`:
 
 ```idyl
-// false_val; true_val ? condition
-safe_divide(a, b) = 0; (a / b) ? (b != 0)
+// condition ? false_val ; true_val
+safe_divide(a, b) = (b != 0) ? 0; (a / b)
 
-// Multi-way selection (wraps around)
-note(degree) = 261; 293; 329; 349; 391 ? (degree % 5)
+// Single-option: evaluates only when condition is truthy, otherwise _
+(m) ? osc_send(handle, "/gate", 1)
+
+// Multi-way selection by integer index
+note(degree) = (degree % 5) ? 261; 293; 329; 349; 391
 ```
 
 ### Flows
@@ -182,7 +185,7 @@ React to events emitted by temporal instances:
 countdown(dt=100ms) = remaining |> {
     init: { remaining = 10  emit finished = _ }
     remaining = remaining - 1
-    emit finished = _; ! ? (remaining == 0)
+    emit finished = (remaining == 0) ? _; !
 }
 
 process: {

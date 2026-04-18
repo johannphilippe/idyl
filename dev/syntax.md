@@ -279,8 +279,8 @@ sample_hold(input, capture!) = held_value |> {
 // Counter increments on spike, resets on reset trigger
 super_counter(spike!, reset!) = count |> {
     init: { count = 0 }
-    count = count + (0; 1 ? spike)
-    count = count; 0 ? reset
+    count = count + (spike ? 0; 1)
+    count = reset ? count; 0
 }
 ```
 
@@ -289,14 +289,14 @@ super_counter(spike!, reset!) = count |> {
 // Trigger increments, clock provides steady decay
 smart_counter(spike!, dt=100ms) = count |> {
     init: { count = 0 }
-    count = count + (0; 1 ? spike) - 0.01
+    count = count + (spike ? 0; 1) - 0.01
 }
 ```
 
 **Semantic Distinction**: 
 - **Clock-driven** (`dt=10ms`): Updates at fixed intervals; execute all update code
 - **Pure trigger-driven** (trigger parameter with `!`): Updates only when trigger fires; execute all update code unconditionally
-- **Hybrid** (both trigger param + dt): Updates on both events; inspect trigger value `(_; 1 ? trigger)` to distinguish which event fired
+- **Hybrid** (both trigger param + dt): Updates on both events; inspect trigger value `(trigger ? _; 1)` to distinguish which event fired
 
 ### 4.2 Initialization Block
 
@@ -404,28 +404,35 @@ in_range = (x > 0) * (x < 1)
 
 **Syntax**:
 ```
-option0; option1; option2; ... ? condition
+condition ? option0; option1; option2; ...
 ```
 
-**Note**: Options are separated by `;` (semicolon), not `,`, to avoid ambiguity with function argument separators.
+The condition comes **first**, before `?`. Options follow, separated by `;`.
+
+**Note**: `;` is used (not `,`) to avoid ambiguity with function argument separators.
 
 **Behavior**:
-- If `condition = 0`, returns `option0`
-- If `condition = N`, returns `optionN`
-- **Out-of-range behavior**: Wraps around (modulo) to stay within valid options
+- If `condition = 0` (false/rest) → returns `option0`
+- If `condition = N` → returns `optionN`
+- **Out-of-range**: wraps around (modulo) to stay within valid options
+
+**Single-option shorthand**: `condition ? expr` is equivalent to `condition ? _; expr` — evaluates `expr` only when the condition is truthy, otherwise returns `_`.
 
 **Examples**:
 ```idl
-// Two-way
-envelope_type(is_fast) = linear; exponential ? is_fast
+// Two-way (parens around condition recommended for clarity)
+envelope_type(is_fast) = is_fast ? linear; exponential
+
+// Single-option: fires only when trigger is live
+(m) ? osc_send(handle, "/gate", 1)
 
 // Multi-way (wraps)
 play_note(degree) = 
-    note_c; note_d; note_e; note_f; note_g ? (degree % 5)
+    (degree % 5) ? note_c; note_d; note_e; note_f; note_g
 
 // State selection
 state_output(state) = 
-    idle_out; attack_out; decay_out; sustain_out ? state
+    state ? idle_out; attack_out; decay_out; sustain_out
 ```
 
 ### 5.4 Bitwise Operations
@@ -448,10 +455,10 @@ Use ternary operator (Section 5.3); no `if/else` keywords.
 
 ```idl
 // Simple condition
-is_positive(x) = 0; 1 ? (x > 0)
+is_positive(x) = (x > 0) ? 0; 1
 
 // Nested conditions
-safe_divide(a, b) = 0; (a / b) ? (b != 0)
+safe_divide(a, b) = (b != 0) ? 0; (a / b)
 ```
 
 ### 6.2 Iteration via Functional Generators
@@ -566,7 +573,7 @@ Using the primitive `bit(val, index)` returns the binary state of a bit inside a
 a = int(7)
 b = int(3)
 
-create_pattern(a, b) = [i = 0..7 : _; ! ? bit(a&b, i)]
+create_pattern(a, b) = [i = 0..7 : bit(a&b, i) ? _; !]
 ```
 
 #### Flow Transformation Functions
@@ -1032,7 +1039,7 @@ pairs = [x = [1, 2], y = [a, b] : (x, y)]
 // Result: [(1, a), (1, b), (2, a), (2, b)]
 
 // Conditional generation (conceptual)
-filter_range = [i = 0..100 : 0; i ? (i % 2 == 0)]
+filter_range = [i = 0..100 : (i % 2 == 0) ? 0; i]
 ```
 
 ### F.2 Recursive Generators
@@ -1041,7 +1048,7 @@ filter_range = [i = 0..100 : 0; i ? (i % 2 == 0)]
 // Define recursive sequences (conceptual)
 fibonacci = [n = 0..20 : fib(n)]
 
-fib(n) = 0; 1; fib(n-1) + fib(n-2) ? (n < 2)
+fib(n) = (n < 2) ? 0; 1; fib(n-1) + fib(n-2)
 ```
 
 ---

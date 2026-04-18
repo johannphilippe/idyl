@@ -44,8 +44,8 @@ These are pre-existing and unresolved. Most are benign (generator expressions be
 ### Function definitions are global-scope only
 You cannot define a function inside a process block or a lambda body. This forces programmers to hoist all helper functions to the top level, which creates noise and breaks locality. Closures are also absent. This is the single most limiting structural constraint on expressiveness right now.
 
-### The ternary operator is unusual and hard to read
-`false_val; true_val ? condition` reads backwards compared to every language a programmer has used before. The multi-way form (`a; b; c; d ? index`) is genuinely useful, but the two-way form regularly causes confusion. A future alias or alternative spelling (`cond ? a : b`) could co-exist without breaking the n-way form.
+### The ternary operator ~~is unusual and hard to read~~ — **resolved**
+The syntax has been changed to condition-first: `condition ? false_val; true_val`. The condition now reads left-to-right. A single-option shorthand `cond ? expr` (equivalent to `cond ? _; expr`) makes the trigger-gate pattern concise. The multi-way N-way form remains unchanged in semantics: `index ? opt0; opt1; opt2; …`.
 
 ### No explicit error handling at runtime
 User programs have no mechanism to catch runtime errors (division by zero, type mismatches, bad flow access). The evaluator either silently returns 0 or crashes. For long-running temporal programs, a silent wrong value is worse than an informative error.
@@ -62,8 +62,8 @@ For a language targeting musical and embedded use, the absence of serial I/O and
 ### `process` keyword semantics
 The TODO itself notes that `process` doesn't fit the language's vocabulary ("tide", "weave", etc. were considered). This is a pre-alpha window to rename it — after 1.0, renaming a keyword is a breaking change with no easy migration path.
 
-### Flow cursors are global, not per-call-site
-Two different call sites reading the same flow share the same cursor. This means `pattern[m1]` and `pattern[m2]` race against each other — you cannot independently step through the same flow from two different tempos. Flows need to be instanced (cursor owned by the call site) for polyphonic use to work correctly.
+### Flow cursors ~~are global, not per-call-site~~ — **resolved**
+Cursors are now per-call-site, keyed by the stable AST node pointer of the `flow_access_expr`. `pattern[m1]` and `pattern[m2]` each own independent cursors and step through the flow at their own rate. Polyphonic use works correctly for static, dynamic, and parametric flows.
 
 ### No audio-rate scheduling
 The scheduler is system-clock based, accurate to ~1ms. For sample-accurate scheduling (synthesis, tight rhythmic quantization below 1ms), a separate audio-buffer-rate mode is needed. The TODO acknowledges this as "later". Until then, the language cannot replace an audio-rate environment.
@@ -94,7 +94,7 @@ The current scope model is simple because functions cannot close over process-lo
 | | Item | Impact |
 |---|---|---|
 | 🔴 | Fix parser conflicts | Technical debt, potential latent parse bugs |
-| 🔴 | Flow cursor instancing per call-site | Correctness — current shared cursors are wrong for polyphony |
+| ✅ | Flow cursor instancing per call-site — resolved | Each call site owns its cursor; polyphony works correctly |
 | 🟠 | Serial + MIDI modules | Missing for hardware use |
 | 🟠 | Runtime error handling | Silent failures in long-running programs are dangerous |
 | 🟡 | Function definitions in process/lambda scope | Quality of life, code locality |
@@ -102,4 +102,4 @@ The current scope model is simple because functions cannot close over process-lo
 | 🟡 | Consider renaming `process` before 1.0 | Breaking change window is closing |
 | 🟢 | Audio-rate scheduler mode | Longer term, needed for synthesis |
 | 🟢 | Closures | Longer term, expressiveness |
-| 🟢 | Ternary alias | Quality of life, onboarding |
+| ✅ | Ternary syntax — resolved | Condition-first `cond ? a; b` implemented |

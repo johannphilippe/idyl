@@ -2,7 +2,7 @@ metro(dt=200ms) = !
 rcounter(incr!, reset!) = cnt 
 |> {
     init: {cnt = 0}
-    cnt = cnt + 1; 0 ? reset
+    cnt = (reset) ? cnt + 1; 0
 }
 
 counter(incr!) = cnt

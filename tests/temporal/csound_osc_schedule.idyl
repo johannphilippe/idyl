@@ -17,8 +17,8 @@ process: {
     print(fl.notes, fl.rhythm)
 
     // ternary condition to trigger event or not : rest, or event depending on trigger
-    _; osc_send(handle, "/csound/scheduler", mtof(80)) ? met
-    _; osc_send(handle, "/csound/scheduler", mtof(fl.notes)) ? fl.rhythm
+    (met) ? _; osc_send(handle, "/csound/scheduler", mtof(80))
+    (fl.rhythm) ? _; osc_send(handle, "/csound/scheduler", mtof(fl.notes))
 
     @(60s): {
         print("End of instance")

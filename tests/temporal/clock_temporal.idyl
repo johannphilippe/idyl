@@ -8,8 +8,8 @@ envelope(attack_steps, sustain_level, dt=50ms) = level |> {
     init: { level = 0  tick = 0  emit stage = "attack" }
     tick = tick + 1
     // Attack phase: ramp up.  After attack, hold at sustain.
-    level = (tick / attack_steps); sustain_level ? (tick >= attack_steps)
-    emit stage = "attack"; "sustain" ? (tick >= attack_steps)
+    level = (tick >= attack_steps) ? (tick / attack_steps); sustain_level
+    emit stage = (tick >= attack_steps) ? "attack"; "sustain"
 }
 
 // ── Nonlinear exponential decay ────────────────────────────────
@@ -17,7 +17,7 @@ envelope(attack_steps, sustain_level, dt=50ms) = level |> {
 exp_decay(factor, dt=50ms) = level |> {
     init: { level = 1  emit done = _ }
     level = level * factor
-    emit done = _; ! ? (level < 0.01)
+    emit done = (level < 0.01) ? _; !
 }
 
 // ── Ramp generator ─────────────────────────────────────────────

@@ -3,7 +3,7 @@ cnt(limit, dt=300ms) = cnt
 |> {
     init: {cnt = 0}
     cnt = cnt + 1 
-    emit killsig = _; ! ? (cnt == limit)
+    emit killsig = (cnt == limit) ? _; !
 }
 
 process a: {

@@ -6,7 +6,7 @@
 */
 
 // ── Ternary: two-way selection ────────────────────────────────────
-// (false_option ; true_option ? condition)
+// condition ? false_option ; true_option
 // condition=1 → picks index 1 (true_option)
 // condition=0 → picks index 0 (false_option)
 
@@ -14,22 +14,22 @@ pos_val = 5
 neg_val = 0 - 3
 
 // is_positive: 0 if <=0, 1 if >0
-is_positive(x) = 0; 1 ? (x > 0)
+is_positive(x) = (x > 0) ? 0; 1
 
 pos_check_5 = is_positive(5)
 pos_check_neg = is_positive(0 - 3)
 pos_check_zero = is_positive(0)
 
 // safe_divide: return 0 if b==0, else a/b
-safe_divide(a, b) = 0; (a / b) ? (b != 0)
+safe_divide(a, b) = (b != 0) ? 0; (a / b)
 
 safe1 = safe_divide(10, 2)
 safe2 = safe_divide(10, 0)
 
 // ── Multi-way ternary ─────────────────────────────────────────────
-// selector(n) = a; b; c ? n
+// selector(n) = (n) ? a; b; c
 // n=0 → a, n=1 → b, n=2 → c (wraps)
-pick(n) = 100; 200; 300 ? n
+pick(n) = (n) ? 100; 200; 300
 
 pick0 = pick(0)
 pick1 = pick(1)
