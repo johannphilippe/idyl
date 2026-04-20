@@ -29,7 +29,7 @@
 #include "include/idyl_module_api.h"
 
 // Forward-declare scheduler to avoid circular includes
-namespace idyl::time { struct sys_clock_scheduler; }
+namespace idyl::time { struct idyl_scheduler; }
 
 namespace idyl::module {
 
@@ -114,7 +114,7 @@ namespace idyl::module {
         virtual std::string unavailable_reason() const { return "unknown"; }
         // Optional: called after the scheduler is available.
         // Modules that need timing (dt-driven sends, etc.) override this.
-        virtual void set_scheduler(time::sys_clock_scheduler* /*sched*/) {}
+        virtual void set_scheduler(time::idyl_scheduler* /*sched*/) {}
 
         // Optional: called once after the scheduler has stopped, before process exit.
         // Override to release sockets, threads, external resources, etc.
@@ -164,7 +164,7 @@ namespace idyl::module {
         // Provide the scheduler to every registered module that needs it.
         // Also caches the pointer so modules loaded later (via load_builtin)
         // receive the scheduler immediately.
-        void provide_scheduler(time::sys_clock_scheduler* sched) {
+        void provide_scheduler(time::idyl_scheduler* sched) {
             sched_ = sched;
             for (auto& m : modules_)
                 m->set_scheduler(sched);
@@ -386,7 +386,7 @@ namespace idyl::module {
         std::vector<std::string> loaded_paths_;               // already-loaded .so paths
         std::unordered_map<std::string, module_factory> catalog_;  // builtin catalog
         std::unordered_set<std::string> loaded_builtins_;     // loaded builtin names
-        time::sys_clock_scheduler* sched_ = nullptr;          // cached for lazy loads
+        time::idyl_scheduler* sched_ = nullptr;          // cached for lazy loads
 
     };
 

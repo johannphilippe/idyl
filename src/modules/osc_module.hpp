@@ -52,7 +52,7 @@ namespace idyl::modules {
         mutable std::mutex mutex_;
 
         // Scheduler (provided via set_scheduler)
-        time::sys_clock_scheduler* scheduler_ = nullptr;
+        time::idyl_scheduler* scheduler_ = nullptr;
 
         // Active dt-driven subscriptions (for cleanup)
         std::vector<time::subscription_id> active_subs_;
@@ -72,7 +72,7 @@ namespace idyl::modules {
             return "OSC module was disabled at build time (cmake -DIDYL_MODULE_OSC=OFF)";
         }
 
-        void set_scheduler(time::sys_clock_scheduler* sched) override {
+        void set_scheduler(time::idyl_scheduler* sched) override {
             scheduler_ = sched;
         }
 

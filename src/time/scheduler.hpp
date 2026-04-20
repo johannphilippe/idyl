@@ -51,6 +51,27 @@ struct subscription {
 };
 
 // ════════════════════════════════════════════════════════════════════════════════
+// idyl_scheduler — abstract interface shared by all scheduler implementations
+//
+// Concrete types: sys_clock_scheduler (default), audio_clock_scheduler
+// (enabled with --audio-clock CLI flag).
+// ════════════════════════════════════════════════════════════════════════════════
+struct idyl_scheduler {
+    virtual ~idyl_scheduler() = default;
+
+    virtual void            start()                                              = 0;
+    virtual void            stop()                                               = 0;
+    virtual bool            is_running()   const noexcept                        = 0;
+
+    virtual subscription_id subscribe(double dt_ms, tick_fn callback)            = 0;
+    virtual void            unsubscribe(subscription_id id)                      = 0;
+    virtual void            update_dt(subscription_id id, double new_dt_ms)      = 0;
+
+    virtual double          now_ms()       const noexcept                        = 0;
+    virtual std::size_t     active_count() const noexcept                        = 0;
+};
+
+// ════════════════════════════════════════════════════════════════════════════════
 // sys_clock_scheduler
 //
 // Wraps sys_clock_engine::scheduler to drive idyl temporal function updates
@@ -61,7 +82,7 @@ struct subscription {
 // interface when the need arises.
 // ════════════════════════════════════════════════════════════════════════════════
 
-struct sys_clock_scheduler {
+struct sys_clock_scheduler : idyl_scheduler {
 
     // ── Construction ───────────────────────────────────────────────────────────
 
@@ -80,25 +101,25 @@ struct sys_clock_scheduler {
 
     // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-    void start() {
+    void start() override {
         origin_ = steady_clock_t::now();
         engine_.start();
     }
 
-    void stop() {
+    void stop() override {
         engine_.stop();
 
         std::lock_guard<std::mutex> lock(subs_mutex_);
         subscriptions_.clear();
     }
 
-    bool is_running() const noexcept { return engine_.is_running(); }
+    bool is_running() const noexcept override { return engine_.is_running(); }
 
     // ── Subscribe / unsubscribe ────────────────────────────────────────────────
 
     // Register a periodic callback with the given tick interval.
     // Returns a handle that can be passed to unsubscribe().
-    subscription_id subscribe(double dt_ms, tick_fn callback) {
+    subscription_id subscribe(double dt_ms, tick_fn callback) override {
         subscription_id id = next_id_++;
 
         subscription sub;
@@ -119,7 +140,7 @@ struct sys_clock_scheduler {
 
     // Remove a subscription. Safe to call from any thread, including
     // from inside a tick callback (deferred removal).
-    void unsubscribe(subscription_id id) {
+    void unsubscribe(subscription_id id) override {
         std::lock_guard<std::mutex> lock(subs_mutex_);
         auto it = subscriptions_.find(id);
         if (it != subscriptions_.end()) {
@@ -129,7 +150,7 @@ struct sys_clock_scheduler {
 
     // Update the tick interval of an existing subscription.
     // Takes effect on the next reschedule (after the current tick completes).
-    void update_dt(subscription_id id, double new_dt_ms) {
+    void update_dt(subscription_id id, double new_dt_ms) override {
         std::lock_guard<std::mutex> lock(subs_mutex_);
         auto it = subscriptions_.find(id);
         if (it != subscriptions_.end())
@@ -139,12 +160,12 @@ struct sys_clock_scheduler {
     // ── Queries ────────────────────────────────────────────────────────────────
 
     // Elapsed time since start() in milliseconds.
-    double now_ms() const noexcept {
+    double now_ms() const noexcept override {
         auto elapsed = steady_clock_t::now() - origin_;
         return std::chrono::duration<double, std::milli>(elapsed).count();
     }
 
-    std::size_t active_count() const noexcept {
+    std::size_t active_count() const noexcept override {
         std::lock_guard<std::mutex> lock(subs_mutex_);
         std::size_t n = 0;
         for (const auto& [_, s] : subscriptions_)

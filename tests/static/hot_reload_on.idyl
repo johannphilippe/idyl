@@ -1,0 +1,12 @@
+// Verifies on-block execution in a static process context.
+
+process: {
+    t = !
+    on t: {
+        print(42)
+    }
+    r = _
+    on r: {
+        print(0)
+    }
+}

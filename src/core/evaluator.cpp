@@ -2673,9 +2673,13 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
         for (const auto& [ptr, cnt] : refcount)
             if (cnt > 1) shared_set.insert(ptr);
 
-        if (!shared_set.empty()) {
-            for (size_t si = 0; si < segments.size(); ++si) {
-                std::lock_guard<std::mutex> lk(segments[si].rxn->mutex);
+        for (size_t si = 0; si < segments.size(); ++si) {
+            std::lock_guard<std::mutex> lk(segments[si].rxn->mutex);
+            if (shared_set.empty()) {
+                // No shared reactions — clear any stale entries from a prior
+                // run (e.g. a hot reload that removed a multi-segment reaction).
+                segments[si].rxn->shared_reactions.clear();
+            } else {
                 std::vector<parser::stmt_ptr> local, shared;
                 for (const auto& r : segments[si].rxn->reactions) {
                     if (r && shared_set.count(r.get()))
@@ -2729,13 +2733,30 @@ void evaluator::diff_and_apply(live_process& lp,
         if (!seg.bound_var.empty())
             old_seg_by_var[seg.bound_var] = &seg;
 
+    // Catch blocks collected here, then linked to segments after pass 2.
+    std::vector<std::shared_ptr<parser::catch_block>> new_catch_blocks;
+
     {
         new_seg_info* cur = nullptr;
         for (const auto& s : new_proc.body_->statements_) {
             if (!s) continue;
-            if (s->type_ == parser::node_t::catch_block) continue;
-            if (s->type_ == parser::node_t::at_block)    continue;
-            if (s->type_ == parser::node_t::on_block)    continue;
+
+            // Collect catch blocks — linked to segments in pass 2.5 below.
+            if (s->type_ == parser::node_t::catch_block) {
+                new_catch_blocks.push_back(
+                    std::static_pointer_cast<parser::catch_block>(s));
+                continue;
+            }
+
+            // @-blocks are one-shot deferred schedulings: re-execute on hot
+            // reload so that newly added @-blocks fire as expected.
+            if (s->type_ == parser::node_t::at_block) {
+                exec_stmt(s);
+                continue;
+            }
+
+            // on_block falls through to the bname.empty() path below,
+            // which adds it to cur->reactions without executing it now.
 
             std::string bname;
             if (s->type_ == parser::node_t::function_definition)
@@ -3019,6 +3040,32 @@ void evaluator::diff_and_apply(live_process& lp,
 
         // Keep active_process_instances_ in sync
         active_process_instances_[lp.name].push_back(new_id);
+    }
+
+    // ── Pass 2.5: link catch blocks to their target segments ──────────────
+    // Pass 1 already cleared catches on surviving segments; pass 2 created
+    // fresh reaction_sets for new segments — so all segments start clean here.
+    // Only named catches (catch var::sig) are handled; anonymous-instance
+    // catches are not re-created on hot reload.
+    for (auto& cb : new_catch_blocks) {
+        if (!cb->instance_expr_) continue;
+
+        std::string source_var;
+        if (cb->instance_expr_->type_ == parser::node_t::identifier_expr) {
+            const auto& ie =
+                static_cast<const parser::identifier_expr&>(*cb->instance_expr_);
+            if (ie.identifier_) source_var = ie.identifier_->name_;
+        }
+        if (source_var.empty()) continue;
+
+        for (auto& seg : lp.segments) {
+            if (seg.bound_var == source_var) {
+                std::lock_guard<std::mutex> lk(seg.rxn->mutex);
+                seg.rxn->catches.push_back(
+                    {cb->signal_name_, cb->handler_, false});
+                break;
+            }
+        }
     }
 
     // ── Pass 3: redistribute reactions and update metadata ─────────────────

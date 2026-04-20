@@ -26,6 +26,12 @@
 #ifdef IDYL_MODULE_SERIAL
 #include "modules/serial_module.hpp"
 #endif
+#ifdef IDYL_MODULE_MIDI
+#include "modules/midi_module.hpp"
+#endif
+#ifdef IDYL_AUDIO_CLOCK
+#include "time/audio_clock_scheduler.hpp"
+#endif
 #include "utilities/osc.hpp"
 #include "utilities/udp.hpp"
 #include "debug.hpp"
@@ -44,11 +50,17 @@ static void print_usage(const char* prog) {
               << "  - If no file is given, reads from stdin.\n"
               << "  - Use '-' as filename to force stdin.\n"
               << "  - Options:\n"
-              << "    --trace            Enable parser/lexer debug tracing\n"
-              << "    --process <name>   Run only the named process block\n"
-              << "    -p <name>          Short form of --process\n"
-              << "    --listen [port]    Listen mode: receive OSC on port (default 9000)\n"
-              << "    -l [port]          Short form of --listen\n";
+              << "    --trace                      Enable parser/lexer debug tracing\n"
+              << "    --process <name>             Run only the named process block\n"
+              << "    -p <name>                    Short form of --process\n"
+              << "    --listen [port]              Listen mode: receive OSC on port (default 9000)\n"
+              << "    -l [port]                    Short form of --listen\n"
+#ifdef IDYL_AUDIO_CLOCK
+              << "    --audio-clock                Use audio device as master clock\n"
+              << "    --audio-sample-rate <rate>   Sample rate in Hz (default 48000)\n"
+              << "    --audio-buffer-size <frames> Buffer size in frames (default 128)\n"
+#endif
+              ;
 }
 
 int main(int argc, char** argv) {
@@ -79,16 +91,36 @@ int main(int argc, char** argv) {
         return std::make_unique<idyl::modules::serial_module>();
     });
     #endif
+    #ifdef IDYL_MODULE_MIDI
+    module_registry.register_builtin("midi", []() {
+        return std::make_unique<idyl::modules::midi_module>();
+    });
+    #endif
 
     std::string process_filter;
-    bool listen_mode = false;
-    int  listen_port = 9000;
+    bool listen_mode   = false;
+    int  listen_port   = 9000;
+    bool audio_clock   = false;
+    unsigned int audio_sample_rate = 48000;
+    uint32_t     audio_buffer_size = 128;
 
     // Parse command-line arguments
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--trace") {
             trace = true;
+        } else if (arg == "--audio-clock") {
+            audio_clock = true;
+        } else if (arg == "--audio-sample-rate") {
+            if (i + 1 < argc) {
+                try { audio_sample_rate = static_cast<unsigned int>(std::stoul(argv[++i])); }
+                catch (...) { std::cerr << "Error: invalid sample rate\n"; return 1; }
+            }
+        } else if (arg == "--audio-buffer-size") {
+            if (i + 1 < argc) {
+                try { audio_buffer_size = static_cast<uint32_t>(std::stoul(argv[++i])); }
+                catch (...) { std::cerr << "Error: invalid buffer size\n"; return 1; }
+            }
         } else if (arg == "--process" || arg == "-p") {
             if (i + 1 < argc) {
                 process_filter = argv[++i];
@@ -169,14 +201,34 @@ int main(int argc, char** argv) {
         }
 
         // ── Evaluate ────────────────────────────────────────────────────────
-        idyl::time::sys_clock_scheduler scheduler;
-        scheduler.start();
+        // Instantiate the scheduler chosen by CLI flags.
+        std::unique_ptr<idyl::time::idyl_scheduler> scheduler_owner;
+        idyl::time::idyl_scheduler* scheduler_ptr = nullptr;
+
+        #ifdef IDYL_AUDIO_CLOCK
+        if (audio_clock) {
+            auto s = std::make_unique<idyl::time::audio_clock_scheduler>(
+                audio_sample_rate, audio_buffer_size);
+            scheduler_ptr = s.get();
+            scheduler_owner = std::move(s);
+        }
+        #endif
+
+        // Fall back to system-clock scheduler if audio not requested or unavailable.
+        std::unique_ptr<idyl::time::sys_clock_scheduler> sys_scheduler_owner;
+        if (!scheduler_ptr) {
+            auto s = std::make_unique<idyl::time::sys_clock_scheduler>();
+            scheduler_ptr = s.get();
+            sys_scheduler_owner = std::move(s);
+        }
+
+        scheduler_ptr->start();
 
         // Provide the scheduler to modules that need timing (e.g. osc dt sends)
-        module_registry.provide_scheduler(&scheduler);
+        module_registry.provide_scheduler(scheduler_ptr);
 
         idyl::core::evaluator eval;
-        eval.scheduler_ = &scheduler;
+        eval.scheduler_ = scheduler_ptr;
         eval.env_.module_registry_ = &module_registry;
         eval.process_filter_ = process_filter;
         eval.listen_mode_ = listen_mode;
@@ -266,7 +318,7 @@ int main(int argc, char** argv) {
         // Keep-alive logic:
         //  - Listen mode: always stay alive, poll command queue
         //  - Normal mode: stay alive while temporal subscriptions exist
-        if (listen_mode || (eval.process_count_ >= 1 && scheduler.active_count() > 0)) {
+        if (listen_mode || (eval.process_count_ >= 1 && scheduler_ptr->active_count() > 0)) {
             idyl::debug("Temporal functions active — running scheduler...");
             while (g_running.load(std::memory_order_relaxed)) {
                 // ── Dispatch queued listen commands on main thread ───────
@@ -305,7 +357,7 @@ int main(int argc, char** argv) {
                 }
 
                 // In non-listen mode, exit when no more active subscriptions
-                if (!listen_mode && scheduler.active_count() == 0) break;
+                if (!listen_mode && scheduler_ptr->active_count() == 0) break;
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
@@ -317,7 +369,7 @@ int main(int argc, char** argv) {
             listener_thread.join();
         }
 
-        scheduler.stop();
+        scheduler_ptr->stop();
         module_registry.cleanup_all();
         idyl::debug("Evaluation completed.");
 

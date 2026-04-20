@@ -1,6 +1,8 @@
-%skeleton "lalr1.cc"
-%require "3.4"
+%skeleton "glr2.cc"
+%require "3.8"
 %language "c++"
+
+%expect 16
 
 %locations
 %define parse.error verbose
@@ -1457,7 +1459,6 @@ primary_expression
         $$ = paren;
     }
     | flow_literal { $$ = $1; }
-    | generator_expression { $$ = $1; }
     ;
 
 argument_list

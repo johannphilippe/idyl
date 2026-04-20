@@ -38,8 +38,8 @@ Vim syntax, VSCode extension with tmLanguage grammar, and a Vim live-coding plug
 
 ## Weaknesses
 
-### 49 reduce/reduce + 8 shift/reduce parser conflicts
-These are pre-existing and unresolved. Most are benign (generator expressions being matched by two rules, operator precedence ambiguities), but they represent real grammar technical debt. Bison resolves them heuristically; the resolution may not always match user intent. A clean rewrite of the grammar with explicit precedence declarations for every operator would fix this, but it's a full day of careful work.
+### ~~49 reduce/reduce + 8 shift/reduce parser conflicts~~ — **resolved (r/r), contained (s/r)**
+The grammar now uses the `glr2.cc` skeleton (GLR parser). The 51 reduce/reduce conflicts were all caused by a single duplicate rule (`primary_expression: generator_expression`, unreachable because `flow_literal` already included it) — removing that rule eliminated all r/r conflicts. 16 shift/reduce conflicts remain; all are benign operator-precedence resolutions (Bison correctly resolves them as "prefer shift") and are locked in with `%expect 16` so they cannot silently accumulate. No behavioral change to the parser.
 
 ### ~~Function definitions are global-scope only~~ — **resolved**
 Local functions and closures are now supported at process-block, init-block, and update-block scope. Functions defined inside a process or lambda block are visible only within that scope and do not pollute global namespace. Closures capture the enclosing temporal instance by reference (Option B): at call time the closure reads the instance's current params and state, so the caller always sees live values. Mutual recursion between local functions is not yet supported — declarations must appear before use within the same scope.
@@ -50,14 +50,20 @@ The syntax has been changed to condition-first: `condition ? false_val; true_val
 ### No explicit error handling at runtime
 User programs have no mechanism to catch runtime errors (division by zero, type mismatches, bad flow access). The evaluator either silently returns 0 or crashes. For long-running temporal programs, a silent wrong value is worse than an informative error.
 
-### Hot reload is partially working
-Hot reload for named process blocks works, but the diff-and-apply mechanism has known edge cases (newly added temporal segments, changed `on` blocks). Using it for live coding requires caution. The TODO marks it `in_progress`.
+### ~~Hot reload is partially working~~ — **resolved**
+`diff_and_apply` now handles all statement types in a named process body:
+- **`on` blocks**: previously skipped entirely; now correctly added to the owning segment's reaction list and redistributed. `on` blocks added, removed, or changed during hot reload take effect on the next tick with no subscription gap.
+- **`catch` blocks**: previously skipped; now collected during the scan and linked to segments after pass 2 (same logic as initial setup). Cleared on surviving segments so the new handler replaces the old one atomically.
+- **`@` blocks**: previously skipped; now re-executed on hot reload so newly added deferred actions fire.
+- **`shared_reactions` stale state**: fixed — `redistribute_reactions` now always clears `shared_reactions` on all segments, not only when shared reactions exist. Previously, removing a multi-segment reaction left stale entries in `shared_reactions`.
+- **Newly added temporal segments**: handled by pass 2 (unchanged since before).
+Anonymous-instance `catch` (`catch metro(dt=500ms)::tick: {}`) is not re-created on hot reload (existing limitation — the instance is killed with the old process and not respawned).
 
 ### ~~Serial is missing~~ — **resolved**
 Serial I/O is now available via `module("serial")`. Exposes `serial_open(port, baud)`, `serial_close(handle)`, `serial_write(handle, data)`, and the native temporal `serial_recv(handle, dt=10ms)` which emits `received` on each incoming chunk. Implemented as a zero-dependency header (`utilities/serial.hpp`) using POSIX `termios` on Linux/macOS and Win32 `CreateFile`/`DCB` on Windows.
 
-### MIDI is missing
-For a language targeting musical and embedded use, the absence of MIDI is a significant gap. OSC and Csound cover a lot, but MIDI is unavoidable for hardware integration.
+### ~~MIDI is missing~~ — **resolved**
+MIDI I/O is now available via `module("midi")`. RtMidi is fetched automatically by CMake (`FetchContent`, always latest `master`). No manual installation required; on Linux, ALSA and JACK are auto-detected. Covers all major MIDI 1.0 channel messages: `midi_note_on`, `midi_note_off`, `midi_cc`, `midi_program`, `midi_pitch_bend`, `midi_pressure`, `midi_aftertouch`. Port discovery via `midi_ports_in()` / `midi_ports_out()`. The native temporal `midi_recv(handle, dt=1ms)` polls for incoming messages and emits typed signals (`note_on`, `note_off`, `cc`, `program`, `pitch_bend`, `pressure`) with output flow `[type, channel, data1, data2]`.
 
 ### HTML documentation is manually regenerated
 `doc/html/` is generated from `doc/*.md` via `build_html.sh` and committed separately. It will drift out of sync whenever the markdown is updated. A CI step or a note in contributing docs would help.
@@ -68,8 +74,8 @@ The TODO itself notes that `process` doesn't fit the language's vocabulary ("tid
 ### Flow cursors ~~are global, not per-call-site~~ — **resolved**
 Cursors are now per-call-site, keyed by the stable AST node pointer of the `flow_access_expr`. `pattern[m1]` and `pattern[m2]` each own independent cursors and step through the flow at their own rate. Polyphonic use works correctly for static, dynamic, and parametric flows.
 
-### No audio-rate scheduling
-The scheduler is system-clock based, accurate to ~1ms. For sample-accurate scheduling (synthesis, tight rhythmic quantization below 1ms), a separate audio-buffer-rate mode is needed. The TODO acknowledges this as "later". Until then, the language cannot replace an audio-rate environment.
+### ~~No audio-rate scheduling~~ — **resolved**
+An audio-callback-driven scheduler (`audio_clock_scheduler`) is implemented via RtAudio. The audio driver callback increments an atomic tick counter and releases a counting semaphore; a worker thread fires due subscriptions at buffer rate. At 32 frames / 48 kHz this gives ~0.67 ms accuracy. Enabled with `--audio-clock` (optionally `--audio-sample-rate` / `--audio-buffer-size`). Falls back to `sys_clock_scheduler` when not requested.
 
 ### The `on` keyword could accumulate ambiguity
 Currently `on` means two distinct things: flow member gate (`melody on rhythm: [...]`) and reaction block (`on m: { ... }`). Both are syntactically unambiguous today, but if a future event-handler form is added (`on "note_on": { ... }`), the keyword will carry three senses. Worth monitoring as the language grows.
@@ -150,18 +156,18 @@ Closures use by-reference capture: the function value carries a `shared_ptr<func
 
 | | Item | Impact |
 |---|---|---|
-| 🔴 | Fix parser conflicts | Technical debt, potential latent parse bugs |
+| ✅ | Fix parser conflicts | Switched to GLR (`glr2.cc`), eliminated all 51 r/r; 16 s/r locked with `%expect 16` |
 | ✅ | Flow cursor instancing per call-site — resolved | Each call site owns its cursor; polyphony works correctly |
 | ✅ | Catch syntax — resolved | `catch a::sig: {}` implemented; anonymous-instance `catch expr::sig: {}` experimental |
 | 🟣 | Functional flow | allow functions to return flows with standard flow instance properties (flow is recomputed if any parameter changes in the function call, flow can be dynamic, and contain temporal elements) |
 | 🟣 | Code block feature | Allow block of code (expression bloc, like in @ blocs or catch blocks, that can be used to create anonymous scopes, and can be used in ternary expressions `(condition) ? {/*expressions A*/}; {/*Expressions B*/}`|
 | ✅ | Serial module | `module("serial")` — zero-dependency, POSIX + Win32 |
-| 🟠 | MIDI module | Missing for hardware use |
+| ✅ | MIDI module | `module("midi")` — RtMidi via FetchContent, all major channel messages |
 | 🟠 | Runtime error handling | Silent failures in long-running programs are dangerous |
 | ✅ | Function definitions in process/lambda scope | Quality of life, code locality |
-| 🟡 | Finish hot reload edge cases | Required for live coding to be reliable |
+| ✅ | Hot reload edge cases | `on` blocks, `catch` updates, `@` blocks, stale `shared_reactions` — all fixed |
 | 🟡 | Consider renaming `process` before 1.0 | Breaking change window is closing |
-| 🟢 | Audio-rate scheduler mode | Longer term, needed for synthesis |
+| ✅ | Audio-rate scheduler mode | `--audio-clock` CLI flag, RtAudio driver callback, sub-ms at small buffers |
 | ✅ | Local functions and closures | Implemented: process/init/update scope, by-reference capture |
 | 🟢 | Traits | flow traits allowing changing behavior of flow (operator overloading, flow methods etc) |
 | ✅ | Ternary syntax — resolved | Condition-first `cond ? a; b` implemented |

@@ -89,7 +89,7 @@ namespace idyl::core {
             trigger_driven_instances_;
 
         // Scheduler (owned externally, nullable for Phase 1 compatibility)
-        time::sys_clock_scheduler* scheduler_ = nullptr;
+        time::idyl_scheduler* scheduler_ = nullptr;
 
         // Loaded library paths (canonical) — prevents duplicate loading
         std::set<std::string> loaded_libraries_;

@@ -49,6 +49,46 @@ else()
     message(STATUS "Native module: Serial [disabled]")
 endif()
 
+# Audio-clock scheduler — uses a real audio device callback as the master clock
+# for sub-millisecond accurate scheduling (at small buffer sizes).
+# Requires no extra packages: miniaudio is fetched automatically (single-header).
+# On Linux, uses PipeWire/ALSA/JACK automatically (no libasound-dev needed).
+option(IDYL_AUDIO_CLOCK "Enable the audio-callback-driven scheduler (--audio-clock CLI flag)" ON)
+if(IDYL_AUDIO_CLOCK)
+    include(FetchContent)
+    FetchContent_Declare(
+        rtaudio
+        GIT_REPOSITORY https://github.com/thestk/rtaudio.git
+        GIT_TAG        master
+        GIT_SHALLOW    TRUE
+    )
+    set(RTAUDIO_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
+    set(RTAUDIO_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(rtaudio)
+    message(STATUS "Audio clock scheduler [enabled] (RtAudio via FetchContent)")
+else()
+    message(STATUS "Audio clock scheduler [disabled]")
+endif()
+
+# MIDI module — via RtMidi (fetched automatically from GitHub)
+# Linux requires ALSA dev headers: apt install libasound2-dev
+option(IDYL_MODULE_MIDI "Enable the built-in MIDI module (requires RtMidi)" ON)
+if(IDYL_MODULE_MIDI)
+    include(FetchContent)
+    FetchContent_Declare(
+        rtmidi
+        GIT_REPOSITORY https://github.com/thestk/rtmidi.git
+        GIT_TAG        master
+        GIT_SHALLOW    TRUE
+    )
+    set(RTMIDI_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
+    set(RTMIDI_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(rtmidi)
+    message(STATUS "Native module: MIDI [enabled] (RtMidi via FetchContent)")
+else()
+    message(STATUS "Native module: MIDI [disabled]")
+endif()
+
 # Csound module — instrument control via the Csound C API
 option(IDYL_MODULE_CSOUND "Enable the built-in Csound module" ON)
 if(IDYL_MODULE_CSOUND)
@@ -92,6 +132,16 @@ endif()
 
 if(IDYL_MODULE_SERIAL)
     target_compile_definitions(idyl PRIVATE IDYL_MODULE_SERIAL=1)
+endif()
+
+if(IDYL_AUDIO_CLOCK)
+    target_compile_definitions(idyl PRIVATE IDYL_AUDIO_CLOCK=1)
+    target_link_libraries(idyl PRIVATE rtaudio)
+endif()
+
+if(IDYL_MODULE_MIDI)
+    target_compile_definitions(idyl PRIVATE IDYL_MODULE_MIDI=1)
+    target_link_libraries(idyl PRIVATE rtmidi)
 endif()
 
 if(IDYL_MODULE_CSOUND)
