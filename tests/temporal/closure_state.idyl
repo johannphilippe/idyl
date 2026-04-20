@@ -1,0 +1,13 @@
+// Closure captures mutable state by reference.
+// The instance accumulates a running total; the closure reads the current total.
+accumulator(dt=200ms) = fn |>
+{
+    init: { total = 0 }
+    total = total + 1
+    fn(x) = x + total
+}
+
+process: {
+    acc = accumulator()
+    print(acc(100))
+}

@@ -69,6 +69,7 @@
 %type <idyl::parser::stmt_ptr> top_level_statement
 %type <idyl::parser::stmt_ptr> function_or_flow_definition
 %type <std::shared_ptr<idyl::parser::function_definition>> function_definition
+
 %type <std::shared_ptr<idyl::parser::flow_definition>> flow_definition
 %type <std::shared_ptr<idyl::parser::process_block>> process_block
 %type <std::vector<idyl::parser::param_ptr>> parameter_list
@@ -465,7 +466,56 @@ process_body_statements
     ;
 
 process_body_statement
-    : IDENTIFIER ASSIGN expression
+    : postfix_expression ASSIGN expression %prec ASSIGN
+    {
+        // Interpret postfix_expression ASSIGN expression as a local function definition.
+        // postfix_expression is either:
+        //   - identifier_expr → 0-param binding: "name = expr" (same as assignment)
+        //   - function_call_expr → local function: "name(params) = expr"
+        auto func = std::make_shared<idyl::parser::function_definition>();
+        func->body_ = $3;
+        func->line_ = @1.begin.line;
+        func->column_ = @1.begin.column;
+        auto& lhs = $1;
+        if (lhs && lhs->type_ == idyl::parser::node_t::function_call_expr) {
+            // Extract function name from the call's function_ expression
+            auto& call_expr = static_cast<idyl::parser::function_call_expr&>(*lhs);
+            if (call_expr.call_ && call_expr.call_->function_) {
+                auto& fn_expr = *call_expr.call_->function_;
+                if (fn_expr.type_ == idyl::parser::node_t::identifier_expr) {
+                    auto& id_expr = static_cast<idyl::parser::identifier_expr&>(fn_expr);
+                    if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+                }
+            }
+            // Convert arguments to parameters
+            if (call_expr.call_) {
+                for (const auto& arg : call_expr.call_->arguments_) {
+                    if (!arg) continue;
+                    auto param = std::make_shared<idyl::parser::parameter>();
+                    if (!arg->name_.empty()) {
+                        // Named arg: "dt=10ms" → parameter with default
+                        param->name_ = arg->name_;
+                        param->default_value_ = arg->value_;
+                        param->has_default_time_ = (arg->name_ == "dt");
+                    } else if (arg->value_ && arg->value_->type_ == idyl::parser::node_t::identifier_expr) {
+                        auto& id = static_cast<idyl::parser::identifier_expr&>(*arg->value_);
+                        if (id.identifier_) param->name_ = id.identifier_->name_;
+                    } else if (arg->value_ && arg->value_->type_ == idyl::parser::node_t::unary_op_expr) {
+                        // Could be trigger param: !name
+                        param->name_ = "__trigger__";
+                        param->is_trigger_parameter_ = true;
+                    }
+                    func->parameters_.push_back(param);
+                }
+            }
+        } else if (lhs && lhs->type_ == idyl::parser::node_t::identifier_expr) {
+            // Simple binding: "name = expr"
+            auto& id_expr = static_cast<idyl::parser::identifier_expr&>(*lhs);
+            if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+        }
+        $$ = func;
+    }
+    | IDENTIFIER ASSIGN expression
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = $1;
@@ -664,7 +714,46 @@ lambda_statements
     ;
 
 lambda_statement
-    : IDENTIFIER ASSIGN expression
+    : postfix_expression ASSIGN expression %prec ASSIGN
+    {
+        // Same pattern as in process_body_statement: interpret as local function definition
+        // when lhs is a function call, or as an assignment when lhs is an identifier.
+        auto func = std::make_shared<idyl::parser::function_definition>();
+        func->body_ = $3;
+        func->line_ = @1.begin.line;
+        func->column_ = @1.begin.column;
+        auto& lhs = $1;
+        if (lhs && lhs->type_ == idyl::parser::node_t::function_call_expr) {
+            auto& call_expr = static_cast<idyl::parser::function_call_expr&>(*lhs);
+            if (call_expr.call_ && call_expr.call_->function_) {
+                auto& fn_expr = *call_expr.call_->function_;
+                if (fn_expr.type_ == idyl::parser::node_t::identifier_expr) {
+                    auto& id_expr = static_cast<idyl::parser::identifier_expr&>(fn_expr);
+                    if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+                }
+            }
+            if (call_expr.call_) {
+                for (const auto& arg : call_expr.call_->arguments_) {
+                    if (!arg) continue;
+                    auto param = std::make_shared<idyl::parser::parameter>();
+                    if (!arg->name_.empty()) {
+                        param->name_ = arg->name_;
+                        param->default_value_ = arg->value_;
+                        param->has_default_time_ = (arg->name_ == "dt");
+                    } else if (arg->value_ && arg->value_->type_ == idyl::parser::node_t::identifier_expr) {
+                        auto& id = static_cast<idyl::parser::identifier_expr&>(*arg->value_);
+                        if (id.identifier_) param->name_ = id.identifier_->name_;
+                    }
+                    func->parameters_.push_back(param);
+                }
+            }
+        } else if (lhs && lhs->type_ == idyl::parser::node_t::identifier_expr) {
+            auto& id_expr = static_cast<idyl::parser::identifier_expr&>(*lhs);
+            if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+        }
+        $$ = func;
+    }
+    | IDENTIFIER ASSIGN expression
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = $1;

@@ -10,9 +10,8 @@
 #include <unordered_map>
 #include <mutex>
 
-// Forward-declare parser::expression so flow_member can hold live expr slots
-// without pulling in the full AST header into the core runtime.
-namespace idyl::parser { struct expression; }
+// Forward-declare parser types used in core runtime structs.
+namespace idyl::parser { struct expression; struct function_definition; }
 
 namespace idyl::core {
 
@@ -52,6 +51,17 @@ namespace idyl::core {
         // Accessing this value always reads the instance's current output.
         std::shared_ptr<function_instance> instance_ = nullptr;
 
+        // Non-null for local function definitions (defined inside process/lambda
+        // scope). Carries the AST directly so the function bypasses function_defs_.
+        std::shared_ptr<parser::function_definition> fn_def_ = nullptr;
+
+        // Non-null for closures: the temporal instance whose params/state the
+        // function captures.  At call time, the instance's current params_ and
+        // current_ are pushed into a scope frame so the body can read them by
+        // reference — i.e. it always sees the instance's latest values, not a
+        // snapshot taken at definition time.
+        std::shared_ptr<function_instance> closure_inst_ = nullptr;
+
         // ── Constructors ───────────────────────────────────────────────────────
         // Aggregate constructors for the plain types — instance_ defaults to nullptr.
         static value number(double v)       { return {value_t::number, v, false, 0, nullptr, nullptr}; }
@@ -62,6 +72,23 @@ namespace idyl::core {
         static value string(std::string s)  { return {value_t::string, 0.0, false, 0, std::make_shared<std::string>(std::move(s)), nullptr}; }
         static value handle(intptr_t h)     { return {value_t::handle, 0.0, false, h, nullptr, nullptr}; }
         static value function_ref(std::string name) { return {value_t::function, 0.0, false, 0, std::make_shared<std::string>(std::move(name)), nullptr}; }
+        // Local function — carries AST directly; does not live in function_defs_.
+        static value local_function(std::string name, std::shared_ptr<parser::function_definition> def) {
+            value v;
+            v.type_ = value_t::function;
+            v.string_ = std::make_shared<std::string>(std::move(name));
+            v.fn_def_ = std::move(def);
+            return v;
+        }
+        // Closure — local function that also captures a temporal instance for
+        // by-reference access to its params and state at call time.
+        static value closure(std::string name,
+                             std::shared_ptr<parser::function_definition> def,
+                             std::shared_ptr<function_instance> inst) {
+            value v = local_function(std::move(name), std::move(def));
+            v.closure_inst_ = std::move(inst);
+            return v;
+        }
 
         // Wraps a live temporal instance.  Reading this value always returns
         // the instance's current output via read_output().
@@ -162,6 +189,10 @@ namespace idyl::core {
         // For namespaced library functions this is the qualified name (e.g.
         // "std::sine"), which is what the process-block subscription lookup uses.
         std::string def_name_;
+
+        // For local functions (defined inside process/lambda scope): the AST
+        // pointer carried directly, bypassing function_defs_.
+        std::shared_ptr<parser::function_definition> local_def_;
 
         // Library-local scope for namespaced library functions.  Pushed into
         // the environment before each tick / body evaluation so internal

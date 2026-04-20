@@ -41,8 +41,8 @@ Vim syntax, VSCode extension with tmLanguage grammar, and a Vim live-coding plug
 ### 49 reduce/reduce + 8 shift/reduce parser conflicts
 These are pre-existing and unresolved. Most are benign (generator expressions being matched by two rules, operator precedence ambiguities), but they represent real grammar technical debt. Bison resolves them heuristically; the resolution may not always match user intent. A clean rewrite of the grammar with explicit precedence declarations for every operator would fix this, but it's a full day of careful work.
 
-### Function definitions are global-scope only
-You cannot define a function inside a process block or a lambda body. This forces programmers to hoist all helper functions to the top level, which creates noise and breaks locality. Closures are also absent. This is the single most limiting structural constraint on expressiveness right now.
+### ~~Function definitions are global-scope only~~ — **resolved**
+Local functions and closures are now supported at process-block, init-block, and update-block scope. Functions defined inside a process or lambda block are visible only within that scope and do not pollute global namespace. Closures capture the enclosing temporal instance by reference (Option B): at call time the closure reads the instance's current params and state, so the caller always sees live values. Mutual recursion between local functions is not yet supported — declarations must appear before use within the same scope.
 
 ### The ternary operator ~~is unusual and hard to read~~ — **resolved**
 The syntax has been changed to condition-first: `condition ? false_val; true_val`. The condition now reads left-to-right. A single-option shorthand `cond ? expr` (equivalent to `cond ? _; expr`) makes the trigger-gate pattern concise. The multi-way N-way form remains unchanged in semantics: `index ? opt0; opt1; opt2; …`.
@@ -53,8 +53,11 @@ User programs have no mechanism to catch runtime errors (division by zero, type 
 ### Hot reload is partially working
 Hot reload for named process blocks works, but the diff-and-apply mechanism has known edge cases (newly added temporal segments, changed `on` blocks). Using it for live coding requires caution. The TODO marks it `in_progress`.
 
-### Serial and MIDI are missing
-For a language targeting musical and embedded use, the absence of serial I/O and MIDI is a significant gap. OSC and Csound cover a lot, but MIDI is unavoidable for hardware integration.
+### ~~Serial is missing~~ — **resolved**
+Serial I/O is now available via `module("serial")`. Exposes `serial_open(port, baud)`, `serial_close(handle)`, `serial_write(handle, data)`, and the native temporal `serial_recv(handle, dt=10ms)` which emits `received` on each incoming chunk. Implemented as a zero-dependency header (`utilities/serial.hpp`) using POSIX `termios` on Linux/macOS and Win32 `CreateFile`/`DCB` on Windows.
+
+### MIDI is missing
+For a language targeting musical and embedded use, the absence of MIDI is a significant gap. OSC and Csound cover a lot, but MIDI is unavoidable for hardware integration.
 
 ### HTML documentation is manually regenerated
 `doc/html/` is generated from `doc/*.md` via `build_html.sh` and committed separately. It will drift out of sync whenever the markdown is updated. A CI step or a note in contributing docs would help.
@@ -136,8 +139,8 @@ The current model is a hybrid: flows are defined immutably but their cursors are
 **Is `emit` a side effect or a return value?**
 Semantically, `emit` is an out-of-band signal, but in practice it is used as a secondary return value. Unifying the two concepts (a temporal function that returns multiple named values) might be cleaner and make the `::` accessor feel more natural.
 
-**What happens to scoping rules when closures are added?**
-The current scope model is simple because functions cannot close over process-local variables. Adding closures will require a clear decision about capture semantics (by value, by reference, by temporal snapshot). Getting this wrong creates subtle non-determinism in temporal code.
+**What happens to scoping rules when closures are added?** — **resolved**
+Closures use by-reference capture: the function value carries a `shared_ptr<function_instance>` to its owning temporal instance. At call time the instance's `params_` and `current_` state are pushed as a scope frame below the function's own parameter frame. This means a closure always sees the instance's most-recently-committed state — temporal by-reference semantics without observer callbacks. Process-scope closures (functions defined at process level capturing process-local variables) work through the lexical scope chain, which stays alive for the duration of the process.
 
 ---
 
@@ -152,13 +155,14 @@ The current scope model is simple because functions cannot close over process-lo
 | ✅ | Catch syntax — resolved | `catch a::sig: {}` implemented; anonymous-instance `catch expr::sig: {}` experimental |
 | 🟣 | Functional flow | allow functions to return flows with standard flow instance properties (flow is recomputed if any parameter changes in the function call, flow can be dynamic, and contain temporal elements) |
 | 🟣 | Code block feature | Allow block of code (expression bloc, like in @ blocs or catch blocks, that can be used to create anonymous scopes, and can be used in ternary expressions `(condition) ? {/*expressions A*/}; {/*Expressions B*/}`|
-| 🟠 | Serial + MIDI modules | Missing for hardware use |
+| ✅ | Serial module | `module("serial")` — zero-dependency, POSIX + Win32 |
+| 🟠 | MIDI module | Missing for hardware use |
 | 🟠 | Runtime error handling | Silent failures in long-running programs are dangerous |
-| 🟡 | Function definitions in process/lambda scope | Quality of life, code locality |
+| ✅ | Function definitions in process/lambda scope | Quality of life, code locality |
 | 🟡 | Finish hot reload edge cases | Required for live coding to be reliable |
 | 🟡 | Consider renaming `process` before 1.0 | Breaking change window is closing |
 | 🟢 | Audio-rate scheduler mode | Longer term, needed for synthesis |
-| 🟢 | Closures | Longer term, expressiveness |
+| ✅ | Local functions and closures | Implemented: process/init/update scope, by-reference capture |
 | 🟢 | Traits | flow traits allowing changing behavior of flow (operator overloading, flow methods etc) |
 | ✅ | Ternary syntax — resolved | Condition-first `cond ? a; b` implemented |
 

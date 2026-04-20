@@ -1088,7 +1088,7 @@ namespace yy {
           switch (yyn)
             {
   case 2: // program: top_level_statements
-#line 113 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 114 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto prog = std::make_shared<idyl::parser::program>();
         prog->statements_ = yystack_[0].value.as < std::vector<idyl::parser::stmt_ptr> > ();
@@ -1099,7 +1099,7 @@ namespace yy {
     break;
 
   case 3: // program: %empty
-#line 120 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 121 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto prog = std::make_shared<idyl::parser::program>();
         yylhs.value.as < idyl::parser::node_ptr > () = prog;
@@ -1109,7 +1109,7 @@ namespace yy {
     break;
 
   case 4: // top_level_statements: top_level_statements top_level_statement
-#line 129 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 130 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > () = yystack_[1].value.as < std::vector<idyl::parser::stmt_ptr> > ();
         if (yystack_[0].value.as < idyl::parser::stmt_ptr > ()) yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::stmt_ptr > ());
@@ -1118,7 +1118,7 @@ namespace yy {
     break;
 
   case 5: // top_level_statements: top_level_statement
-#line 134 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 135 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > () = {};
         if (yystack_[0].value.as < idyl::parser::stmt_ptr > ()) yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::stmt_ptr > ());
@@ -1127,19 +1127,19 @@ namespace yy {
     break;
 
   case 6: // top_level_statement: function_or_flow_definition
-#line 141 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 142 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                                   { yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < idyl::parser::stmt_ptr > (); }
 #line 1133 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 7: // top_level_statement: process_block
-#line 142 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 143 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                     { yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::process_block> > (); }
 #line 1139 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 8: // top_level_statement: IMPORT LPAREN STRING_LITERAL RPAREN
-#line 144 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 145 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto lib_import = std::make_shared<idyl::parser::library_import>();
         lib_import->path_ = yystack_[1].value.as < std::string > ();
@@ -1151,7 +1151,7 @@ namespace yy {
     break;
 
   case 9: // top_level_statement: IDENTIFIER ASSIGN IMPORT LPAREN STRING_LITERAL RPAREN
-#line 152 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 153 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto lib_import = std::make_shared<idyl::parser::library_import>();
         lib_import->namespace_ = yystack_[5].value.as < std::string > ();
@@ -1164,7 +1164,7 @@ namespace yy {
     break;
 
   case 10: // top_level_statement: MODULE LPAREN STRING_LITERAL RPAREN
-#line 161 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 162 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto mod_import = std::make_shared<idyl::parser::module_import>();
         mod_import->path_ = yystack_[1].value.as < std::string > ();
@@ -1176,7 +1176,7 @@ namespace yy {
     break;
 
   case 11: // top_level_statement: IDENTIFIER ASSIGN MODULE LPAREN STRING_LITERAL RPAREN
-#line 169 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 170 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto mod_import = std::make_shared<idyl::parser::module_import>();
         mod_import->namespace_ = yystack_[5].value.as < std::string > ();
@@ -1189,19 +1189,19 @@ namespace yy {
     break;
 
   case 12: // function_or_flow_definition: function_definition
-#line 180 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 181 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                           { yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::function_definition> > (); }
 #line 1195 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 13: // function_or_flow_definition: flow_definition
-#line 181 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 182 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                       { yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::flow_definition> > (); }
 #line 1201 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 14: // function_definition: IDENTIFIER LPAREN parameter_list RPAREN ASSIGN expression
-#line 186 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 187 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = yystack_[5].value.as < std::string > ();
@@ -1215,7 +1215,7 @@ namespace yy {
     break;
 
   case 15: // function_definition: IDENTIFIER LPAREN RPAREN ASSIGN expression
-#line 196 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 197 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = yystack_[4].value.as < std::string > ();
@@ -1229,7 +1229,7 @@ namespace yy {
     break;
 
   case 16: // function_definition: IDENTIFIER LPAREN parameter_list RPAREN ASSIGN expression lambda_block
-#line 206 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 207 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = yystack_[6].value.as < std::string > ();
@@ -1244,7 +1244,7 @@ namespace yy {
     break;
 
   case 17: // function_definition: IDENTIFIER LPAREN RPAREN ASSIGN expression lambda_block
-#line 217 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 218 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = yystack_[5].value.as < std::string > ();
@@ -1259,7 +1259,7 @@ namespace yy {
     break;
 
   case 18: // function_definition: IDENTIFIER ASSIGN expression
-#line 228 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 229 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = yystack_[2].value.as < std::string > ();
@@ -1273,7 +1273,7 @@ namespace yy {
     break;
 
   case 19: // function_definition: IDENTIFIER ASSIGN expression lambda_block
-#line 238 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 239 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = yystack_[3].value.as < std::string > ();
@@ -1288,7 +1288,7 @@ namespace yy {
     break;
 
   case 20: // flow_definition: FLOW IDENTIFIER ASSIGN flow_literal
-#line 252 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 253 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = yystack_[2].value.as < std::string > ();
@@ -1307,7 +1307,7 @@ namespace yy {
     break;
 
   case 21: // flow_definition: FLOW IDENTIFIER LPAREN parameter_list RPAREN ASSIGN flow_literal
-#line 267 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 268 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = yystack_[5].value.as < std::string > ();
@@ -1326,7 +1326,7 @@ namespace yy {
     break;
 
   case 22: // flow_definition: FLOW IDENTIFIER ASSIGN LBRACE flow_members RBRACE
-#line 282 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 283 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = yystack_[4].value.as < std::string > ();
@@ -1340,7 +1340,7 @@ namespace yy {
     break;
 
   case 23: // flow_definition: FLOW IDENTIFIER LPAREN parameter_list RPAREN ASSIGN LBRACE flow_members RBRACE
-#line 292 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 293 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = yystack_[7].value.as < std::string > ();
@@ -1354,7 +1354,7 @@ namespace yy {
     break;
 
   case 24: // flow_members: flow_members IDENTIFIER COLON flow_literal
-#line 305 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 306 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = yystack_[3].value.as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ();
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -1368,7 +1368,7 @@ namespace yy {
     break;
 
   case 25: // flow_members: flow_members IDENTIFIER ON IDENTIFIER COLON flow_literal
-#line 315 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 316 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = yystack_[5].value.as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ();
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -1383,7 +1383,7 @@ namespace yy {
     break;
 
   case 26: // flow_members: IDENTIFIER COLON flow_literal
-#line 326 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 327 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = {};
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -1397,7 +1397,7 @@ namespace yy {
     break;
 
   case 27: // flow_members: IDENTIFIER ON IDENTIFIER COLON flow_literal
-#line 336 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 337 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = {};
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -1412,7 +1412,7 @@ namespace yy {
     break;
 
   case 28: // flow_literal: LBRACKET flow_elements RBRACKET
-#line 350 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 351 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto flow_lit = std::make_shared<idyl::parser::flow_literal>();
         flow_lit->elements_ = yystack_[1].value.as < std::vector<idyl::parser::expr_ptr> > ();
@@ -1428,13 +1428,13 @@ namespace yy {
     break;
 
   case 29: // flow_literal: generator_expression
-#line 361 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 362 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                            { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
 #line 1434 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 30: // flow_elements: flow_elements COMMA expression
-#line 366 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 367 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::expr_ptr> > () = yystack_[2].value.as < std::vector<idyl::parser::expr_ptr> > ();
         yylhs.value.as < std::vector<idyl::parser::expr_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::expr_ptr > ());
@@ -1443,7 +1443,7 @@ namespace yy {
     break;
 
   case 31: // flow_elements: flow_elements COMMA LBRACKET NUMBER RBRACKET
-#line 371 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 372 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::expr_ptr> > () = yystack_[4].value.as < std::vector<idyl::parser::expr_ptr> > ();
         auto rep = std::make_shared<idyl::parser::repetition_marker>();
@@ -1464,7 +1464,7 @@ namespace yy {
     break;
 
   case 32: // flow_elements: flow_elements COMMA RESTART_MARKER
-#line 388 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 389 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::expr_ptr> > () = yystack_[2].value.as < std::vector<idyl::parser::expr_ptr> > ();
         auto restart = std::make_shared<idyl::parser::repetition_marker>();
@@ -1477,13 +1477,13 @@ namespace yy {
     break;
 
   case 33: // flow_elements: expression
-#line 396 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 397 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                  { yylhs.value.as < std::vector<idyl::parser::expr_ptr> > () = {yystack_[0].value.as < idyl::parser::expr_ptr > ()}; }
 #line 1483 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
   case 34: // generator_expression: LBRACKET IDENTIFIER ASSIGN expression RANGE expression COLON expression RBRACKET
-#line 401 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 402 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto gen = std::make_shared<idyl::parser::generator_expr>();
         gen->variable_ = yystack_[7].value.as < std::string > ();
@@ -1502,7 +1502,7 @@ namespace yy {
     break;
 
   case 35: // process_block: PROCESS COLON LBRACE process_body_statements RBRACE
-#line 419 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 420 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto proc = std::make_shared<idyl::parser::process_block>();
         proc->name_ = "main";
@@ -1517,7 +1517,7 @@ namespace yy {
     break;
 
   case 36: // process_block: PROCESS IDENTIFIER COMMA DUR ASSIGN expression COLON LBRACE process_body_statements RBRACE
-#line 430 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 431 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto proc = std::make_shared<idyl::parser::process_block>();
         proc->name_ = yystack_[8].value.as < std::string > ();
@@ -1533,7 +1533,7 @@ namespace yy {
     break;
 
   case 37: // process_block: PROCESS IDENTIFIER COLON LBRACE process_body_statements RBRACE
-#line 442 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 443 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto proc = std::make_shared<idyl::parser::process_block>();
         proc->name_ = yystack_[4].value.as < std::string > ();
@@ -1548,7 +1548,7 @@ namespace yy {
     break;
 
   case 38: // process_body_statements: process_body_statements process_body_statement
-#line 456 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 457 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > () = yystack_[1].value.as < std::vector<idyl::parser::stmt_ptr> > ();
         if (yystack_[0].value.as < idyl::parser::stmt_ptr > ()) yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::stmt_ptr > ());
@@ -1557,7 +1557,7 @@ namespace yy {
     break;
 
   case 39: // process_body_statements: process_body_statement
-#line 461 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 462 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > () = {};
         if (yystack_[0].value.as < idyl::parser::stmt_ptr > ()) yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::stmt_ptr > ());
@@ -1565,8 +1565,61 @@ namespace yy {
 #line 1566 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 40: // process_body_statement: IDENTIFIER ASSIGN expression
-#line 469 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 40: // process_body_statement: postfix_expression ASSIGN expression
+#line 470 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+    {
+        // Interpret postfix_expression ASSIGN expression as a local function definition.
+        // postfix_expression is either:
+        //   - identifier_expr → 0-param binding: "name = expr" (same as assignment)
+        //   - function_call_expr → local function: "name(params) = expr"
+        auto func = std::make_shared<idyl::parser::function_definition>();
+        func->body_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
+        func->line_ = yystack_[2].location.begin.line;
+        func->column_ = yystack_[2].location.begin.column;
+        auto& lhs = yystack_[2].value.as < idyl::parser::expr_ptr > ();
+        if (lhs && lhs->type_ == idyl::parser::node_t::function_call_expr) {
+            // Extract function name from the call's function_ expression
+            auto& call_expr = static_cast<idyl::parser::function_call_expr&>(*lhs);
+            if (call_expr.call_ && call_expr.call_->function_) {
+                auto& fn_expr = *call_expr.call_->function_;
+                if (fn_expr.type_ == idyl::parser::node_t::identifier_expr) {
+                    auto& id_expr = static_cast<idyl::parser::identifier_expr&>(fn_expr);
+                    if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+                }
+            }
+            // Convert arguments to parameters
+            if (call_expr.call_) {
+                for (const auto& arg : call_expr.call_->arguments_) {
+                    if (!arg) continue;
+                    auto param = std::make_shared<idyl::parser::parameter>();
+                    if (!arg->name_.empty()) {
+                        // Named arg: "dt=10ms" → parameter with default
+                        param->name_ = arg->name_;
+                        param->default_value_ = arg->value_;
+                        param->has_default_time_ = (arg->name_ == "dt");
+                    } else if (arg->value_ && arg->value_->type_ == idyl::parser::node_t::identifier_expr) {
+                        auto& id = static_cast<idyl::parser::identifier_expr&>(*arg->value_);
+                        if (id.identifier_) param->name_ = id.identifier_->name_;
+                    } else if (arg->value_ && arg->value_->type_ == idyl::parser::node_t::unary_op_expr) {
+                        // Could be trigger param: !name
+                        param->name_ = "__trigger__";
+                        param->is_trigger_parameter_ = true;
+                    }
+                    func->parameters_.push_back(param);
+                }
+            }
+        } else if (lhs && lhs->type_ == idyl::parser::node_t::identifier_expr) {
+            // Simple binding: "name = expr"
+            auto& id_expr = static_cast<idyl::parser::identifier_expr&>(*lhs);
+            if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+        }
+        yylhs.value.as < idyl::parser::stmt_ptr > () = func;
+    }
+#line 1619 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 41: // process_body_statement: IDENTIFIER ASSIGN expression
+#line 519 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = yystack_[2].value.as < std::string > ();
@@ -1576,11 +1629,11 @@ namespace yy {
         assign->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 1580 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1633 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 41: // process_body_statement: EMIT IDENTIFIER ASSIGN expression
-#line 479 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 42: // process_body_statement: EMIT IDENTIFIER ASSIGN expression
+#line 529 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = yystack_[2].value.as < std::string > ();
@@ -1590,51 +1643,51 @@ namespace yy {
         assign->column_ = yystack_[3].location.begin.column;
         yylhs.value.as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 1594 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1647 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 42: // process_body_statement: stop_statement
-#line 489 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 43: // process_body_statement: stop_statement
+#line 539 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::stop_statement> > ();
     }
-#line 1602 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1655 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 43: // process_body_statement: start_statement
-#line 493 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 44: // process_body_statement: start_statement
+#line 543 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::start_statement> > ();
     }
-#line 1610 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1663 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 44: // process_body_statement: catch_block
-#line 497 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 45: // process_body_statement: catch_block
+#line 547 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::catch_block> > ();
     }
-#line 1618 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1671 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 45: // process_body_statement: at_block
-#line 501 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 46: // process_body_statement: at_block
+#line 551 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::at_block> > ();
     }
-#line 1626 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1679 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 46: // process_body_statement: on_block
-#line 505 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 47: // process_body_statement: on_block
+#line 555 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < idyl::parser::stmt_ptr > () = yystack_[0].value.as < std::shared_ptr<idyl::parser::on_block> > ();
     }
-#line 1634 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1687 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 47: // process_body_statement: expression
-#line 509 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 48: // process_body_statement: expression
+#line 559 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
         es->expression_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
@@ -1642,11 +1695,11 @@ namespace yy {
         es->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::stmt_ptr > () = es;
     }
-#line 1646 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1699 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 48: // at_block: AT_OP LPAREN expression RPAREN COLON LBRACE process_body_statements RBRACE
-#line 520 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 49: // at_block: AT_OP LPAREN expression RPAREN COLON LBRACE process_body_statements RBRACE
+#line 570 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto at_stmt = std::make_shared<idyl::parser::at_block>();
         at_stmt->time_expr_ = yystack_[5].value.as < idyl::parser::expr_ptr > ();
@@ -1655,11 +1708,11 @@ namespace yy {
         at_stmt->column_ = yystack_[7].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::at_block> > () = at_stmt;
     }
-#line 1659 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1712 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 49: // at_block: AT_OP LPAREN expression RPAREN COLON process_body_statement
-#line 529 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 50: // at_block: AT_OP LPAREN expression RPAREN COLON process_body_statement
+#line 579 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto at_stmt = std::make_shared<idyl::parser::at_block>();
         at_stmt->time_expr_ = yystack_[3].value.as < idyl::parser::expr_ptr > ();
@@ -1668,11 +1721,11 @@ namespace yy {
         at_stmt->column_ = yystack_[5].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::at_block> > () = at_stmt;
     }
-#line 1672 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1725 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 50: // on_block: ON expression COLON LBRACE process_body_statements RBRACE
-#line 541 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 51: // on_block: ON expression COLON LBRACE process_body_statements RBRACE
+#line 591 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto on_stmt = std::make_shared<idyl::parser::on_block>();
         on_stmt->trigger_expr_ = yystack_[4].value.as < idyl::parser::expr_ptr > ();
@@ -1681,11 +1734,11 @@ namespace yy {
         on_stmt->column_ = yystack_[5].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::on_block> > () = on_stmt;
     }
-#line 1685 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1738 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 51: // on_block: ON expression COLON process_body_statement
-#line 550 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 52: // on_block: ON expression COLON process_body_statement
+#line 600 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto on_stmt = std::make_shared<idyl::parser::on_block>();
         on_stmt->trigger_expr_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
@@ -1694,11 +1747,11 @@ namespace yy {
         on_stmt->column_ = yystack_[3].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::on_block> > () = on_stmt;
     }
-#line 1698 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1751 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 52: // stop_statement: STOP IDENTIFIER
-#line 562 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 53: // stop_statement: STOP IDENTIFIER
+#line 612 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
         stop_stmt->target_ = yystack_[0].value.as < std::string > ();
@@ -1706,11 +1759,11 @@ namespace yy {
         stop_stmt->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::stop_statement> > () = stop_stmt;
     }
-#line 1710 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1763 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 53: // stop_statement: STOP
-#line 570 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 54: // stop_statement: STOP
+#line 620 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
         stop_stmt->target_ = "";
@@ -1718,11 +1771,11 @@ namespace yy {
         stop_stmt->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::stop_statement> > () = stop_stmt;
     }
-#line 1722 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1775 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 54: // start_statement: START IDENTIFIER
-#line 581 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 55: // start_statement: START IDENTIFIER
+#line 631 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto start_stmt = std::make_shared<idyl::parser::start_statement>();
         start_stmt->target_ = yystack_[0].value.as < std::string > ();
@@ -1730,11 +1783,11 @@ namespace yy {
         start_stmt->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::start_statement> > () = start_stmt;
     }
-#line 1734 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1787 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 55: // catch_block: CATCH postfix_expression NAMESPACE_DOT IDENTIFIER COLON LBRACE process_body_statements RBRACE
-#line 592 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 56: // catch_block: CATCH postfix_expression NAMESPACE_DOT IDENTIFIER COLON LBRACE process_body_statements RBRACE
+#line 642 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
         catch_b->instance_expr_ = yystack_[6].value.as < idyl::parser::expr_ptr > ();
@@ -1744,11 +1797,11 @@ namespace yy {
         catch_b->column_        = yystack_[7].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::catch_block> > () = catch_b;
     }
-#line 1748 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1801 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 56: // catch_block: CATCH postfix_expression NAMESPACE_DOT END COLON LBRACE process_body_statements RBRACE
-#line 602 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 57: // catch_block: CATCH postfix_expression NAMESPACE_DOT END COLON LBRACE process_body_statements RBRACE
+#line 652 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
         catch_b->instance_expr_ = yystack_[6].value.as < idyl::parser::expr_ptr > ();
@@ -1758,11 +1811,11 @@ namespace yy {
         catch_b->column_        = yystack_[7].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::catch_block> > () = catch_b;
     }
-#line 1762 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1815 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 57: // lambda_block: LAMBDA_BLOCK LBRACE init_block lambda_statements RBRACE
-#line 615 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 58: // lambda_block: LAMBDA_BLOCK LBRACE init_block lambda_statements RBRACE
+#line 665 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto lambda = std::make_shared<idyl::parser::lambda_block>();
         lambda->init_ = yystack_[2].value.as < std::shared_ptr<idyl::parser::init_block> > ();
@@ -1771,11 +1824,11 @@ namespace yy {
         lambda->column_ = yystack_[4].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::lambda_block> > () = lambda;
     }
-#line 1775 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1828 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 58: // lambda_block: LAMBDA_BLOCK LBRACE init_block RBRACE
-#line 624 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 59: // lambda_block: LAMBDA_BLOCK LBRACE init_block RBRACE
+#line 674 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto lambda = std::make_shared<idyl::parser::lambda_block>();
         lambda->init_ = yystack_[1].value.as < std::shared_ptr<idyl::parser::init_block> > ();
@@ -1784,11 +1837,11 @@ namespace yy {
         lambda->column_ = yystack_[3].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::lambda_block> > () = lambda;
     }
-#line 1788 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1841 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 59: // lambda_block: LAMBDA_BLOCK LBRACE lambda_statements RBRACE
-#line 633 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 60: // lambda_block: LAMBDA_BLOCK LBRACE lambda_statements RBRACE
+#line 683 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto lambda = std::make_shared<idyl::parser::lambda_block>();
         lambda->update_statements_ = yystack_[1].value.as < std::vector<idyl::parser::stmt_ptr> > ();
@@ -1796,11 +1849,11 @@ namespace yy {
         lambda->column_ = yystack_[3].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::lambda_block> > () = lambda;
     }
-#line 1800 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1853 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 60: // init_block: INIT COLON LBRACE lambda_statements RBRACE
-#line 644 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 61: // init_block: INIT COLON LBRACE lambda_statements RBRACE
+#line 694 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto init = std::make_shared<idyl::parser::init_block>();
         init->statements_ = yystack_[1].value.as < std::vector<idyl::parser::stmt_ptr> > ();
@@ -1808,29 +1861,72 @@ namespace yy {
         init->column_ = yystack_[4].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::init_block> > () = init;
     }
-#line 1812 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1865 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 61: // lambda_statements: lambda_statements lambda_statement
-#line 655 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 62: // lambda_statements: lambda_statements lambda_statement
+#line 705 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > () = yystack_[1].value.as < std::vector<idyl::parser::stmt_ptr> > ();
         if (yystack_[0].value.as < idyl::parser::stmt_ptr > ()) yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::stmt_ptr > ());
     }
-#line 1821 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1874 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 62: // lambda_statements: lambda_statement
-#line 660 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 63: // lambda_statements: lambda_statement
+#line 710 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > () = {};
         if (yystack_[0].value.as < idyl::parser::stmt_ptr > ()) yylhs.value.as < std::vector<idyl::parser::stmt_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::stmt_ptr > ());
     }
-#line 1830 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1883 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 63: // lambda_statement: IDENTIFIER ASSIGN expression
-#line 668 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 64: // lambda_statement: postfix_expression ASSIGN expression
+#line 718 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+    {
+        // Same pattern as in process_body_statement: interpret as local function definition
+        // when lhs is a function call, or as an assignment when lhs is an identifier.
+        auto func = std::make_shared<idyl::parser::function_definition>();
+        func->body_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
+        func->line_ = yystack_[2].location.begin.line;
+        func->column_ = yystack_[2].location.begin.column;
+        auto& lhs = yystack_[2].value.as < idyl::parser::expr_ptr > ();
+        if (lhs && lhs->type_ == idyl::parser::node_t::function_call_expr) {
+            auto& call_expr = static_cast<idyl::parser::function_call_expr&>(*lhs);
+            if (call_expr.call_ && call_expr.call_->function_) {
+                auto& fn_expr = *call_expr.call_->function_;
+                if (fn_expr.type_ == idyl::parser::node_t::identifier_expr) {
+                    auto& id_expr = static_cast<idyl::parser::identifier_expr&>(fn_expr);
+                    if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+                }
+            }
+            if (call_expr.call_) {
+                for (const auto& arg : call_expr.call_->arguments_) {
+                    if (!arg) continue;
+                    auto param = std::make_shared<idyl::parser::parameter>();
+                    if (!arg->name_.empty()) {
+                        param->name_ = arg->name_;
+                        param->default_value_ = arg->value_;
+                        param->has_default_time_ = (arg->name_ == "dt");
+                    } else if (arg->value_ && arg->value_->type_ == idyl::parser::node_t::identifier_expr) {
+                        auto& id = static_cast<idyl::parser::identifier_expr&>(*arg->value_);
+                        if (id.identifier_) param->name_ = id.identifier_->name_;
+                    }
+                    func->parameters_.push_back(param);
+                }
+            }
+        } else if (lhs && lhs->type_ == idyl::parser::node_t::identifier_expr) {
+            auto& id_expr = static_cast<idyl::parser::identifier_expr&>(*lhs);
+            if (id_expr.identifier_) func->name_ = id_expr.identifier_->name_;
+        }
+        yylhs.value.as < idyl::parser::stmt_ptr > () = func;
+    }
+#line 1926 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 65: // lambda_statement: IDENTIFIER ASSIGN expression
+#line 757 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = yystack_[2].value.as < std::string > ();
@@ -1840,11 +1936,11 @@ namespace yy {
         assign->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 1844 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1940 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 64: // lambda_statement: EMIT IDENTIFIER ASSIGN expression
-#line 678 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 66: // lambda_statement: EMIT IDENTIFIER ASSIGN expression
+#line 767 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = yystack_[2].value.as < std::string > ();
@@ -1854,11 +1950,11 @@ namespace yy {
         assign->column_ = yystack_[3].location.begin.column;
         yylhs.value.as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 1858 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1954 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 65: // lambda_statement: DT ASSIGN expression
-#line 688 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 67: // lambda_statement: DT ASSIGN expression
+#line 777 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = "dt";
@@ -1868,11 +1964,11 @@ namespace yy {
         assign->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 1872 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1968 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 66: // lambda_statement: expression
-#line 698 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 68: // lambda_statement: expression
+#line 787 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
         es->expression_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
@@ -1880,26 +1976,26 @@ namespace yy {
         es->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::stmt_ptr > () = es;
     }
-#line 1884 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1980 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 67: // parameter_list: parameter_list COMMA parameter
-#line 709 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 69: // parameter_list: parameter_list COMMA parameter
+#line 798 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::param_ptr> > () = yystack_[2].value.as < std::vector<idyl::parser::param_ptr> > ();
         if (yystack_[0].value.as < idyl::parser::param_ptr > ()) yylhs.value.as < std::vector<idyl::parser::param_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::param_ptr > ());
     }
-#line 1893 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1989 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 68: // parameter_list: parameter
-#line 713 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 70: // parameter_list: parameter
+#line 802 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                 { yylhs.value.as < std::vector<idyl::parser::param_ptr> > () = {yystack_[0].value.as < idyl::parser::param_ptr > ()}; }
-#line 1899 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 1995 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 69: // parameter: IDENTIFIER
-#line 718 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 71: // parameter: IDENTIFIER
+#line 807 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = yystack_[0].value.as < std::string > ();
@@ -1908,11 +2004,11 @@ namespace yy {
         param->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::param_ptr > () = param;
     }
-#line 1912 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2008 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 70: // parameter: IDENTIFIER TRIGGER
-#line 727 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 72: // parameter: IDENTIFIER TRIGGER
+#line 816 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = yystack_[1].value.as < std::string > ();
@@ -1921,11 +2017,11 @@ namespace yy {
         param->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::param_ptr > () = param;
     }
-#line 1925 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2021 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 71: // parameter: IDENTIFIER ASSIGN expression
-#line 736 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 73: // parameter: IDENTIFIER ASSIGN expression
+#line 825 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = yystack_[2].value.as < std::string > ();
@@ -1934,11 +2030,11 @@ namespace yy {
         param->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::param_ptr > () = param;
     }
-#line 1938 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2034 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 72: // parameter: DT ASSIGN expression
-#line 745 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 74: // parameter: DT ASSIGN expression
+#line 834 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = "dt";
@@ -1948,29 +2044,29 @@ namespace yy {
         param->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::param_ptr > () = param;
     }
-#line 1952 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2048 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 73: // expression: assignment_expression
-#line 757 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 75: // expression: assignment_expression
+#line 846 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 1958 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2054 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 74: // assignment_expression: ternary_expression
-#line 761 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 76: // assignment_expression: ternary_expression
+#line 850 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                          { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 1964 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2060 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 75: // ternary_expression: logical_or_expression
-#line 765 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 77: // ternary_expression: logical_or_expression
+#line 854 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 1970 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2066 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 76: // ternary_expression: logical_or_expression QUESTION ternary_options
-#line 767 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 78: // ternary_expression: logical_or_expression QUESTION ternary_options
+#line 856 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto ternary = std::make_shared<idyl::parser::ternary_op>();
         ternary->options_ = yystack_[0].value.as < std::vector<idyl::parser::expr_ptr> > ();
@@ -1995,133 +2091,37 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 1999 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2095 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 77: // ternary_options: ternary_options SEMICOLON logical_or_expression
-#line 795 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 79: // ternary_options: ternary_options SEMICOLON logical_or_expression
+#line 884 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::expr_ptr> > () = yystack_[2].value.as < std::vector<idyl::parser::expr_ptr> > ();
         yylhs.value.as < std::vector<idyl::parser::expr_ptr> > ().push_back(yystack_[0].value.as < idyl::parser::expr_ptr > ());
     }
-#line 2008 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2104 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 78: // ternary_options: logical_or_expression
-#line 800 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 80: // ternary_options: logical_or_expression
+#line 889 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<idyl::parser::expr_ptr> > () = {yystack_[0].value.as < idyl::parser::expr_ptr > ()};
-    }
-#line 2016 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 79: // logical_or_expression: logical_and_expression
-#line 806 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2022 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 80: // logical_or_expression: logical_or_expression OR logical_and_expression
-#line 808 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-    {
-        auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "|";
-        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
-        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
-        binop->line_ = yystack_[1].location.begin.line;
-        binop->column_ = yystack_[1].location.begin.column;
-        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
-        expr->op_ = binop;
-        expr->line_ = yystack_[1].location.begin.line;
-        expr->column_ = yystack_[1].location.begin.column;
-        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
-    }
-#line 2040 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 81: // logical_and_expression: bitwise_or_expression
-#line 824 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                            { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2046 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 82: // logical_and_expression: logical_and_expression AND bitwise_or_expression
-#line 826 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-    {
-        auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "&";
-        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
-        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
-        binop->line_ = yystack_[1].location.begin.line;
-        binop->column_ = yystack_[1].location.begin.column;
-        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
-        expr->op_ = binop;
-        expr->line_ = yystack_[1].location.begin.line;
-        expr->column_ = yystack_[1].location.begin.column;
-        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
-    }
-#line 2064 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 83: // bitwise_or_expression: bitwise_xor_expression
-#line 842 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2070 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 84: // bitwise_or_expression: bitwise_or_expression OR bitwise_xor_expression
-#line 844 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-    {
-        auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "|";
-        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
-        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
-        binop->line_ = yystack_[1].location.begin.line;
-        binop->column_ = yystack_[1].location.begin.column;
-        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
-        expr->op_ = binop;
-        expr->line_ = yystack_[1].location.begin.line;
-        expr->column_ = yystack_[1].location.begin.column;
-        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
-    }
-#line 2088 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 85: // bitwise_xor_expression: bitwise_and_expression
-#line 860 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2094 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 86: // bitwise_xor_expression: bitwise_xor_expression XOR bitwise_and_expression
-#line 862 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-    {
-        auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "^";
-        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
-        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
-        binop->line_ = yystack_[1].location.begin.line;
-        binop->column_ = yystack_[1].location.begin.column;
-        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
-        expr->op_ = binop;
-        expr->line_ = yystack_[1].location.begin.line;
-        expr->column_ = yystack_[1].location.begin.column;
-        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
 #line 2112 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 87: // bitwise_and_expression: equality_expression
-#line 878 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                          { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
+  case 81: // logical_or_expression: logical_and_expression
+#line 895 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
 #line 2118 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 88: // bitwise_and_expression: bitwise_and_expression AND equality_expression
-#line 880 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 82: // logical_or_expression: logical_or_expression OR logical_and_expression
+#line 897 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "&";
+        binop->op_ = "|";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2135,17 +2135,17 @@ namespace yy {
 #line 2136 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 89: // equality_expression: relational_expression
-#line 896 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 83: // logical_and_expression: bitwise_or_expression
+#line 913 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
 #line 2142 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 90: // equality_expression: equality_expression EQ relational_expression
-#line 898 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 84: // logical_and_expression: logical_and_expression AND bitwise_or_expression
+#line 915 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "==";
+        binop->op_ = "&";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2159,11 +2159,17 @@ namespace yy {
 #line 2160 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 91: // equality_expression: equality_expression NEQ relational_expression
-#line 912 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 85: // bitwise_or_expression: bitwise_xor_expression
+#line 931 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
+#line 2166 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 86: // bitwise_or_expression: bitwise_or_expression OR bitwise_xor_expression
+#line 933 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "!=";
+        binop->op_ = "|";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2174,38 +2180,20 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2178 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 92: // relational_expression: shift_expression
-#line 928 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                       { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
 #line 2184 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 93: // relational_expression: relational_expression LT shift_expression
-#line 930 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-    {
-        auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "<";
-        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
-        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
-        binop->line_ = yystack_[1].location.begin.line;
-        binop->column_ = yystack_[1].location.begin.column;
-        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
-        expr->op_ = binop;
-        expr->line_ = yystack_[1].location.begin.line;
-        expr->column_ = yystack_[1].location.begin.column;
-        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
-    }
-#line 2202 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+  case 87: // bitwise_xor_expression: bitwise_and_expression
+#line 949 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                             { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
+#line 2190 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 94: // relational_expression: relational_expression GT shift_expression
-#line 944 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 88: // bitwise_xor_expression: bitwise_xor_expression XOR bitwise_and_expression
+#line 951 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = ">";
+        binop->op_ = "^";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2216,14 +2204,20 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2220 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2208 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 95: // relational_expression: relational_expression LE shift_expression
-#line 958 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 89: // bitwise_and_expression: equality_expression
+#line 967 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                          { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
+#line 2214 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 90: // bitwise_and_expression: bitwise_and_expression AND equality_expression
+#line 969 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "<=";
+        binop->op_ = "&";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2234,14 +2228,20 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
+#line 2232 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 91: // equality_expression: relational_expression
+#line 985 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                            { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
 #line 2238 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 96: // relational_expression: relational_expression GE shift_expression
-#line 972 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 92: // equality_expression: equality_expression EQ relational_expression
+#line 987 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = ">=";
+        binop->op_ = "==";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2255,17 +2255,11 @@ namespace yy {
 #line 2256 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 97: // shift_expression: additive_expression
-#line 988 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                          { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2262 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-    break;
-
-  case 98: // shift_expression: shift_expression LSHIFT additive_expression
-#line 990 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 93: // equality_expression: equality_expression NEQ relational_expression
+#line 1001 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = "<<";
+        binop->op_ = "!=";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2276,14 +2270,20 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
+#line 2274 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 94: // relational_expression: shift_expression
+#line 1017 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                       { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
 #line 2280 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 99: // shift_expression: shift_expression RSHIFT additive_expression
-#line 1004 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 95: // relational_expression: relational_expression LT shift_expression
+#line 1019 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
-        binop->op_ = ">>";
+        binop->op_ = "<";
         binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
         binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
         binop->line_ = yystack_[1].location.begin.line;
@@ -2297,14 +2297,110 @@ namespace yy {
 #line 2298 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 100: // additive_expression: multiplicative_expression
-#line 1020 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
-                                { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2304 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+  case 96: // relational_expression: relational_expression GT shift_expression
+#line 1033 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+    {
+        auto binop = std::make_shared<idyl::parser::binary_op>();
+        binop->op_ = ">";
+        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
+        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
+        binop->line_ = yystack_[1].location.begin.line;
+        binop->column_ = yystack_[1].location.begin.column;
+        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
+        expr->op_ = binop;
+        expr->line_ = yystack_[1].location.begin.line;
+        expr->column_ = yystack_[1].location.begin.column;
+        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
+    }
+#line 2316 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 101: // additive_expression: additive_expression PLUS multiplicative_expression
-#line 1022 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 97: // relational_expression: relational_expression LE shift_expression
+#line 1047 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+    {
+        auto binop = std::make_shared<idyl::parser::binary_op>();
+        binop->op_ = "<=";
+        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
+        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
+        binop->line_ = yystack_[1].location.begin.line;
+        binop->column_ = yystack_[1].location.begin.column;
+        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
+        expr->op_ = binop;
+        expr->line_ = yystack_[1].location.begin.line;
+        expr->column_ = yystack_[1].location.begin.column;
+        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
+    }
+#line 2334 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 98: // relational_expression: relational_expression GE shift_expression
+#line 1061 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+    {
+        auto binop = std::make_shared<idyl::parser::binary_op>();
+        binop->op_ = ">=";
+        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
+        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
+        binop->line_ = yystack_[1].location.begin.line;
+        binop->column_ = yystack_[1].location.begin.column;
+        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
+        expr->op_ = binop;
+        expr->line_ = yystack_[1].location.begin.line;
+        expr->column_ = yystack_[1].location.begin.column;
+        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
+    }
+#line 2352 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 99: // shift_expression: additive_expression
+#line 1077 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                          { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
+#line 2358 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 100: // shift_expression: shift_expression LSHIFT additive_expression
+#line 1079 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+    {
+        auto binop = std::make_shared<idyl::parser::binary_op>();
+        binop->op_ = "<<";
+        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
+        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
+        binop->line_ = yystack_[1].location.begin.line;
+        binop->column_ = yystack_[1].location.begin.column;
+        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
+        expr->op_ = binop;
+        expr->line_ = yystack_[1].location.begin.line;
+        expr->column_ = yystack_[1].location.begin.column;
+        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
+    }
+#line 2376 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 101: // shift_expression: shift_expression RSHIFT additive_expression
+#line 1093 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+    {
+        auto binop = std::make_shared<idyl::parser::binary_op>();
+        binop->op_ = ">>";
+        binop->left_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
+        binop->right_ = yystack_[0].value.as < idyl::parser::expr_ptr > ();
+        binop->line_ = yystack_[1].location.begin.line;
+        binop->column_ = yystack_[1].location.begin.column;
+        auto expr = std::make_shared<idyl::parser::binary_op_expr>();
+        expr->op_ = binop;
+        expr->line_ = yystack_[1].location.begin.line;
+        expr->column_ = yystack_[1].location.begin.column;
+        yylhs.value.as < idyl::parser::expr_ptr > () = expr;
+    }
+#line 2394 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 102: // additive_expression: multiplicative_expression
+#line 1109 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+                                { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
+#line 2400 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+    break;
+
+  case 103: // additive_expression: additive_expression PLUS multiplicative_expression
+#line 1111 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "+";
@@ -2318,11 +2414,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2322 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2418 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 102: // additive_expression: additive_expression MINUS multiplicative_expression
-#line 1036 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 104: // additive_expression: additive_expression MINUS multiplicative_expression
+#line 1125 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "-";
@@ -2336,17 +2432,17 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2340 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2436 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 103: // multiplicative_expression: unary_expression
-#line 1052 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 105: // multiplicative_expression: unary_expression
+#line 1141 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                        { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2346 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2442 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 104: // multiplicative_expression: multiplicative_expression MUL unary_expression
-#line 1054 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 106: // multiplicative_expression: multiplicative_expression MUL unary_expression
+#line 1143 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "*";
@@ -2360,11 +2456,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2364 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2460 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 105: // multiplicative_expression: multiplicative_expression DIV unary_expression
-#line 1068 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 107: // multiplicative_expression: multiplicative_expression DIV unary_expression
+#line 1157 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "/";
@@ -2378,11 +2474,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2382 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2478 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 106: // multiplicative_expression: multiplicative_expression MOD unary_expression
-#line 1082 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 108: // multiplicative_expression: multiplicative_expression MOD unary_expression
+#line 1171 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "%";
@@ -2396,17 +2492,17 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2400 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2496 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 107: // unary_expression: postfix_expression
-#line 1098 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 109: // unary_expression: postfix_expression
+#line 1187 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                          { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2406 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2502 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 108: // unary_expression: NOT unary_expression
-#line 1100 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 110: // unary_expression: NOT unary_expression
+#line 1189 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto unop = std::make_shared<idyl::parser::unary_op>();
         unop->op_ = "~";
@@ -2419,11 +2515,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2423 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2519 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 109: // unary_expression: MINUS unary_expression
-#line 1113 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 111: // unary_expression: MINUS unary_expression
+#line 1202 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto unop = std::make_shared<idyl::parser::unary_op>();
         unop->op_ = "-";
@@ -2436,11 +2532,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2440 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2536 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 110: // unary_expression: MEMORY_OP LPAREN expression RPAREN
-#line 1126 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 112: // unary_expression: MEMORY_OP LPAREN expression RPAREN
+#line 1215 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto memop = std::make_shared<idyl::parser::memory_op>();
         memop->expr_ = yystack_[1].value.as < idyl::parser::expr_ptr > ();
@@ -2452,11 +2548,11 @@ namespace yy {
         expr->column_ = yystack_[3].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2456 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2552 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 111: // unary_expression: MEMORY_OP LPAREN expression COMMA expression RPAREN
-#line 1138 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 113: // unary_expression: MEMORY_OP LPAREN expression COMMA expression RPAREN
+#line 1227 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto memop = std::make_shared<idyl::parser::memory_op>();
         memop->expr_ = yystack_[3].value.as < idyl::parser::expr_ptr > ();
@@ -2469,17 +2565,17 @@ namespace yy {
         expr->column_ = yystack_[5].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2473 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2569 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 112: // postfix_expression: primary_expression
-#line 1153 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 114: // postfix_expression: primary_expression
+#line 1242 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                          { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2479 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2575 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 113: // postfix_expression: postfix_expression LPAREN argument_list RPAREN
-#line 1155 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 115: // postfix_expression: postfix_expression LPAREN argument_list RPAREN
+#line 1244 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto call = std::make_shared<idyl::parser::function_call>();
         call->function_ = yystack_[3].value.as < idyl::parser::expr_ptr > ();
@@ -2492,11 +2588,11 @@ namespace yy {
         expr->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2496 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2592 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 114: // postfix_expression: postfix_expression LPAREN RPAREN
-#line 1168 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 116: // postfix_expression: postfix_expression LPAREN RPAREN
+#line 1257 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto call = std::make_shared<idyl::parser::function_call>();
         call->function_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
@@ -2509,11 +2605,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2513 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2609 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 115: // postfix_expression: postfix_expression DOT IDENTIFIER
-#line 1181 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 117: // postfix_expression: postfix_expression DOT IDENTIFIER
+#line 1270 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::flow_access>();
         access->flow_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
@@ -2526,11 +2622,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2530 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2626 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 116: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER
-#line 1194 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 118: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER
+#line 1283 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::module_access>();
         access->module_ = yystack_[2].value.as < idyl::parser::expr_ptr > ();
@@ -2544,11 +2640,11 @@ namespace yy {
         expr->column_ = yystack_[1].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2548 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2644 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 117: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER LPAREN argument_list RPAREN
-#line 1208 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 119: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER LPAREN argument_list RPAREN
+#line 1297 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::module_access>();
         access->module_ = yystack_[5].value.as < idyl::parser::expr_ptr > ();
@@ -2562,11 +2658,11 @@ namespace yy {
         expr->column_ = yystack_[4].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2566 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2662 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 118: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER LPAREN RPAREN
-#line 1222 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 120: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER LPAREN RPAREN
+#line 1311 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::module_access>();
         access->module_ = yystack_[4].value.as < idyl::parser::expr_ptr > ();
@@ -2580,11 +2676,11 @@ namespace yy {
         expr->column_ = yystack_[3].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2584 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2680 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 119: // postfix_expression: postfix_expression LBRACKET expression RBRACKET
-#line 1236 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 121: // postfix_expression: postfix_expression LBRACKET expression RBRACKET
+#line 1325 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::flow_access>();
         access->flow_ = yystack_[3].value.as < idyl::parser::expr_ptr > ();
@@ -2597,11 +2693,11 @@ namespace yy {
         expr->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2601 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2697 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 120: // primary_expression: IDENTIFIER
-#line 1252 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 122: // primary_expression: IDENTIFIER
+#line 1341 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = yystack_[0].value.as < std::string > ();
@@ -2613,11 +2709,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2617 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2713 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 121: // primary_expression: NUMBER
-#line 1264 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 123: // primary_expression: NUMBER
+#line 1353 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto num = std::make_shared<idyl::parser::number_literal>();
         num->value_ = yystack_[0].value.as < std::string > ();
@@ -2629,11 +2725,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2633 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2729 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 122: // primary_expression: TIME_LITERAL
-#line 1276 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 124: // primary_expression: TIME_LITERAL
+#line 1365 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto time = std::make_shared<idyl::parser::time_literal>();
         // Parse time literal
@@ -2662,11 +2758,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2666 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2762 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 123: // primary_expression: TRIGGER
-#line 1305 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 125: // primary_expression: TRIGGER
+#line 1394 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto trigger = std::make_shared<idyl::parser::trigger_literal>();
         trigger->line_ = yystack_[0].location.begin.line;
@@ -2677,11 +2773,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2681 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2777 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 124: // primary_expression: REST
-#line 1316 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 126: // primary_expression: REST
+#line 1405 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto rest = std::make_shared<idyl::parser::rest_literal>();
         rest->line_ = yystack_[0].location.begin.line;
@@ -2692,11 +2788,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2696 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2792 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 125: // primary_expression: DT
-#line 1327 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 127: // primary_expression: DT
+#line 1416 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dt";
@@ -2708,11 +2804,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2712 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2808 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 126: // primary_expression: DUR
-#line 1339 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 128: // primary_expression: DUR
+#line 1428 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dur";
@@ -2724,11 +2820,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2728 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2824 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 127: // primary_expression: STRING_LITERAL
-#line 1351 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 129: // primary_expression: STRING_LITERAL
+#line 1440 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto str = std::make_shared<idyl::parser::string_literal>();
         str->value_ = yystack_[0].value.as < std::string > ();
@@ -2740,11 +2836,11 @@ namespace yy {
         expr->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = expr;
     }
-#line 2744 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2840 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 128: // primary_expression: LPAREN expression RPAREN
-#line 1363 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 130: // primary_expression: LPAREN expression RPAREN
+#line 1452 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto paren = std::make_shared<idyl::parser::parenthesized_expr>();
         paren->expr_ = yystack_[1].value.as < idyl::parser::expr_ptr > ();
@@ -2752,38 +2848,38 @@ namespace yy {
         paren->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < idyl::parser::expr_ptr > () = paren;
     }
-#line 2756 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2852 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 129: // primary_expression: flow_literal
-#line 1370 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 131: // primary_expression: flow_literal
+#line 1459 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                    { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2762 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2858 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 130: // primary_expression: generator_expression
-#line 1371 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 132: // primary_expression: generator_expression
+#line 1460 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                            { yylhs.value.as < idyl::parser::expr_ptr > () = yystack_[0].value.as < idyl::parser::expr_ptr > (); }
-#line 2768 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2864 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 131: // argument_list: argument_list COMMA argument
-#line 1376 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 133: // argument_list: argument_list COMMA argument
+#line 1465 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > () = yystack_[2].value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > ();
         if (yystack_[0].value.as < std::shared_ptr<idyl::parser::argument> > ()) yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > ().push_back(yystack_[0].value.as < std::shared_ptr<idyl::parser::argument> > ());
     }
-#line 2777 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2873 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 132: // argument_list: argument
-#line 1380 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 134: // argument_list: argument
+#line 1469 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
                { yylhs.value.as < std::vector<std::shared_ptr<idyl::parser::argument>> > () = {yystack_[0].value.as < std::shared_ptr<idyl::parser::argument> > ()}; }
-#line 2783 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2879 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 133: // argument: expression
-#line 1385 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 135: // argument: expression
+#line 1474 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = "";
@@ -2792,11 +2888,11 @@ namespace yy {
         arg->column_ = yystack_[0].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 2796 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2892 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 134: // argument: IDENTIFIER ASSIGN expression
-#line 1394 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 136: // argument: IDENTIFIER ASSIGN expression
+#line 1483 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = yystack_[2].value.as < std::string > ();
@@ -2805,11 +2901,11 @@ namespace yy {
         arg->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 2809 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2905 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
-  case 135: // argument: DT ASSIGN expression
-#line 1403 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+  case 137: // argument: DT ASSIGN expression
+#line 1492 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = "dt";
@@ -2818,11 +2914,11 @@ namespace yy {
         arg->column_ = yystack_[2].location.begin.column;
         yylhs.value.as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 2822 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2918 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
     break;
 
 
-#line 2826 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 2922 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
 
             default:
               break;
@@ -3174,43 +3270,44 @@ namespace yy {
   }
 
 
-  const short parser::yypact_ninf_ = -195;
+  const short parser::yypact_ninf_ = -201;
 
   const signed char parser::yytable_ninf_ = -1;
 
   const short
   parser::yypact_[] =
   {
-     248,   -16,    16,     7,   -17,    14,    77,   248,  -195,  -195,
-    -195,  -195,  -195,   775,    12,    15,   -27,    56,   121,   131,
-    -195,  -195,  -195,  -195,  -195,  -195,    65,   101,  -195,  -195,
-     107,  -195,   926,   926,  -195,   926,   955,  -195,  -195,   124,
-    -195,  -195,   -22,   128,   122,   129,   133,    97,   164,    98,
-     123,    64,  -195,    -3,  -195,    23,   130,   132,   -11,  -195,
-       3,     9,   134,   167,   657,   138,   152,   199,   202,   926,
-    -195,  -195,   158,   166,    27,  -195,   160,  -195,   926,   926,
-     926,   926,   926,   926,   926,   926,   926,   926,   926,   926,
-     926,   926,   926,   926,   926,   926,   926,   209,   212,   835,
-     926,   926,  -195,   926,   926,     9,   177,   216,  -195,  -195,
-      62,   657,   178,   183,   229,   220,   230,   231,   189,   926,
-      26,  -195,  -195,  -195,  -195,  -195,  -195,  -195,  -195,  -195,
-     197,   203,    79,  -195,   926,    96,  -195,   806,   128,   207,
-     228,  -195,   129,  -195,    97,   164,   164,    98,    98,    98,
-      98,   241,   241,    64,    64,  -195,  -195,  -195,   218,  -195,
-     227,   232,  -195,  -195,    87,  -195,   226,  -195,  -195,   124,
-    -195,   926,   -31,     5,   234,   225,   926,   926,   242,    83,
-    -195,  -195,   926,   243,  -195,  -195,  -195,  -195,   926,  -195,
-     250,  -195,   984,  -195,   245,   253,   284,   246,    92,   688,
-    -195,  -195,   926,   866,   926,   926,  1013,  -195,  -195,  -195,
-     124,   247,   290,   -10,  -195,    31,  -195,   255,  -195,   926,
-      59,   251,   279,   254,   926,   256,   926,   257,   263,   926,
-    -195,   717,  -195,  -195,   228,  -195,   115,  -195,  -195,  -195,
-    -195,  -195,   265,   247,   305,   216,  -195,   258,  -195,    39,
-     268,   269,   657,  -195,  -195,   270,  -195,  -195,   897,   926,
-    -195,  -195,  -195,   247,  -195,   271,     6,   657,   264,   266,
-     333,   387,   926,   746,  -195,  -195,   247,  -195,   441,   657,
-     657,   657,  -195,  -195,   272,  -195,  -195,  -195,   495,   549,
-     603,  -195,  -195,  -195,  -195
+     126,   -30,     8,     9,   -29,   -14,    24,   126,  -201,  -201,
+    -201,  -201,  -201,   834,    10,    14,    -8,     3,    57,    97,
+    -201,  -201,  -201,  -201,  -201,  -201,    62,    68,  -201,  -201,
+      80,  -201,  1015,  1015,  -201,  1015,  1044,  -201,  -201,   124,
+    -201,  -201,    38,   141,   123,   145,   148,    53,    39,   113,
+      66,    72,  -201,    63,  -201,    50,   154,   155,    73,  -201,
+     114,    13,   135,   190,   687,   156,   159,   206,   210,  1015,
+    -201,  -201,   168,   177,    12,  -201,   169,  -201,  1015,  1015,
+    1015,  1015,  1015,  1015,  1015,  1015,  1015,  1015,  1015,  1015,
+    1015,  1015,  1015,  1015,  1015,  1015,  1015,   226,   231,   894,
+    1015,  1015,  -201,  1015,  1015,    13,   196,   239,  -201,  -201,
+      98,   687,   200,   204,   246,    28,   249,   250,   205,  1015,
+      92,  -201,  -201,  -201,  -201,  -201,  -201,  -201,    -3,  -201,
+    -201,   203,   211,    99,  -201,  1015,   926,  -201,   865,   141,
+     217,   218,  -201,   145,  -201,    53,    39,    39,   113,   113,
+     113,   113,   238,   238,    72,    72,  -201,  -201,  -201,   207,
+    -201,   225,   230,  -201,  -201,   106,  -201,   222,  -201,  -201,
+     124,  -201,  1015,   -26,     0,   232,   255,  1015,  1015,   234,
+     191,  -201,  -201,  1015,   236,  -201,  -201,  1015,  -201,  -201,
+    1015,  -201,   260,  -201,  1073,  -201,   240,   241,   282,   243,
+     718,   747,  -201,  -201,    -2,  1015,   955,  1015,  1015,  1102,
+    -201,  -201,  -201,   124,   237,   285,   -18,  -201,   117,  -201,
+     245,  -201,  1015,    37,   242,   309,  -201,   247,  1015,   244,
+    1015,   248,   252,  1015,  -201,   776,  -201,  -201,  1015,   218,
+    -201,   109,  -201,  -201,  -201,  -201,  -201,   254,   237,   288,
+     239,  -201,   262,  -201,    76,   256,   258,   687,  -201,  -201,
+     261,  -201,  -201,   986,  1015,  -201,  -201,  -201,  -201,   237,
+    -201,   263,     5,   687,   264,   265,   363,   417,  1015,   805,
+    -201,  -201,   237,  -201,   471,   687,   687,   687,  -201,  -201,
+     267,  -201,  -201,  -201,   525,   579,   633,  -201,  -201,  -201,
+    -201
   };
 
   const unsigned char
@@ -3218,206 +3315,219 @@ namespace yy {
   {
        3,     0,     0,     0,     0,     0,     0,     2,     5,     6,
       12,    13,     7,     0,     0,     0,     0,     0,     0,     0,
-       1,     4,   120,   121,   122,   127,     0,     0,   125,   126,
-       0,   124,     0,     0,   123,     0,     0,   129,    29,    18,
-      73,    74,    75,    79,    81,    83,    85,    87,    89,    92,
-      97,   100,   103,   107,   112,    69,     0,     0,     0,    68,
+       1,     4,   122,   123,   124,   129,     0,     0,   127,   128,
+       0,   126,     0,     0,   125,     0,     0,   131,    29,    18,
+      75,    76,    77,    81,    83,    85,    87,    89,    91,    94,
+      99,   102,   105,   109,   114,    71,     0,     0,     0,    70,
        0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-     109,   108,     0,   120,     0,    33,     0,    19,     0,     0,
+     111,   110,     0,   122,     0,    33,     0,    19,     0,     0,
        0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
        0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,    70,     0,     0,     0,     0,     0,    20,    29,
-       0,     0,     0,   120,     0,     0,    53,     0,     0,     0,
-       0,    39,    45,    46,    42,    43,    44,    47,     8,    10,
-       0,     0,     0,   128,     0,     0,    28,     0,    80,    76,
-      78,    82,    84,    86,    88,    90,    91,    93,    94,    95,
-      96,    98,    99,   101,   102,   104,   105,   106,   116,   115,
-     120,   125,   114,   133,     0,   132,     0,    71,    72,    15,
-      67,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-      52,    54,     0,     0,    35,    38,     9,    11,     0,   110,
-       0,    32,     0,    30,   120,     0,     0,   125,     0,     0,
-      62,    66,     0,     0,     0,     0,     0,   113,   119,    17,
-      14,     0,     0,     0,    22,     0,    37,     0,    40,     0,
-       0,     0,     0,     0,     0,   121,     0,     0,     0,     0,
-      58,     0,    59,    61,    77,   118,     0,   134,   135,   131,
-      16,    26,     0,     0,     0,     0,    21,     0,    41,   116,
-       0,     0,     0,    51,   111,     0,    31,    63,     0,     0,
-      65,    57,   117,     0,    24,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,    64,    27,     0,    23,     0,     0,
-       0,     0,    49,    50,     0,    60,    25,    36,     0,     0,
-       0,    34,    55,    56,    48
+       0,     0,    72,     0,     0,     0,     0,     0,    20,    29,
+       0,     0,     0,   122,     0,     0,    54,     0,     0,     0,
+       0,    39,    46,    47,    43,    44,    45,    48,   109,     8,
+      10,     0,     0,     0,   130,     0,     0,    28,     0,    82,
+      78,    80,    84,    86,    88,    90,    92,    93,    95,    96,
+      97,    98,   100,   101,   103,   104,   106,   107,   108,   118,
+     117,   122,   127,   116,   135,     0,   134,     0,    73,    74,
+      15,    69,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,    53,    55,     0,     0,    35,    38,     0,     9,    11,
+       0,   112,     0,    32,     0,    30,   122,     0,     0,   127,
+       0,     0,    63,    68,   109,     0,     0,     0,     0,     0,
+     115,   121,    17,    14,     0,     0,     0,    22,     0,    37,
+       0,    41,     0,     0,     0,     0,    40,     0,     0,   123,
+       0,     0,     0,     0,    59,     0,    60,    62,     0,    79,
+     120,     0,   136,   137,   133,    16,    26,     0,     0,     0,
+       0,    21,     0,    42,   118,     0,     0,     0,    52,   113,
+       0,    31,    65,     0,     0,    67,    58,    64,   119,     0,
+      24,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+      66,    27,     0,    23,     0,     0,     0,     0,    50,    51,
+       0,    61,    25,    36,     0,     0,     0,    34,    56,    57,
+      49
   };
 
   const short
   parser::yypgoto_[] =
   {
-    -195,  -195,  -195,   310,  -195,  -195,  -195,    76,   -59,  -195,
-     -56,  -195,   -85,  -117,  -195,  -195,  -195,  -195,  -195,  -156,
-    -195,  -187,  -194,   261,   219,   -13,  -195,  -195,  -195,   -77,
-     249,   252,   259,   244,   240,    93,   175,    90,   109,   -26,
-     215,  -195,   139,   135
+    -201,  -201,  -201,   287,  -201,  -201,  -201,    42,   -56,  -201,
+     -51,  -201,   -82,   -94,  -201,  -201,  -201,  -201,  -201,  -160,
+    -201,  -193,  -200,   268,   195,   -13,  -201,  -201,  -201,   -77,
+     257,   229,   251,   235,   259,    88,    51,    89,   140,   -27,
+     -49,  -201,   122,   121
   };
 
   const unsigned char
   parser::yydefgoto_[] =
   {
-       0,     6,     7,     8,     9,    10,    11,   173,    37,    74,
+       0,     6,     7,     8,     9,    10,    11,   174,    37,    74,
       38,    12,   120,   121,   122,   123,   124,   125,   126,    77,
-     198,   199,   200,    58,    59,   127,    40,    41,   139,    42,
+     200,   201,   202,    58,    59,   127,    40,    41,   140,    42,
       43,    44,    45,    46,    47,    48,    49,    50,    51,    52,
-      53,    54,   164,   165
+      53,    54,   165,   166
   };
 
   const short
   parser::yytable_[] =
   {
-      39,   108,   140,   185,   109,   233,    70,    71,   213,   213,
-      16,   231,    55,   209,   211,    55,    78,    97,    62,    15,
-      63,    79,    72,    75,    56,   212,   175,    56,    13,   113,
-      23,    24,    25,    18,    14,   243,   105,   233,   114,   115,
-     106,    28,    29,   116,   117,    98,   244,    99,    30,   100,
-      31,   118,    17,    32,   240,    36,   132,   107,   185,    60,
-     214,   277,   249,    57,    19,    61,    33,   101,   155,   156,
-     157,   273,   102,   250,   135,    34,    35,    20,    36,   233,
-     136,   184,   119,    36,   268,   245,   163,   166,   167,   203,
-     168,   169,    94,    95,    96,   194,    23,    24,    25,    22,
-      23,    24,    25,   220,   196,   253,   183,   197,    29,   105,
-      64,    28,    29,   174,    30,    67,    31,   191,    30,    32,
-      31,   190,   193,    32,   201,   234,   188,    65,    84,    85,
-     189,    98,    33,    99,   206,   100,    33,    66,   207,    90,
-      91,    34,    35,    76,    36,    34,    35,   230,   192,    92,
-      93,    68,   241,   282,   185,   109,   246,    69,   210,   109,
-      81,   185,   206,   217,   218,    80,   262,   271,    82,   221,
-      83,   185,   185,   185,   103,   223,   104,   145,   146,    75,
-     151,   152,   278,   112,   264,   201,   201,   109,   111,   128,
-     163,   237,   238,   163,   288,   289,   290,    86,    87,    88,
-      89,   153,   154,   129,   275,   130,   248,   109,   131,   133,
-     134,   255,   158,   257,   137,   159,   260,   286,   201,   172,
-     109,   171,   176,    22,    23,    24,    25,   177,   113,    23,
-      24,    25,   178,   180,   181,    28,    29,   114,   115,   182,
-      28,    29,   116,   117,    31,   201,   274,    30,   186,    31,
-     118,     1,    32,   202,   187,     2,     3,     4,     5,   284,
-     201,   147,   148,   149,   150,    33,    78,    92,   203,    34,
-      35,   204,    36,   224,    34,    35,   205,    36,   215,   208,
-     216,   119,   113,    23,    24,    25,   219,   228,   222,   226,
-     229,   114,   115,   242,    28,    29,   116,   117,   227,    36,
-     247,    30,   251,    31,   118,   254,    32,   259,   265,   256,
-     263,   258,   267,   269,   270,   272,   276,    21,   279,    33,
-     280,   266,   110,   144,   170,   291,   143,   138,    34,    35,
-     179,    36,   141,   252,     0,   119,   113,    23,    24,    25,
-     142,   239,   236,     0,     0,   114,   115,     0,    28,    29,
+      39,   237,   141,   216,   108,    70,    71,   235,   216,   109,
+     212,    15,    16,    55,    13,   128,    55,    97,    97,   214,
+      14,    18,    72,    75,    20,    56,   186,   248,    56,   176,
+     215,    22,    23,    24,    25,   237,    19,    62,   249,    63,
+     254,   187,   238,    28,    29,    98,    98,    99,    99,   100,
+     100,   255,    31,   245,    17,   217,   133,    64,    60,   136,
+     283,    57,   128,    65,    61,   137,   180,   156,   157,   158,
+     279,   128,    86,    87,    88,    89,    78,    34,    35,   237,
+      36,    79,   186,    97,    84,    85,   164,   167,   168,   204,
+     169,   170,    92,    93,   101,   113,    23,    24,    25,   102,
+      94,    95,    96,    66,   114,   115,   184,    28,    29,   116,
+     117,    98,    67,    99,    30,   100,    31,   118,    68,    32,
+     105,   274,   192,   195,   106,   203,   206,   128,   239,     1,
+      69,   258,    33,     2,     3,     4,     5,   148,   149,   150,
+     151,    34,    35,    76,    36,   105,   190,   185,   119,   175,
+     191,   204,   204,   209,    90,    91,   209,   210,   246,   213,
+     268,    81,   251,   109,   220,   221,    36,   109,   107,    36,
+     224,   250,   146,   147,   226,   277,   128,   227,    80,   152,
+     153,    75,   288,   186,    82,    83,   204,   203,   203,   111,
+     186,   284,   270,   164,   242,   243,   164,   109,   103,   104,
+     186,   186,   186,   294,   295,   296,   112,   129,   128,   253,
+     130,   223,   131,   281,   204,   260,   132,   262,   109,   134,
+     265,   135,   203,   138,   128,   267,   292,   128,   128,   159,
+     204,   109,   154,   155,   160,   128,   128,   128,   128,    98,
+     172,    99,   173,   100,   177,   128,   128,   128,   178,   179,
+     203,   280,   181,   182,   188,   183,    78,   206,   113,    23,
+      24,    25,   189,   205,    92,   290,   203,   114,   115,   207,
+      28,    29,   116,   117,   208,   211,   218,    30,   222,    31,
+     118,   225,    32,   228,   230,   232,   231,   233,   247,    36,
+     252,   271,   272,   256,    21,    33,   264,   261,   259,   269,
+     171,   275,   263,   276,    34,    35,   278,    36,   282,   142,
+     219,   119,   113,    23,    24,    25,   273,   144,   285,   286,
+     297,   114,   115,     0,    28,    29,   116,   117,   241,   110,
+     244,    30,   143,    31,   118,   139,    32,     0,     0,     0,
+       0,     0,   145,     0,     0,     0,     0,     0,     0,    33,
+       0,     0,     0,     0,     0,     0,     0,     0,    34,    35,
+       0,    36,     0,   257,     0,   119,   113,    23,    24,    25,
+       0,     0,     0,     0,     0,   114,   115,     0,    28,    29,
      116,   117,     0,     0,     0,    30,     0,    31,   118,     0,
       32,     0,     0,     0,     0,     0,     0,     0,     0,     0,
        0,     0,     0,    33,     0,     0,     0,     0,     0,     0,
-       0,     0,    34,    35,     0,    36,     0,   281,     0,   119,
+       0,     0,    34,    35,     0,    36,     0,   287,     0,   119,
      113,    23,    24,    25,     0,     0,     0,     0,     0,   114,
      115,     0,    28,    29,   116,   117,     0,     0,     0,    30,
        0,    31,   118,     0,    32,     0,     0,     0,     0,     0,
        0,     0,     0,     0,     0,     0,     0,    33,     0,     0,
        0,     0,     0,     0,     0,     0,    34,    35,     0,    36,
-       0,     0,   283,   119,   113,    23,    24,    25,     0,     0,
+       0,     0,   289,   119,   113,    23,    24,    25,     0,     0,
        0,     0,     0,   114,   115,     0,    28,    29,   116,   117,
        0,     0,     0,    30,     0,    31,   118,     0,    32,     0,
        0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
        0,    33,     0,     0,     0,     0,     0,     0,     0,     0,
-      34,    35,     0,    36,     0,     0,   287,   119,   113,    23,
+      34,    35,     0,    36,     0,     0,   293,   119,   113,    23,
       24,    25,     0,     0,     0,     0,     0,   114,   115,     0,
       28,    29,   116,   117,     0,     0,     0,    30,     0,    31,
      118,     0,    32,     0,     0,     0,     0,     0,     0,     0,
        0,     0,     0,     0,     0,    33,     0,     0,     0,     0,
        0,     0,     0,     0,    34,    35,     0,    36,     0,     0,
-     292,   119,   113,    23,    24,    25,     0,     0,     0,     0,
+     298,   119,   113,    23,    24,    25,     0,     0,     0,     0,
        0,   114,   115,     0,    28,    29,   116,   117,     0,     0,
        0,    30,     0,    31,   118,     0,    32,     0,     0,     0,
        0,     0,     0,     0,     0,     0,     0,     0,     0,    33,
        0,     0,     0,     0,     0,     0,     0,     0,    34,    35,
-       0,    36,     0,     0,   293,   119,   113,    23,    24,    25,
+       0,    36,     0,     0,   299,   119,   113,    23,    24,    25,
        0,     0,     0,     0,     0,   114,   115,     0,    28,    29,
      116,   117,     0,     0,     0,    30,     0,    31,   118,     0,
       32,     0,     0,     0,     0,     0,     0,     0,     0,     0,
        0,     0,     0,    33,     0,     0,     0,     0,     0,     0,
-       0,     0,    34,    35,     0,    36,     0,     0,   294,   119,
+       0,     0,    34,    35,     0,    36,     0,     0,   300,   119,
      113,    23,    24,    25,     0,     0,     0,     0,     0,   114,
      115,     0,    28,    29,   116,   117,     0,     0,     0,    30,
        0,    31,   118,     0,    32,     0,     0,     0,     0,     0,
-       0,   194,    23,    24,    25,     0,     0,    33,     0,     0,
-     196,     0,     0,   197,    29,     0,    34,    35,     0,    36,
+       0,   196,    23,    24,    25,     0,     0,    33,     0,     0,
+     198,     0,     0,   199,    29,     0,    34,    35,     0,    36,
       30,     0,    31,   119,     0,    32,     0,     0,     0,     0,
-     194,    23,    24,    25,     0,     0,     0,     0,    33,   196,
-       0,     0,   197,    29,     0,     0,     0,    34,    35,    30,
-      36,    31,     0,   232,    32,     0,     0,     0,     0,   194,
-      23,    24,    25,     0,     0,     0,     0,    33,   196,     0,
-       0,   197,    29,     0,     0,     0,    34,    35,    30,    36,
-      31,     0,   261,    32,     0,     0,     0,     0,    22,    23,
-      24,    25,     0,     0,    26,    27,    33,     0,     0,     0,
-      28,    29,     0,     0,     0,    34,    35,    30,    36,    31,
-       0,   285,    32,     0,     0,     0,     0,     0,     0,   194,
-      23,    24,    25,     0,     0,    33,     0,   195,   196,     0,
-       0,   197,    29,     0,    34,    35,     0,    36,    30,     0,
-      31,     0,     0,    32,     0,     0,     0,     0,   160,    23,
+     196,    23,    24,    25,     0,     0,     0,     0,    33,   198,
+       0,     0,   199,    29,     0,     0,     0,    34,    35,    30,
+      36,    31,     0,   234,    32,     0,     0,     0,     0,   196,
+      23,    24,    25,     0,     0,     0,     0,    33,   198,     0,
+       0,   199,    29,     0,     0,     0,    34,    35,    30,    36,
+      31,     0,   236,    32,     0,     0,     0,     0,   196,    23,
+      24,    25,     0,     0,     0,     0,    33,   198,     0,     0,
+     199,    29,     0,     0,     0,    34,    35,    30,    36,    31,
+       0,   266,    32,     0,     0,     0,     0,    22,    23,    24,
+      25,     0,     0,    26,    27,    33,     0,     0,     0,    28,
+      29,     0,     0,     0,    34,    35,    30,    36,    31,     0,
+     291,    32,     0,     0,     0,     0,     0,     0,   196,    23,
+      24,    25,     0,     0,    33,     0,   197,   198,     0,     0,
+     199,    29,     0,    34,    35,     0,    36,    30,     0,    31,
+       0,     0,    32,     0,     0,     0,     0,   161,    23,    24,
+      25,     0,     0,     0,     0,    33,     0,     0,     0,   162,
+      29,     0,     0,     0,    34,    35,    30,    36,    31,     0,
+       0,    32,     0,     0,     0,     0,     0,     0,     0,    22,
+      23,    24,    25,     0,    33,     0,     0,     0,     0,     0,
+       0,    28,    29,    34,    35,   163,    36,   193,    30,     0,
+      31,     0,     0,    32,     0,     0,     0,     0,   161,    23,
       24,    25,     0,     0,     0,     0,    33,     0,     0,     0,
-     161,    29,     0,     0,     0,    34,    35,    30,    36,    31,
-       0,     0,    32,     0,     0,     0,     0,     0,     0,   160,
-      23,    24,    25,     0,     0,    33,     0,     0,     0,     0,
-       0,   161,    29,     0,    34,    35,   162,    36,    30,     0,
-      31,     0,     0,    32,     0,     0,     0,     0,     0,     0,
-     194,    23,    24,    25,     0,     0,    33,     0,     0,   196,
-       0,     0,   197,    29,     0,    34,    35,   235,    36,    30,
-       0,    31,     0,     0,    32,     0,     0,     0,     0,    22,
-      23,    24,    25,     0,     0,     0,     0,    33,     0,     0,
-       0,    28,    29,     0,     0,     0,    34,    35,    30,    36,
-      31,     0,     0,    32,     0,     0,     0,     0,    73,    23,
+     162,    29,     0,     0,     0,    34,    35,    30,   194,    31,
+       0,     0,    32,     0,     0,     0,     0,     0,     0,   196,
+      23,    24,    25,     0,     0,    33,     0,     0,   198,     0,
+       0,   199,    29,     0,    34,    35,   240,    36,    30,     0,
+      31,     0,     0,    32,     0,     0,     0,     0,    22,    23,
       24,    25,     0,     0,     0,     0,    33,     0,     0,     0,
       28,    29,     0,     0,     0,    34,    35,    30,    36,    31,
-       0,     0,    32,     0,     0,     0,     0,    73,   225,    24,
+       0,     0,    32,     0,     0,     0,     0,    73,    23,    24,
       25,     0,     0,     0,     0,    33,     0,     0,     0,    28,
       29,     0,     0,     0,    34,    35,    30,    36,    31,     0,
-       0,    32,     0,     0,     0,     0,   160,    23,    24,    25,
-       0,     0,     0,     0,    33,     0,     0,     0,   161,    29,
+       0,    32,     0,     0,     0,     0,    73,   229,    24,    25,
+       0,     0,     0,     0,    33,     0,     0,     0,    28,    29,
        0,     0,     0,    34,    35,    30,    36,    31,     0,     0,
-      32,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,    33,     0,     0,     0,     0,     0,     0,
-       0,     0,    34,    35,     0,    36
+      32,     0,     0,     0,     0,   161,    23,    24,    25,     0,
+       0,     0,     0,    33,     0,     0,     0,   162,    29,     0,
+       0,     0,    34,    35,    30,    36,    31,     0,     0,    32,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,    33,     0,     0,     0,     0,     0,     0,     0,
+       0,    34,    35,     0,    36
   };
 
   const short
   parser::yycheck_[] =
   {
-      13,    60,    79,   120,    60,   199,    32,    33,     3,     3,
-       3,   198,     3,   169,    45,     3,    38,    20,    45,     3,
-      47,    43,    35,    36,    15,    56,   111,    15,    44,     3,
-       4,     5,     6,    50,    50,    45,    47,   231,    12,    13,
-      51,    15,    16,    17,    18,    48,    56,    50,    22,    52,
-      24,    25,    45,    27,   210,    52,    69,    54,   175,    44,
-      55,    55,     3,    51,    50,    50,    40,    44,    94,    95,
-      96,   258,    49,    14,    47,    49,    50,     0,    52,   273,
-      53,    55,    56,    52,    45,    54,    99,   100,   101,    50,
-     103,   104,    28,    29,    30,     3,     4,     5,     6,     3,
-       4,     5,     6,    20,    12,   222,   119,    15,    16,    47,
-      54,    15,    16,    51,    22,    50,    24,    21,    22,    27,
-      24,   134,   135,    27,   137,   202,    47,     6,    31,    32,
-      51,    48,    40,    50,    47,    52,    40,     6,    51,    41,
-      42,    49,    50,    19,    52,    49,    50,    55,    52,    26,
-      27,    50,   211,   270,   271,   211,   215,    50,   171,   215,
-      38,   278,    47,   176,   177,    37,    51,   252,    39,   182,
-      37,   288,   289,   290,    44,   188,    44,    84,    85,   192,
-      90,    91,   267,    16,   243,   198,   199,   243,    54,    51,
-     203,   204,   205,   206,   279,   280,   281,    33,    34,    35,
-      36,    92,    93,    51,   263,     6,   219,   263,     6,    51,
-      44,   224,     3,   226,    54,     3,   229,   276,   231,     3,
-     276,    44,    44,     3,     4,     5,     6,    44,     3,     4,
-       5,     6,     3,     3,     3,    15,    16,    12,    13,    50,
-      15,    16,    17,    18,    24,   258,   259,    22,    51,    24,
-      25,     3,    27,    46,    51,     7,     8,     9,    10,   272,
-     273,    86,    87,    88,    89,    40,    38,    26,    50,    49,
-      50,    44,    52,    23,    49,    50,    44,    52,    44,    53,
-      55,    56,     3,     4,     5,     6,    44,     3,    45,    44,
-      44,    12,    13,     3,    15,    16,    17,    18,    45,    52,
-      45,    22,    51,    24,    25,    51,    27,    44,     3,    53,
-      45,    54,    54,    45,    45,    45,    45,     7,    54,    40,
-      54,   245,    61,    83,   105,    53,    82,    78,    49,    50,
-     115,    52,    80,    54,    -1,    56,     3,     4,     5,     6,
-      81,   206,   203,    -1,    -1,    12,    13,    -1,    15,    16,
+      13,   201,    79,     3,    60,    32,    33,   200,     3,    60,
+     170,     3,     3,     3,    44,    64,     3,    20,    20,    45,
+      50,    50,    35,    36,     0,    15,   120,    45,    15,   111,
+      56,     3,     4,     5,     6,   235,    50,    45,    56,    47,
+       3,    44,    44,    15,    16,    48,    48,    50,    50,    52,
+      52,    14,    24,   213,    45,    55,    69,    54,    44,    47,
+      55,    51,   111,     6,    50,    53,   115,    94,    95,    96,
+     263,   120,    33,    34,    35,    36,    38,    49,    50,   279,
+      52,    43,   176,    20,    31,    32,    99,   100,   101,   138,
+     103,   104,    26,    27,    44,     3,     4,     5,     6,    49,
+      28,    29,    30,     6,    12,    13,   119,    15,    16,    17,
+      18,    48,    50,    50,    22,    52,    24,    25,    50,    27,
+      47,    45,   135,   136,    51,   138,    50,   176,   205,     3,
+      50,   225,    40,     7,     8,     9,    10,    86,    87,    88,
+      89,    49,    50,    19,    52,    47,    47,    55,    56,    51,
+      51,   200,   201,    47,    41,    42,    47,    51,   214,   172,
+      51,    38,   218,   214,   177,   178,    52,   218,    54,    52,
+     183,    54,    84,    85,   187,   257,   225,   190,    37,    90,
+      91,   194,   276,   277,    39,    37,   235,   200,   201,    54,
+     284,   273,   248,   206,   207,   208,   209,   248,    44,    44,
+     294,   295,   296,   285,   286,   287,    16,    51,   257,   222,
+      51,    20,     6,   269,   263,   228,     6,   230,   269,    51,
+     233,    44,   235,    54,   273,   238,   282,   276,   277,     3,
+     279,   282,    92,    93,     3,   284,   285,   286,   287,    48,
+      44,    50,     3,    52,    44,   294,   295,   296,    44,     3,
+     263,   264,     3,     3,    51,    50,    38,    50,     3,     4,
+       5,     6,    51,    46,    26,   278,   279,    12,    13,    44,
+      15,    16,    17,    18,    44,    53,    44,    22,    44,    24,
+      25,    45,    27,    23,    44,     3,    45,    44,     3,    52,
+      45,     3,   250,    51,     7,    40,    44,    53,    51,    45,
+     105,    45,    54,    45,    49,    50,    45,    52,    45,    80,
+      55,    56,     3,     4,     5,     6,    54,    82,    54,    54,
+      53,    12,    13,    -1,    15,    16,    17,    18,   206,    61,
+     209,    22,    81,    24,    25,    78,    27,    -1,    -1,    -1,
+      -1,    -1,    83,    -1,    -1,    -1,    -1,    -1,    -1,    40,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    49,    50,
+      -1,    52,    -1,    54,    -1,    56,     3,     4,     5,     6,
+      -1,    -1,    -1,    -1,    -1,    12,    13,    -1,    15,    16,
       17,    18,    -1,    -1,    -1,    22,    -1,    24,    25,    -1,
       27,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
       -1,    -1,    -1,    40,    -1,    -1,    -1,    -1,    -1,    -1,
@@ -3461,23 +3571,26 @@ namespace yy {
        4,     5,     6,    -1,    -1,    -1,    -1,    40,    12,    -1,
       -1,    15,    16,    -1,    -1,    -1,    49,    50,    22,    52,
       24,    -1,    55,    27,    -1,    -1,    -1,    -1,     3,     4,
-       5,     6,    -1,    -1,     9,    10,    40,    -1,    -1,    -1,
+       5,     6,    -1,    -1,    -1,    -1,    40,    12,    -1,    -1,
       15,    16,    -1,    -1,    -1,    49,    50,    22,    52,    24,
-      -1,    55,    27,    -1,    -1,    -1,    -1,    -1,    -1,     3,
-       4,     5,     6,    -1,    -1,    40,    -1,    11,    12,    -1,
-      -1,    15,    16,    -1,    49,    50,    -1,    52,    22,    -1,
+      -1,    55,    27,    -1,    -1,    -1,    -1,     3,     4,     5,
+       6,    -1,    -1,     9,    10,    40,    -1,    -1,    -1,    15,
+      16,    -1,    -1,    -1,    49,    50,    22,    52,    24,    -1,
+      55,    27,    -1,    -1,    -1,    -1,    -1,    -1,     3,     4,
+       5,     6,    -1,    -1,    40,    -1,    11,    12,    -1,    -1,
+      15,    16,    -1,    49,    50,    -1,    52,    22,    -1,    24,
+      -1,    -1,    27,    -1,    -1,    -1,    -1,     3,     4,     5,
+       6,    -1,    -1,    -1,    -1,    40,    -1,    -1,    -1,    15,
+      16,    -1,    -1,    -1,    49,    50,    22,    52,    24,    -1,
+      -1,    27,    -1,    -1,    -1,    -1,    -1,    -1,    -1,     3,
+       4,     5,     6,    -1,    40,    -1,    -1,    -1,    -1,    -1,
+      -1,    15,    16,    49,    50,    51,    52,    21,    22,    -1,
       24,    -1,    -1,    27,    -1,    -1,    -1,    -1,     3,     4,
        5,     6,    -1,    -1,    -1,    -1,    40,    -1,    -1,    -1,
       15,    16,    -1,    -1,    -1,    49,    50,    22,    52,    24,
       -1,    -1,    27,    -1,    -1,    -1,    -1,    -1,    -1,     3,
-       4,     5,     6,    -1,    -1,    40,    -1,    -1,    -1,    -1,
+       4,     5,     6,    -1,    -1,    40,    -1,    -1,    12,    -1,
       -1,    15,    16,    -1,    49,    50,    51,    52,    22,    -1,
-      24,    -1,    -1,    27,    -1,    -1,    -1,    -1,    -1,    -1,
-       3,     4,     5,     6,    -1,    -1,    40,    -1,    -1,    12,
-      -1,    -1,    15,    16,    -1,    49,    50,    51,    52,    22,
-      -1,    24,    -1,    -1,    27,    -1,    -1,    -1,    -1,     3,
-       4,     5,     6,    -1,    -1,    -1,    -1,    40,    -1,    -1,
-      -1,    15,    16,    -1,    -1,    -1,    49,    50,    22,    52,
       24,    -1,    -1,    27,    -1,    -1,    -1,    -1,     3,     4,
        5,     6,    -1,    -1,    -1,    -1,    40,    -1,    -1,    -1,
       15,    16,    -1,    -1,    -1,    49,    50,    22,    52,    24,
@@ -3487,9 +3600,12 @@ namespace yy {
       -1,    27,    -1,    -1,    -1,    -1,     3,     4,     5,     6,
       -1,    -1,    -1,    -1,    40,    -1,    -1,    -1,    15,    16,
       -1,    -1,    -1,    49,    50,    22,    52,    24,    -1,    -1,
-      27,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    40,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    49,    50,    -1,    52
+      27,    -1,    -1,    -1,    -1,     3,     4,     5,     6,    -1,
+      -1,    -1,    -1,    40,    -1,    -1,    -1,    15,    16,    -1,
+      -1,    -1,    49,    50,    22,    52,    24,    -1,    -1,    27,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    40,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    49,    50,    -1,    52
   };
 
   const signed char
@@ -3507,24 +3623,25 @@ namespace yy {
       41,    42,    26,    27,    28,    29,    30,    20,    48,    50,
       52,    44,    49,    44,    44,    47,    51,    54,    65,    67,
       80,    54,    16,     3,    12,    13,    17,    18,    25,    56,
-      69,    70,    71,    72,    73,    74,    75,    82,    51,    51,
-       6,     6,    82,    51,    44,    47,    53,    54,    87,    85,
-      86,    88,    89,    90,    91,    92,    92,    93,    93,    93,
-      93,    94,    94,    95,    95,    96,    96,    96,     3,     3,
-       3,    15,    51,    82,    99,   100,    82,    82,    82,    82,
-      81,    44,     3,    64,    51,    69,    44,    44,     3,    97,
-       3,     3,    50,    82,    55,    70,    51,    51,    47,    51,
-      82,    21,    52,    82,     3,    11,    12,    15,    77,    78,
-      79,    82,    46,    50,    44,    44,    47,    51,    53,    76,
-      82,    45,    56,     3,    55,    44,    55,    82,    82,    44,
-      20,    82,    45,    82,    23,     4,    44,    45,     3,    44,
-      55,    78,    55,    79,    86,    51,    99,    82,    82,   100,
-      76,    65,     3,    45,    56,    54,    65,    45,    82,     3,
-      14,    51,    54,    70,    51,    82,    53,    82,    54,    44,
-      82,    55,    51,    45,    65,     3,    64,    54,    45,    45,
-      45,    69,    45,    78,    82,    65,    45,    55,    69,    54,
-      54,    54,    70,    55,    82,    55,    65,    55,    69,    69,
-      69,    53,    55,    55,    55
+      69,    70,    71,    72,    73,    74,    75,    82,    97,    51,
+      51,     6,     6,    82,    51,    44,    47,    53,    54,    87,
+      85,    86,    88,    89,    90,    91,    92,    92,    93,    93,
+      93,    93,    94,    94,    95,    95,    96,    96,    96,     3,
+       3,     3,    15,    51,    82,    99,   100,    82,    82,    82,
+      82,    81,    44,     3,    64,    51,    69,    44,    44,     3,
+      97,     3,     3,    50,    82,    55,    70,    44,    51,    51,
+      47,    51,    82,    21,    52,    82,     3,    11,    12,    15,
+      77,    78,    79,    82,    97,    46,    50,    44,    44,    47,
+      51,    53,    76,    82,    45,    56,     3,    55,    44,    55,
+      82,    82,    44,    20,    82,    45,    82,    82,    23,     4,
+      44,    45,     3,    44,    55,    78,    55,    79,    44,    86,
+      51,    99,    82,    82,   100,    76,    65,     3,    45,    56,
+      54,    65,    45,    82,     3,    14,    51,    54,    70,    51,
+      82,    53,    82,    54,    44,    82,    55,    82,    51,    45,
+      65,     3,    64,    54,    45,    45,    45,    69,    45,    78,
+      82,    65,    45,    55,    69,    54,    54,    54,    70,    55,
+      82,    55,    65,    55,    69,    69,    69,    53,    55,    55,
+      55
   };
 
   const signed char
@@ -3534,16 +3651,16 @@ namespace yy {
       60,    60,    61,    61,    62,    62,    62,    62,    62,    62,
       63,    63,    63,    63,    64,    64,    64,    64,    65,    65,
       66,    66,    66,    66,    67,    68,    68,    68,    69,    69,
-      70,    70,    70,    70,    70,    70,    70,    70,    71,    71,
-      72,    72,    73,    73,    74,    75,    75,    76,    76,    76,
-      77,    78,    78,    79,    79,    79,    79,    80,    80,    81,
-      81,    81,    81,    82,    83,    84,    84,    85,    85,    86,
-      86,    87,    87,    88,    88,    89,    89,    90,    90,    91,
-      91,    91,    92,    92,    92,    92,    92,    93,    93,    93,
-      94,    94,    94,    95,    95,    95,    95,    96,    96,    96,
-      96,    96,    97,    97,    97,    97,    97,    97,    97,    97,
-      98,    98,    98,    98,    98,    98,    98,    98,    98,    98,
-      98,    99,    99,   100,   100,   100
+      70,    70,    70,    70,    70,    70,    70,    70,    70,    71,
+      71,    72,    72,    73,    73,    74,    75,    75,    76,    76,
+      76,    77,    78,    78,    79,    79,    79,    79,    79,    80,
+      80,    81,    81,    81,    81,    82,    83,    84,    84,    85,
+      85,    86,    86,    87,    87,    88,    88,    89,    89,    90,
+      90,    91,    91,    91,    92,    92,    92,    92,    92,    93,
+      93,    93,    94,    94,    94,    95,    95,    95,    95,    96,
+      96,    96,    96,    96,    97,    97,    97,    97,    97,    97,
+      97,    97,    98,    98,    98,    98,    98,    98,    98,    98,
+      98,    98,    98,    99,    99,   100,   100,   100
   };
 
   const signed char
@@ -3553,16 +3670,16 @@ namespace yy {
        4,     6,     1,     1,     6,     5,     7,     6,     3,     4,
        4,     7,     6,     9,     4,     6,     3,     5,     3,     1,
        3,     5,     3,     1,     9,     5,    10,     6,     2,     1,
-       3,     4,     1,     1,     1,     1,     1,     1,     8,     6,
-       6,     4,     2,     1,     2,     8,     8,     5,     4,     4,
-       5,     2,     1,     3,     4,     3,     1,     3,     1,     1,
-       2,     3,     3,     1,     1,     1,     3,     3,     1,     1,
-       3,     1,     3,     1,     3,     1,     3,     1,     3,     1,
-       3,     3,     1,     3,     3,     3,     3,     1,     3,     3,
-       1,     3,     3,     1,     3,     3,     3,     1,     2,     2,
-       4,     6,     1,     4,     3,     3,     3,     6,     5,     4,
-       1,     1,     1,     1,     1,     1,     1,     1,     3,     1,
-       1,     3,     1,     1,     3,     3
+       3,     3,     4,     1,     1,     1,     1,     1,     1,     8,
+       6,     6,     4,     2,     1,     2,     8,     8,     5,     4,
+       4,     5,     2,     1,     3,     3,     4,     3,     1,     3,
+       1,     1,     2,     3,     3,     1,     1,     1,     3,     3,
+       1,     1,     3,     1,     3,     1,     3,     1,     3,     1,
+       3,     1,     3,     3,     1,     3,     3,     3,     3,     1,
+       3,     3,     1,     3,     3,     1,     3,     3,     3,     1,
+       2,     2,     4,     6,     1,     4,     3,     3,     3,     6,
+       5,     4,     1,     1,     1,     1,     1,     1,     1,     1,
+       3,     1,     1,     3,     1,     1,     3,     3
   };
 
 
@@ -3602,20 +3719,20 @@ namespace yy {
   const short
   parser::yyrline_[] =
   {
-       0,   112,   112,   119,   128,   133,   141,   142,   143,   151,
-     160,   168,   180,   181,   185,   195,   205,   216,   227,   237,
-     251,   266,   281,   291,   304,   314,   325,   335,   349,   361,
-     365,   370,   387,   396,   400,   418,   429,   441,   455,   460,
-     468,   478,   488,   492,   496,   500,   504,   508,   519,   528,
-     540,   549,   561,   569,   580,   591,   601,   614,   623,   632,
-     643,   654,   659,   667,   677,   687,   697,   708,   713,   717,
-     726,   735,   744,   757,   761,   765,   766,   794,   799,   806,
-     807,   824,   825,   842,   843,   860,   861,   878,   879,   896,
-     897,   911,   928,   929,   943,   957,   971,   988,   989,  1003,
-    1020,  1021,  1035,  1052,  1053,  1067,  1081,  1098,  1099,  1112,
-    1125,  1137,  1153,  1154,  1167,  1180,  1193,  1207,  1221,  1235,
-    1251,  1263,  1275,  1304,  1315,  1326,  1338,  1350,  1362,  1370,
-    1371,  1375,  1380,  1384,  1393,  1402
+       0,   113,   113,   120,   129,   134,   142,   143,   144,   152,
+     161,   169,   181,   182,   186,   196,   206,   217,   228,   238,
+     252,   267,   282,   292,   305,   315,   326,   336,   350,   362,
+     366,   371,   388,   397,   401,   419,   430,   442,   456,   461,
+     469,   518,   528,   538,   542,   546,   550,   554,   558,   569,
+     578,   590,   599,   611,   619,   630,   641,   651,   664,   673,
+     682,   693,   704,   709,   717,   756,   766,   776,   786,   797,
+     802,   806,   815,   824,   833,   846,   850,   854,   855,   883,
+     888,   895,   896,   913,   914,   931,   932,   949,   950,   967,
+     968,   985,   986,  1000,  1017,  1018,  1032,  1046,  1060,  1077,
+    1078,  1092,  1109,  1110,  1124,  1141,  1142,  1156,  1170,  1187,
+    1188,  1201,  1214,  1226,  1242,  1243,  1256,  1269,  1282,  1296,
+    1310,  1324,  1340,  1352,  1364,  1393,  1404,  1415,  1427,  1439,
+    1451,  1459,  1460,  1464,  1469,  1473,  1482,  1491
   };
 
   void
@@ -3647,9 +3764,9 @@ namespace yy {
 
 
 } // yy
-#line 3651 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 3768 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
 
-#line 1413 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1502 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
 
 
 void yy::parser::error(const location_type& l, const std::string& m) {

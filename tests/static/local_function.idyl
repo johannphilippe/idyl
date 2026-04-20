@@ -1,0 +1,12 @@
+add(a, b) = internal_add(a, b) |>
+{
+    init: { 
+        internal_add(x, y) = x + y
+     }
+}
+
+process: {
+    proc_add(a, b) = a + b 
+    print(add(2, 3), proc_add(5, 7))
+
+}

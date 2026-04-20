@@ -23,6 +23,9 @@
 #ifdef IDYL_MODULE_CSOUND
 #include "modules/csound_module.hpp"
 #endif
+#ifdef IDYL_MODULE_SERIAL
+#include "modules/serial_module.hpp"
+#endif
 #include "utilities/osc.hpp"
 #include "utilities/udp.hpp"
 #include "debug.hpp"
@@ -69,6 +72,11 @@ int main(int argc, char** argv) {
     #ifdef IDYL_MODULE_CSOUND
     module_registry.register_builtin("csound", []() {
         return std::make_unique<idyl::module::csound_module>();
+    });
+    #endif
+    #ifdef IDYL_MODULE_SERIAL
+    module_registry.register_builtin("serial", []() {
+        return std::make_unique<idyl::modules::serial_module>();
     });
     #endif
 

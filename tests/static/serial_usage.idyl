@@ -1,0 +1,14 @@
+// Serial module usage example.
+// Requires a real serial port — skipped in automated tests.
+// Uncomment to try against an actual device.
+//
+// module("serial")
+//
+// process: {
+//     port = serial_open("/dev/ttyUSB0", 115200)
+//     serial_write(port, "hello\n")
+//     rx = serial_recv(port, dt=10ms)
+//     rx catch received: {
+//         print(rx)
+//     }
+// }

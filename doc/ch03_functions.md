@@ -123,6 +123,83 @@ process: {
 
 ---
 
+## Local functions and closures
+
+Functions can be defined inside a process block, an `init` block, or an update block. They are visible only within the enclosing scope and do not export to global scope.
+
+### Process-scope helpers
+
+```idyl
+process: {
+    semitones_to_ratio(s) = pow(2, s / 12)
+    midi_to_hz(note) = 440 * semitones_to_ratio(note - 69)
+
+    print(midi_to_hz(60))   // 261.626
+}
+```
+
+`semitones_to_ratio` and `midi_to_hz` are invisible outside this process block. Multiple process blocks can each define their own `normalize`, `scale`, or `clamp` without collision.
+
+### Init-block functions (closures)
+
+A function defined inside an `init` block is stored as a closure on the temporal instance. It captures the instance by **reference**: when called, it always reads the instance's current params and state — not a frozen snapshot.
+
+```idyl
+make_adder(n, dt=100ms) = fn |>
+{
+    init: {
+        fn(x) = x + n    // n captured by reference
+    }
+}
+
+process: {
+    add5 = make_adder(5)
+    print(add5(10))   // 15
+    print(add5(20))   // 25
+}
+```
+
+The closure can also capture mutable state. Here `total` grows each tick; every call to `fn` sees the latest value:
+
+```idyl
+accumulator(dt=200ms) = fn |>
+{
+    init: { total = 0 }
+    total = total + 1
+    fn(x) = x + total
+}
+
+process: {
+    acc = accumulator()
+    print(acc(100))   // 100, 101, 102, ... (grows with total)
+}
+```
+
+### Update-block tick-local aliases
+
+A function defined in the update body is a **tick-local alias** — redefined fresh each tick from the current scope, not persisted between ticks:
+
+```idyl
+tracker(input, dt=10ms) = ratio |>
+{
+    init: { peak = 0 }
+    peak = max(peak, abs(input))
+    normalize(v) = v / max(peak, 0.001)   // defined each tick, uses current peak
+    ratio = normalize(input)
+}
+```
+
+`normalize` is visible to all subsequent update statements in the same tick but is not stored or emitted.
+
+### Scoping rules
+
+- Local functions look up names bottom-up: their own parameters → enclosing block scope → process scope → global scope.
+- A local function **can** shadow a global function of the same name.
+- **Mutual recursion** between local functions is not supported — each function must be declared before it is called.
+- Local functions defined in update blocks cannot be emitted or stored as persistent values (they are tick-scoped). Closures from `init` blocks **can** be emitted and stored.
+
+---
+
 ## Built-in functions
 
 The following functions are always available:

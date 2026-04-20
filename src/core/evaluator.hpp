@@ -351,7 +351,9 @@ namespace idyl::core {
                                  const std::string& qualified_key = {},
                                  const std::vector<parser::expr_ptr>& pos_exprs = {},
                                  const named_exprs_t& named_exprs = {},
-                                 const parser::function_call* call_site = nullptr);
+                                 const parser::function_call* call_site = nullptr,
+                                 std::shared_ptr<parser::function_definition> local_def = nullptr,
+                                 std::shared_ptr<function_instance> closure_inst = nullptr);
 
         // ── Temporal function instantiation ────────────────────────────────────
         value instantiate_temporal(const parser::function_definition& def,
@@ -359,7 +361,8 @@ namespace idyl::core {
                                    const named_args_t& named = {},
                                    const std::string& qualified_key = {},
                                    const std::vector<parser::expr_ptr>& pos_exprs = {},
-                                   const named_exprs_t& named_exprs = {});
+                                   const named_exprs_t& named_exprs = {},
+                                   std::shared_ptr<parser::function_definition> local_def = nullptr);
 
         // Instantiate a native temporal module function.  Creates a
         // function_instance backed by native_init_ / native_update_ callbacks
@@ -371,7 +374,9 @@ namespace idyl::core {
                                           const named_exprs_t& named_exprs = {});
 
         // def is nullable: nullptr when inst is a native temporal instance.
-        void tick_instance(function_instance& inst,
+        // inst_ptr is the shared_ptr owning inst so closures created during the
+        // tick can hold a reference to the instance for by-reference capture.
+        void tick_instance(std::shared_ptr<function_instance> inst_ptr,
                            const parser::function_definition* def);
 
         // ── Literals ───────────────────────────────────────────────────────────

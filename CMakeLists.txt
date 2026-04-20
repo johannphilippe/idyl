@@ -41,6 +41,14 @@ else()
     message(STATUS "Native module: OSC [disabled]")
 endif()
 
+# Serial module — POSIX termios / Win32 serial port I/O (no external deps)
+option(IDYL_MODULE_SERIAL "Enable the built-in Serial module" ON)
+if(IDYL_MODULE_SERIAL)
+    message(STATUS "Native module: Serial [enabled]")
+else()
+    message(STATUS "Native module: Serial [disabled]")
+endif()
+
 # Csound module — instrument control via the Csound C API
 option(IDYL_MODULE_CSOUND "Enable the built-in Csound module" ON)
 if(IDYL_MODULE_CSOUND)
@@ -80,6 +88,10 @@ target_link_libraries(idyl PRIVATE idyl_modules)
 # ── Compile-time feature flags ────────────────────────────────────────────────
 if(IDYL_MODULE_OSC)
     target_compile_definitions(idyl PRIVATE IDYL_MODULE_OSC=1)
+endif()
+
+if(IDYL_MODULE_SERIAL)
+    target_compile_definitions(idyl PRIVATE IDYL_MODULE_SERIAL=1)
 endif()
 
 if(IDYL_MODULE_CSOUND)

@@ -308,9 +308,29 @@ namespace idyl::semantic {
                         if(stmt->type_ == parser::node_t::function_definition) {
                             auto inner_func = std::static_pointer_cast<parser::function_definition>(stmt);
                             if (inner_func->parameters_.empty() && inner_func->body_) {
-                                // Looks like a bare assignment parsed as 0-param def
+                                // Bare assignment parsed as 0-param def → local variable
                                 symbol_t sym_type = symbol_t::local_variable;
                                 scope_stack_.define(inner_func->name_, symbol_info{sym_type, inner_func->name_, inner_func->line_, inner_func->column_});
+                            } else {
+                                // Parametric local function in update block (tick-local alias)
+                                symbol_info inner_info{symbol_t::function, inner_func->name_,
+                                    inner_func->line_, inner_func->column_,
+                                    static_cast<int>(inner_func->parameters_.size())};
+                                int req = 0;
+                                for (const auto& p : inner_func->parameters_) {
+                                    inner_info.param_info_.push_back(param_info{
+                                        p->name_, p->default_value_ != nullptr, p->is_trigger_parameter_,
+                                        p->is_trigger_parameter_ ? inferred_t::trigger
+                                            : (p->has_default_time_ || p->name_ == "dt") ? inferred_t::time
+                                            : p->default_value_ ? infer_expr_type(p->default_value_)
+                                            : inferred_t::unknown
+                                    });
+                                    if (!p->default_value_) req++;
+                                }
+                                inner_info.required_arity_ = req;
+                                inner_info.is_temporal_ = inner_func->lambda_block_ != nullptr;
+                                inner_info.inferred_type_ = inferred_t::function;
+                                scope_stack_.define(inner_func->name_, inner_info);
                             }
                         } else if(stmt->type_ == parser::node_t::assignment) {
                             auto assign = std::static_pointer_cast<parser::assignment>(stmt);
@@ -323,15 +343,16 @@ namespace idyl::semantic {
                         scope_stack_.push(scope_t::init_block);
                         scope_stack_.scopes_.back().is_temporal_function_ = is_temporal;
                         scope_stack_.scopes_.back().enclosing_function_ = func->name_;
-                        // First pass: collect function/variable definitions from init block
+                        // First pass: collect function/variable definitions from init block.
+                        // Also promote function symbols to the enclosing lambda_body scope
+                        // so update-block statements can call init-defined local functions.
                         for(const auto& stmt : func->lambda_block_->init_->statements_) {
                             if(stmt->type_ == parser::node_t::function_definition) {
                                 auto inner_func = std::static_pointer_cast<parser::function_definition>(stmt);
                                 symbol_info inner_info{
-                                    symbol_t::function, inner_func->name_, 
+                                    symbol_t::function, inner_func->name_,
                                     inner_func->line_, inner_func->column_,
                                     static_cast<int>(inner_func->parameters_.size())};
-                                // Populate param_info for check_call validation
                                 int req = 0;
                                 for (const auto& p : inner_func->parameters_) {
                                     inner_info.param_info_.push_back(param_info{
@@ -348,7 +369,13 @@ namespace idyl::semantic {
                                 inner_info.required_arity_ = req;
                                 inner_info.is_temporal_ = inner_func->lambda_block_ != nullptr;
                                 inner_info.inferred_type_ = inferred_t::function;
+                                // Define in init_block scope
                                 scope_stack_.define(inner_func->name_, inner_info);
+                                // Also promote to lambda_body scope so update statements can call it
+                                if (scope_stack_.scopes_.size() >= 2) {
+                                    scope_stack_.scopes_[scope_stack_.scopes_.size() - 2]
+                                        .symbols_[inner_func->name_] = inner_info;
+                                }
                             } else if(stmt->type_ == parser::node_t::assignment) {
                                 auto assign = std::static_pointer_cast<parser::assignment>(stmt);
                                 symbol_t sym_type = assign->is_emit_ ? symbol_t::emit_variable : symbol_t::local_variable;
@@ -432,7 +459,35 @@ namespace idyl::semantic {
                 }
                 scope_stack_.push(scope_t::process_block);
                 scope_stack_.scopes_.back().is_process_block_ = true;
-                for(const auto& stmt : std::static_pointer_cast<parser::process_block>(node)->body_->statements_) {
+
+                // Pre-collect local function definitions so forward references within
+                // the process block resolve correctly (declaration-order requirement for now).
+                auto& proc_stmts = std::static_pointer_cast<parser::process_block>(node)->body_->statements_;
+                for (const auto& stmt : proc_stmts) {
+                    if (!stmt || stmt->type_ != parser::node_t::function_definition) continue;
+                    auto inner_func = std::static_pointer_cast<parser::function_definition>(stmt);
+                    if (inner_func->parameters_.empty() && inner_func->body_) continue; // bare assignment
+                    symbol_info inner_info{symbol_t::function, inner_func->name_,
+                        inner_func->line_, inner_func->column_,
+                        static_cast<int>(inner_func->parameters_.size())};
+                    int req = 0;
+                    for (const auto& p : inner_func->parameters_) {
+                        inner_info.param_info_.push_back(param_info{
+                            p->name_, p->default_value_ != nullptr, p->is_trigger_parameter_,
+                            p->is_trigger_parameter_ ? inferred_t::trigger
+                                : (p->has_default_time_ || p->name_ == "dt") ? inferred_t::time
+                                : p->default_value_ ? infer_expr_type(p->default_value_)
+                                : inferred_t::unknown
+                        });
+                        if (!p->default_value_) req++;
+                    }
+                    inner_info.required_arity_ = req;
+                    inner_info.is_temporal_ = inner_func->lambda_block_ != nullptr;
+                    inner_info.inferred_type_ = inferred_t::function;
+                    scope_stack_.define(inner_func->name_, inner_info);
+                }
+
+                for(const auto& stmt : proc_stmts) {
                     resolve(stmt);
                 }
                 scope_stack_.pop();

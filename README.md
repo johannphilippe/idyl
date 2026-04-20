@@ -32,10 +32,11 @@ Same for engine implementation.
 | **Deferred blocks** | `@(500ms): { ... }` — schedules a block to run once after a delay. Time expression can be any value. |
 | **Flows** | Ordered sequences with named members, generator expressions, parametric flows, live temporal elements per-slot, dynamic rebuilding when arguments change. |
 | **Emit system** | Side-channel output from temporal functions. Read emitted values with the `::` accessor. |
-| **Catch blocks** | React to events emitted by temporal instances — `timer catch finished: { ... }` |
+| **Catch blocks** | React to events emitted by temporal instances — `catch timer::finished: { ... }` |
 | **`on` blocks** | Trigger-gated reaction blocks — `on m: { ... }` fires only when `m` is a live trigger. Also gates flow members: `melody on rhythm: [60, 63, 65]` advances only on rhythm's trigger ticks. |
 | **Clock hierarchy** | Create clocks, bind children to parents, change tempo with automatic proportional propagation. Clock handles are callable: `c(2b)` returns 2 beats at that clock's BPM. Query BPM with `tempo(handle)`. |
 | **First-class functions** | Functions are values. Store them, pass them, select between them with ternary. |
+| **Local functions & closures** | Define helper functions inside process blocks, init blocks, or update blocks. Local functions have block-limited visibility. Closures capture the enclosing temporal instance by reference — they always see the instance's current params and state at call time. |
 | **Process control** | `start name` / `stop name` (or just `stop`) — start and stop named process blocks from within a running process. |
 | **Modules** | Built-in OSC and Csound support. Native temporal module functions (`osc_recv`, `cs_chnget`) integrate with the reactive system. External modules via `module()`. Libraries via `import()` with namespace support. |
 | **Process blocks** | The only executable entry points. Named, with optional duration. Start and stop them via OSC in `--listen` mode or from within other processes. |
@@ -191,7 +192,7 @@ countdown(dt=100ms) = remaining |> {
 process: {
     timer = countdown()
     print("remaining:", timer)
-    timer catch finished: {
+    catch timer::finished: {
         print("done.")
     }
 }
@@ -338,7 +339,7 @@ module("osc")
 process: {
     rx = osc_in(9000)
     msgs = osc_recv(rx, dt=10ms)
-    msgs catch received: {
+    catch msgs::received: {
         print("incoming:", msgs)
     }
 }
@@ -356,6 +357,58 @@ process: {
     cs_note(cs, 1, 500ms, 440, 0.8)       // instr 1, 500ms, freq=440, amp=0.8
     cs_chnset(cs, "cutoff", 800)           // write a control channel
     fc = cs_chnget(cs, "feedback", dt=20ms) // poll a control channel (temporal)
+}
+```
+
+### Local functions and closures
+
+Functions can be defined inside process blocks, init blocks, and update blocks. They are visible only within the enclosing scope and do not pollute the global namespace.
+
+```idyl
+process: {
+    // Helper visible only in this process
+    semitones_to_ratio(s) = pow(2, s / 12)
+    midi_to_hz(note) = 440 * semitones_to_ratio(note - 69)
+
+    print(midi_to_hz(60))   // 261.626
+}
+```
+
+Init-block and update-block functions can be returned as closures. The closure captures the owning temporal instance by reference — at call time it always sees the instance's current state:
+
+```idyl
+// Returns a closure that adds n to its argument
+make_adder(n, dt=100ms) = fn |>
+{
+    init: {
+        fn(x) = x + n
+    }
+}
+
+process: {
+    add5 = make_adder(5)
+    print(add5(10))   // 15
+    print(add5(20))   // 25
+}
+
+// Closure over mutable state
+accumulator(dt=200ms) = fn |>
+{
+    init: { total = 0 }
+    total = total + 1
+    fn(x) = x + total   // reads current total each call
+}
+```
+
+Update-block local functions are tick-local aliases — redefined each tick, not persisted between ticks:
+
+```idyl
+tracker(input, dt=10ms) = ratio |>
+{
+    init: { peak = 0 }
+    peak = max(peak, abs(input))
+    normalize(v) = v / max(peak, 0.001)   // tick-local alias
+    ratio = normalize(input)
 }
 ```
 
@@ -471,6 +524,7 @@ What exists:
 - Deferred execution blocks `@(time): { }` — one-shot scheduler callbacks
 - `start`/`stop` keywords for process-to-process control
 - Dynamic parameter re-evaluation — temporal function parameters can themselves be temporal
+- Local functions and closures — process-scope, init-scope, update-scope; by-reference capture over temporal instance state
 - Flows with live temporal elements (per-slot running instances) and dynamic parametric flows (auto-rebuilt when arguments change)
 - `on` blocks — trigger-gated reaction blocks (`on m: { ... }`) and flow member gates (`melody on rhythm: [...]`)
 - Built-in OSC module: send, receive, `osc_recv` native temporal poller

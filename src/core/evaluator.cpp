@@ -173,13 +173,20 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             break;
         }
 
-        // Otherwise: true function definition — register for call-time evaluation
-        env_.define(def.name_, value::function_ref(def.name_));
-        // Store the AST node pointer for call-time evaluation
-        function_defs_[def.name_] =
-            std::static_pointer_cast<parser::function_definition>(
-                std::const_pointer_cast<parser::node>(
-                    std::shared_ptr<const parser::node>(stmt, &def)));
+        // Otherwise: true function definition — register for call-time evaluation.
+        auto ast_ptr = std::static_pointer_cast<parser::function_definition>(
+            std::const_pointer_cast<parser::node>(
+                std::shared_ptr<const parser::node>(stmt, &def)));
+
+        if (env_.scopes_.size() > 1) {
+            // Local scope (process block, init block, update block):
+            // store AST in the value itself — do NOT write to function_defs_.
+            env_.define(def.name_, value::local_function(def.name_, ast_ptr));
+        } else {
+            // Global scope: register in function_defs_ as usual.
+            env_.define(def.name_, value::function_ref(def.name_));
+            function_defs_[def.name_] = ast_ptr;
+        }
         break;
     }
 
@@ -350,9 +357,12 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 if (scheduler_ && anon_inst->dt_ms_ > 0.0) {
                     std::shared_ptr<parser::function_definition> def_ptr;
                     if (!anon_inst->native_update_) {
-                        std::shared_lock lock(defs_mutex_);
-                        auto dit = function_defs_.find(anon_inst->def_name_);
-                        if (dit != function_defs_.end()) def_ptr = dit->second;
+                        def_ptr = anon_inst->local_def_;
+                        if (!def_ptr) {
+                            std::shared_lock lock(defs_mutex_);
+                            auto dit = function_defs_.find(anon_inst->def_name_);
+                            if (dit != function_defs_.end()) def_ptr = dit->second;
+                        }
                     }
                     auto weak_anon = std::weak_ptr<function_instance>(anon_inst);
                     anon_inst->subscription_id_ = scheduler_->subscribe(anon_inst->dt_ms_,
@@ -361,7 +371,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                             auto si = weak_anon.lock();
                             if (!si || !si->active_) return false;
 
-                            tick_instance(*si, def_ptr.get());
+                            tick_instance(si, def_ptr.get());
 
                             std::lock_guard<std::mutex> lk(rxn->mutex);
                             for (auto& c : rxn->catches) {
@@ -419,9 +429,12 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 // AST temporal instances require a function_def lookup.
                 std::shared_ptr<parser::function_definition> def_ptr;
                 if (!inst->native_update_) {
-                    auto def_it = function_defs_.find(inst->def_name_);
-                    if (def_it == function_defs_.end()) continue;
-                    def_ptr = def_it->second;
+                    def_ptr = inst->local_def_;
+                    if (!def_ptr) {
+                        auto def_it = function_defs_.find(inst->def_name_);
+                        if (def_it == function_defs_.end()) continue;
+                        def_ptr = def_it->second;
+                    }
                 }
 
                 std::string var  = seg.bound_var;
@@ -444,7 +457,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
                         // (epoch-transition flush removed — see epoch_flush below)
 
-                        tick_instance(*si, def_ptr.get());
+                        tick_instance(si, def_ptr.get());
 
                         // Snapshot reactions under lock so that hot_reload()
                         // can safely replace them on the main thread.
@@ -1317,9 +1330,15 @@ value evaluator::eval_call(const parser::function_call& call) {
 
     // ── Indirect call: if the name refers to a variable holding a function
     //    reference, resolve through the ref to get the actual function name.
+    //    For local functions, the value carries the AST directly.
+    //    For closures, it also carries a reference to the owning instance.
+    std::shared_ptr<parser::function_definition> local_fn_def;
+    std::shared_ptr<function_instance> closure_inst;
     if (auto* var = env_.lookup(fn_name)) {
         if (var->type_ == value_t::function && var->string_) {
             fn_name = *var->string_;
+            if (var->fn_def_) local_fn_def = var->fn_def_;
+            if (var->closure_inst_) closure_inst = var->closure_inst_;
         }
     }
 
@@ -1449,6 +1468,11 @@ value evaluator::eval_call(const parser::function_call& call) {
     }
 
     // ── Check user-defined functions ───────────────────────────────────────
+    // Local function (defined in process/init/update scope): AST is carried
+    // in the value directly — no lookup in function_defs_.
+    if (local_fn_def) {
+        return eval_user_function(*local_fn_def, args, named, fn_name, pos_exprs, named_exprs, &call, local_fn_def, closure_inst);
+    }
     auto it = function_defs_.find(fn_name);
     if (it != function_defs_.end() && it->second) {
         // Pass fn_name as the qualified_key so temporal instances get the right
@@ -1579,7 +1603,9 @@ value evaluator::eval_user_function(const parser::function_definition& def,
                                     const std::string& qualified_key,
                                     const std::vector<parser::expr_ptr>& pos_exprs,
                                     const named_exprs_t& named_exprs,
-                                    const parser::function_call* call_site) {
+                                    const parser::function_call* call_site,
+                                    std::shared_ptr<parser::function_definition> local_def,
+                                    std::shared_ptr<function_instance> closure_inst) {
     // ── Scan parameters for trigger / dt flags ─────────────────────────────
     bool has_trigger_param = false;
     bool has_dt_param      = false;
@@ -1715,18 +1741,27 @@ value evaluator::eval_user_function(const parser::function_definition& def,
 
     // ── Standard temporal function: has |> lambda block → instantiate ──────
     if (def.lambda_block_) {
-        return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs);
+        return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs, local_def);
     }
 
     // ── Constant temporal: no lambda block but has dt parameter ────────────
     // e.g. trig(dt=100ms) = ! — must be scheduled for periodic ticking.
     if (has_dt_param) {
-        return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs);
+        return instantiate_temporal(def, args, named, qualified_key, pos_exprs, named_exprs, local_def);
     }
 
     if (!def.body_) return value::nil();
 
     // ── Pure function evaluation ────────────────────────────────────────────
+    // For closures: push the owning instance's params and state first so the
+    // body can read them by reference (sees current values, not a snapshot).
+    if (closure_inst) {
+        env_.push_scope();
+        for (const auto& [n, v] : closure_inst->params_)
+            env_.define(n, v);
+        for (const auto& [n, v] : closure_inst->current_)
+            env_.define(n, v);
+    }
     env_.push_scope();
 
     size_t pos_idx = 0;
@@ -1748,6 +1783,7 @@ value evaluator::eval_user_function(const parser::function_definition& def,
 
     value result = eval_expr(def.body_);
     env_.pop_scope();
+    if (closure_inst) env_.pop_scope();
     return result;
 }
 
@@ -1760,7 +1796,8 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                                       const named_args_t& named,
                                       const std::string& qualified_key,
                                       const std::vector<parser::expr_ptr>& pos_exprs,
-                                      const named_exprs_t& named_exprs) {
+                                      const named_exprs_t& named_exprs,
+                                      std::shared_ptr<parser::function_definition> local_def) {
     // ── Retick mode: return existing instance output ────────────────────
     // During a scheduler callback, the binding expression is re-evaluated.
     // The temporal call (e.g. lfo(1hz)) must return the already-ticked
@@ -1782,6 +1819,9 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
     // Store the qualified key so the process-block subscription lookup finds
     // the right entry in function_defs_ even for namespaced library functions.
     inst->def_name_ = canon_key;
+    // For local functions, carry the AST directly so schedule_instance can
+    // tick without looking up function_defs_.
+    if (local_def) inst->local_def_ = local_def;
     // Attach library-local scope if this function came from a namespaced lib.
     {
         auto it = fn_library_scope_.find(canon_key);
@@ -1848,11 +1888,20 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
         for (const auto& stmt : def.lambda_block_->init_->statements_) {
             if (!stmt) continue;
             if (stmt->type_ == parser::node_t::function_definition) {
-                // init: { counter_value = 0 } — parsed as 0-param function def
                 auto& init_def = static_cast<const parser::function_definition&>(*stmt);
-                if (init_def.parameters_.empty() && init_def.body_) {
+                if (init_def.parameters_.empty() && !init_def.lambda_block_ && init_def.body_) {
+                    // Constant binding: counter_value = 0
                     value v = eval_expr(init_def.body_);
                     inst->current_[init_def.name_] = v;
+                    env_.define(init_def.name_, v);
+                } else if (!init_def.parameters_.empty() || init_def.lambda_block_) {
+                    // Parametric local function — stored as a closure so callers
+                    // outside the tick scope can still read params/state by reference.
+                    auto fn_ptr = std::static_pointer_cast<parser::function_definition>(
+                        std::const_pointer_cast<parser::statement>(stmt));
+                    auto fn_val = value::closure(init_def.name_, fn_ptr, inst);
+                    inst->current_[init_def.name_] = fn_val;
+                    env_.define(init_def.name_, fn_val);
                 }
             } else if (stmt->type_ == parser::node_t::assignment) {
                 auto& assign = static_cast<const parser::assignment&>(*stmt);
@@ -1915,6 +1964,12 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                         value v = eval_expr(upd.body_);
                         inst->next_[upd.name_] = v;
                         env_.define(upd.name_, v);
+                    } else if (!upd.parameters_.empty() || upd.lambda_block_) {
+                        // Tick-local alias — stored as a closure so the body can
+                        // read current instance state via the scope chain.
+                        auto fn_ptr = std::static_pointer_cast<parser::function_definition>(
+                            std::const_pointer_cast<parser::statement>(stmt));
+                        env_.define(upd.name_, value::closure(upd.name_, fn_ptr, inst));
                     }
                 } else if (stmt->type_ == parser::node_t::assignment) {
                     auto& assign = static_cast<const parser::assignment&>(*stmt);
@@ -1938,7 +1993,7 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
             if (inst->library_scope_) env_.pop_scope();
         } else {
             // No init: run first update immediately (no dt delay)
-            tick_instance(*inst, &def);
+            tick_instance(inst, &def);
         }
     }
 
@@ -1969,8 +2024,9 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
 // Temporal function tick — evaluate one update cycle
 // ════════════════════════════════════════════════════════════════════════════════
 
-void evaluator::tick_instance(function_instance& inst,
+void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                               const parser::function_definition* def) {
+    function_instance& inst = *inst_ptr;
     // ── Re-evaluate dynamic parameter expressions (all instance types) ────
     // This lets dt and other params evolve when driven by temporal sources.
     {
@@ -2035,10 +2091,19 @@ void evaluator::tick_instance(function_instance& inst,
         if (!stmt) continue;
         if (stmt->type_ == parser::node_t::function_definition) {
             auto& upd = static_cast<const parser::function_definition&>(*stmt);
-            if (upd.parameters_.empty() && upd.body_) {
+            if (upd.parameters_.empty() && !upd.lambda_block_ && upd.body_) {
+                // Bare assignment (0-param constant binding)
                 value v = eval_expr(upd.body_);
                 inst.next_[upd.name_] = v;
                 env_.define(upd.name_, v);
+            } else if (!upd.parameters_.empty() || upd.lambda_block_) {
+                // Tick-local alias — stored as a closure so escaped values see
+                // current instance state when called.
+                auto fn_ptr = std::static_pointer_cast<parser::function_definition>(
+                    std::const_pointer_cast<parser::statement>(stmt));
+                auto fn_val = value::closure(upd.name_, fn_ptr, inst_ptr);
+                env_.define(upd.name_, fn_val);
+                // Not stored in inst.next_ — tick-local, does not persist between ticks
             }
         } else if (stmt->type_ == parser::node_t::assignment) {
             auto& assign = static_cast<const parser::assignment&>(*stmt);
@@ -2348,10 +2413,12 @@ void evaluator::schedule_instance(std::shared_ptr<function_instance> inst) {
         (double /*t*/, double /*dt*/) -> bool {
             auto si = weak.lock();
             if (!si || !si->active_) return false;
-            auto def_it = function_defs_.find(si->def_name_);
-            const parser::function_definition* def_ptr =
-                def_it != function_defs_.end() ? def_it->second.get() : nullptr;
-            tick_instance(*si, def_ptr);
+            const parser::function_definition* def_ptr = si->local_def_.get();
+            if (!def_ptr) {
+                auto def_it = function_defs_.find(si->def_name_);
+                if (def_it != function_defs_.end()) def_ptr = def_it->second.get();
+            }
+            tick_instance(si, def_ptr);
             return true;
         });
 }
@@ -2866,9 +2933,12 @@ void evaluator::diff_and_apply(live_process& lp,
         if (scheduler_ && inst->dt_ms_ > 0.0) {
             std::shared_ptr<parser::function_definition> def_ptr;
             if (!inst->native_update_) {
-                std::shared_lock lock(defs_mutex_);
-                auto dit = function_defs_.find(inst->def_name_);
-                if (dit != function_defs_.end()) def_ptr = dit->second;
+                def_ptr = inst->local_def_;
+                if (!def_ptr) {
+                    std::shared_lock lock(defs_mutex_);
+                    auto dit = function_defs_.find(inst->def_name_);
+                    if (dit != function_defs_.end()) def_ptr = dit->second;
+                }
             }
 
             auto weak_inst = std::weak_ptr<function_instance>(inst);
@@ -2881,7 +2951,7 @@ void evaluator::diff_and_apply(live_process& lp,
                     auto si = weak_inst.lock();
                     if (!si || !si->active_) return false;
 
-                    tick_instance(*si, def_ptr.get());
+                    tick_instance(si, def_ptr.get());
 
                     // Snapshot reactions under lock (same pattern as the
                     // process-setup closure above).
@@ -3003,8 +3073,10 @@ void evaluator::hot_reload(const std::string& source) {
             {
                 std::unique_lock lock(defs_mutex_);
                 // Evict stale cache entries for this flow name
-                std::erase_if(flow_call_cache_,
-                    [&](const auto& kv) { return kv.first.name == def.name_; });
+                for (auto it = flow_call_cache_.begin(); it != flow_call_cache_.end(); ) {
+                    if (it->first.name == def.name_) it = flow_call_cache_.erase(it);
+                    else ++it;
+                }
                 flow_cache_order_.remove_if(
                     [&](const auto& k) { return k.name == def.name_; });
 
