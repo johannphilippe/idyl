@@ -28,11 +28,11 @@ process: {
     print("Opening OSC output...")
 
     handle = sender()
-    handle catch kill: {
+    catch handle::kill: {
         print("kill catched")
         o::osc_close(handle)
         print("OSC test complete.")
-        stop 
+        stop
     }
 
 }

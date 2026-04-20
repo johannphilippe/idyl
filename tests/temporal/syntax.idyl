@@ -474,7 +474,7 @@ process emit_demo, dur=5s: {
 process catch_demo, dur=3s: {
     timer = countdown()
     print("timer: ", timer)
-    timer catch finished: {
+    catch timer::finished: {
         print("Countdown complete!")
     }
 }

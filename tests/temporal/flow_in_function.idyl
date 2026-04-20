@@ -1,0 +1,11 @@
+import("stdlib")
+
+flow myflow = [8, 7, 6]
+
+f(x) = myflow[x]
+
+process: {
+    m = metro(dt=500ms)
+    c = counter(dt=250ms)
+    print(f(m), f(c))
+}

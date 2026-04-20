@@ -724,9 +724,9 @@ namespace idyl::semantic {
             {
                 idyl::debug("Resolving catch block.");
                 auto cb = std::static_pointer_cast<parser::catch_block>(node);
-                // Resolve the source expression (the watched variable)
-                if (cb->expression_) {
-                    resolve(cb->expression_);
+                // Resolve the instance expression (named binding or anonymous call)
+                if (cb->instance_expr_) {
+                    resolve(cb->instance_expr_);
                 }
                 scope_stack_.push(scope_t::catch_block);
                 for(const auto& stmt : cb->handler_) {

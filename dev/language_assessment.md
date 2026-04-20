@@ -73,6 +73,58 @@ Currently `on` means two distinct things: flow member gate (`melody on rhythm: [
 
 ---
 
+## Proposed features — analysis
+
+### Catch syntax: `catch a::sig: { }` instead of `timer catch sig: { }`
+
+**What it would bring.** The proposed form reuses the `::` accessor already present in the language (`timer::finished` reads the emitted value; `catch timer::finished: {}` would subscribe to it). This makes the two operations — reading and catching — visually parallel. It also opens the door to catching from anonymous or inline expressions without pre-naming the binding, e.g. `catch metro(dt=500ms)::tick: {}`, which the current form cannot express at all.
+
+**What is consistent about it.** The `a::sig` notation already implies "signal `sig` from instance `a`". Overloading it in `catch` position is a natural extension: `catch` tells the parser "subscribe, don't just read". No new operator or keyword is needed.
+
+**What it could break / open questions.**
+- All existing `catch` code is a straightforward mechanical rename — `x catch y: {}` → `catch x::y: {}`. Low risk, high churn.
+- The semantic overlap between `a::sig` as a read (returns the current value) and `catch a::sig` as a subscription (installs a handler) needs to be clearly documented. Both are valid but do different things; the difference is the leading `catch` keyword, which is unambiguous in the grammar.
+- `catch` currently belongs to a specific reaction-set context (inside process blocks, after a temporal binding). The new form needs to clarify whether `catch` can appear anywhere or only in those same positions.
+- If anonymous-instance catching (`catch metro(dt=500ms)::tick: {}`) is supported, the scheduler needs to own the anonymous instance's lifetime — defining where it is destroyed.
+
+**Verdict.** Worth doing before 1.0. The symmetry gain is real, the mechanical breakage is contained, and the anonymous-instance form unlocks a genuinely new pattern. The open-question around lifetime ownership of anonymous instances should be resolved in the design before implementation.
+
+---
+
+### Functional flow — functions returning flows
+
+**What it would bring.** Today, parameterized flows (`flow pattern(key) = { melody: [...], rhythm: [...] }`) are first-class at the definition level but are a special syntactic form. If ordinary functions could return flows, the distinction disappears: any function that evaluates to a flow value is a parameterized flow. Computed flows become possible — flows whose structure is derived from runtime arithmetic, not just literal arrays. Composition becomes natural: `f(g(x))` where `g` returns a flow that `f` sequences or merges.
+
+**What is consistent about it.** The language already has the concept of a flow as a typed value (`value_t::flow` presumably exists internally). Making it returnable from a function is the same as making any other value type returnable. The "recomputed when parameters change" behavior already exists for parametric flows — it would just be triggered by argument-change detection at the function-call level instead of at the flow-definition level.
+
+**What it could break / open questions.**
+- **Type system gap.** The evaluator currently doesn't know at call time whether a function returns a flow. A caller writing `pattern[m]` needs to know `pattern` is a flow, not a number. Either functions need return-type annotations, or the evaluator needs to do a runtime check on every indexed access — both are significant changes.
+- **Cursor ownership.** A flow returned from a function call needs its own cursor state. Currently cursors live inside `flow_site_cursors_` keyed by AST node. If the same function is called at two sites and both return flows, each return value needs independent cursors — the ownership model becomes recursive.
+- **Temporal elements inside returned flows.** If the flow contains `metro(dt=100ms)` as an element, who subscribes it to the scheduler? The subscription must be tied to the lifetime of the flow value, not the function call frame.
+- **Recomputation on parameter change.** Implementing "recompute when arguments change" requires tracking which call sites have which argument values and diffing them on each tick — essentially a memoization layer on top of the evaluator. This is non-trivial to implement correctly for temporal elements.
+- **Interaction with hot reload.** If a function body changes during hot reload and it returns a flow, all existing flow instances from previous calls need to be invalidated.
+
+**Verdict.** High impact, high complexity. The semantic payoff is large — it would unify parameterized flows with regular functions and enable fully computed flows. However, it touches cursor ownership, the type system, the scheduler, and hot reload simultaneously. This is a 1.0+ feature unless scope is narrowed (e.g., restrict to stateless flows — no temporal elements, no cursors — as a first step).
+
+---
+
+### Code block feature — anonymous expression blocks in ternary
+
+**What it would bring.** `(condition) ? { expr_a; expr_b }; { expr_c; expr_d }` allows multi-statement branches without hoisting them to a named function. It partially addresses the "functions are global-scope only" weakness: local helper logic stays local. It also reads naturally for anyone coming from a C-style background. As a generalization, named `{...}` scopes inside expressions would be the foundation closures need.
+
+**What is consistent about it.** `{...}` already denotes scoped blocks in process bodies, lambda bodies (`|> { ... }`), and `@` deferred blocks. Making a block an expression that evaluates to its last statement is a direct extension of the existing convention.
+
+**What it could break / open questions.**
+- **Grammar ambiguity.** `{...}` is currently unambiguous because it only appears after specific keywords or operators (`:`, `|>`). In expression position — especially inside ternary options — the parser would need to distinguish a block expression from a flow literal (`{...}` with named members) and from a process body. This adds grammar complexity to a grammar already carrying 50+ conflicts.
+- **Return value semantics.** What does a block evaluate to? Options: (a) the value of the last expression, (b) a tuple of all expression values, (c) `_` (side-effects only). Option (a) is most natural and consistent with how `|>` lambda bodies work.
+- **Scope and capture.** Variables defined inside a block (`{ x = ...; x * 2 }`) must not escape. But the block needs to read from enclosing scope. If the enclosing scope contains temporal variables, capturing them is effectively a closure — which means the block-as-expression feature and closures are tightly coupled design decisions.
+- **Temporal bindings inside blocks.** `{ m = metro(dt=100ms); m }` in a ternary branch — does `m` subscribe if the branch is evaluated? What if the other branch is taken next tick? This requires careful semantics around conditional scheduler subscription, which does not exist today.
+- **Interaction with the ternary evaluator.** Currently `eval_expr` on ternary options is lazy (only the selected branch is evaluated). Block expressions would need the same lazy semantics — and temporal subscriptions inside the unevaluated branch must not fire.
+
+**Verdict.** Very useful ergonomically; the multi-statement branch case is a genuine pain point. But the grammar, scope, and temporal-subscription problems make this non-trivial. A safe first step: allow blocks only in non-temporal contexts (static functions, outside process blocks), deferring the temporal-subscription question. That subset is implementable without touching the scheduler and would address the most common use case (local helper logic in pure functions).
+
+---
+
 ## Open design questions
 
 **Should `dt` be per-function or per-instance?**
@@ -91,10 +143,15 @@ The current scope model is simple because functions cannot close over process-lo
 
 ## Priority ranking (subjective)
 
+🟣 - Means dangerous, or not sure
+
 | | Item | Impact |
 |---|---|---|
 | 🔴 | Fix parser conflicts | Technical debt, potential latent parse bugs |
 | ✅ | Flow cursor instancing per call-site — resolved | Each call site owns its cursor; polyphony works correctly |
+| ✅ | Catch syntax — resolved | `catch a::sig: {}` implemented; anonymous-instance `catch expr::sig: {}` experimental |
+| 🟣 | Functional flow | allow functions to return flows with standard flow instance properties (flow is recomputed if any parameter changes in the function call, flow can be dynamic, and contain temporal elements) |
+| 🟣 | Code block feature | Allow block of code (expression bloc, like in @ blocs or catch blocks, that can be used to create anonymous scopes, and can be used in ternary expressions `(condition) ? {/*expressions A*/}; {/*Expressions B*/}`|
 | 🟠 | Serial + MIDI modules | Missing for hardware use |
 | 🟠 | Runtime error handling | Silent failures in long-running programs are dangerous |
 | 🟡 | Function definitions in process/lambda scope | Quality of life, code locality |
@@ -102,4 +159,6 @@ The current scope model is simple because functions cannot close over process-lo
 | 🟡 | Consider renaming `process` before 1.0 | Breaking change window is closing |
 | 🟢 | Audio-rate scheduler mode | Longer term, needed for synthesis |
 | 🟢 | Closures | Longer term, expressiveness |
+| 🟢 | Traits | flow traits allowing changing behavior of flow (operator overloading, flow methods etc) |
 | ✅ | Ternary syntax — resolved | Condition-first `cond ? a; b` implemented |
+

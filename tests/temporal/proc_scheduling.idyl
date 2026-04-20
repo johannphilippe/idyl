@@ -9,10 +9,10 @@ cnt(limit, dt=300ms) = cnt
 process a: {
     r = cnt(5)
     print(r)
-    r catch killsig: {
+    catch r::killsig: {
         print("Ending process a, starting b")
-        stop a 
-        start b 
+        stop a
+        start b
     }
 }
 

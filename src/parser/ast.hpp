@@ -642,16 +642,18 @@ struct assignment : statement {
 };
 
 struct catch_block : statement {
-    expr_ptr expression_;
-    std::string event_type_; // "end"
+    expr_ptr    instance_expr_;      // the instance: identifier (named) or call expr (anonymous)
+    std::string signal_name_;        // the emitted signal to watch, or "end"
     std::vector<stmt_ptr> handler_;
-    
+    bool        anonymous_instance_ = false; // true when instance_expr_ is not a plain identifier
+
     catch_block() : statement(node_t::catch_block) {}
-    
+
     void print(int indent = 0) const override {
         printIndent(indent);
-        std::cout << "CatchBlock(catch " << event_type_ << ")\n";
-        if (expression_) expression_->print(indent + 1);
+        std::cout << "CatchBlock(::" << signal_name_
+                  << (anonymous_instance_ ? " [anonymous]" : "") << ")\n";
+        if (instance_expr_) instance_expr_->print(indent + 1);
         for (const auto& stmt : handler_) {
             if (stmt) stmt->print(indent + 1);
         }

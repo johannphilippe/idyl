@@ -300,19 +300,85 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         }
 
         // ── Link catch blocks to their source segments ─────────────────────
+        // Named: catch timer::sig  — links to the segment whose bound_var == "timer".
+        // Anonymous (experimental): catch metro(dt=500ms)::sig  — evaluates the
+        // instance expression, subscribes it to the scheduler, and attaches the
+        // handler to that new instance's reaction_set.  The instance lives for the
+        // lifetime of the process (tracked in active_process_instances_).
         for (auto& cb : catch_blocks) {
-            if (!cb->expression_) continue;
+            if (!cb->instance_expr_) continue;
+
+            // Determine whether this is a named or anonymous instance.
             std::string source_var;
-            if (cb->expression_->type_ == parser::node_t::identifier_expr) {
-                auto& ie = static_cast<const parser::identifier_expr&>(*cb->expression_);
+            if (cb->instance_expr_->type_ == parser::node_t::identifier_expr) {
+                auto& ie = static_cast<const parser::identifier_expr&>(*cb->instance_expr_);
                 if (ie.identifier_) source_var = ie.identifier_->name_;
             }
-            if (source_var.empty()) continue;
 
-            for (auto& seg : segments) {
-                if (seg.bound_var == source_var) {
-                    seg.rxn->catches.push_back({cb->event_type_, cb->handler_, false});
-                    break;
+            bool matched_named = false;
+            if (!source_var.empty()) {
+                for (auto& seg : segments) {
+                    if (seg.bound_var == source_var) {
+                        seg.rxn->catches.push_back({cb->signal_name_, cb->handler_, false});
+                        matched_named = true;
+                        break;
+                    }
+                }
+            }
+
+            // Anonymous instance: evaluate the call expression to create the instance.
+            if (!matched_named) {
+                uint64_t id_before = next_instance_id_;
+                eval_expr(cb->instance_expr_);
+                if (next_instance_id_ <= id_before) continue; // didn't create an instance
+
+                uint64_t anon_id  = next_instance_id_ - 1;
+                auto inst_it      = instances_.find(anon_id);
+                if (inst_it == instances_.end()) continue;
+                auto anon_inst    = inst_it->second;
+
+                auto rxn = std::make_shared<reaction_set>();
+                rxn->catches.push_back({cb->signal_name_, cb->handler_, false});
+
+                // Track the anonymous instance under the process name so it is
+                // cancelled when the process stops or is hot-reloaded.
+                if (!proc.name_.empty())
+                    active_process_instances_[proc.name_].push_back(anon_id);
+
+                has_temporal = true;
+
+                if (scheduler_ && anon_inst->dt_ms_ > 0.0) {
+                    std::shared_ptr<parser::function_definition> def_ptr;
+                    if (!anon_inst->native_update_) {
+                        std::shared_lock lock(defs_mutex_);
+                        auto dit = function_defs_.find(anon_inst->def_name_);
+                        if (dit != function_defs_.end()) def_ptr = dit->second;
+                    }
+                    auto weak_anon = std::weak_ptr<function_instance>(anon_inst);
+                    anon_inst->subscription_id_ = scheduler_->subscribe(anon_inst->dt_ms_,
+                        [this, def_ptr, weak_anon, rxn]
+                        (double, double) -> bool {
+                            auto si = weak_anon.lock();
+                            if (!si || !si->active_) return false;
+
+                            tick_instance(*si, def_ptr.get());
+
+                            std::lock_guard<std::mutex> lk(rxn->mutex);
+                            for (auto& c : rxn->catches) {
+                                if (c.fired) continue;
+                                // Check emitted_ first; fall back to return value.
+                                auto emit_it = si->emitted_.find(c.watched_emit);
+                                bool live = (emit_it != si->emitted_.end())
+                                            ? emit_it->second.is_truthy()
+                                            : si->output_.is_truthy();
+                                if (live) {
+                                    c.fired = true;
+                                    for (const auto& h : c.handler) exec_stmt(h);
+                                    return false; // one-shot
+                                }
+                            }
+                            return true;
+                        });
                 }
             }
         }

@@ -10,7 +10,9 @@ counter_with_end(dt=100ms) = count |> {
 
 process: {
     sig = counter_with_end()
-    sig catch done: {
+    print(sig)
+    catch sig::done: {
         print("Caught done! count =", sig)
+        stop
     }
 }

@@ -40,7 +40,7 @@ A common pattern is emitting a trigger when a condition is met:
 countdown(dt=100ms) = remaining |> {
     init: { remaining = 10  emit finished = _ }
     remaining = remaining - 1
-    emit finished = _; ! ? (remaining == 0)
+    emit finished = (remaining == 0) ? _; !
 }
 ```
 
@@ -71,12 +71,12 @@ The `::` operator is also used for module namespace access (`osc::send`), but th
 
 ## Catch blocks
 
-A **catch block** reacts to an emitted value becoming truthy. It is placed inside a process block, attached to a temporal instance.
+A **catch block** reacts to an emitted value becoming truthy. It is a standalone statement inside a process block that names the instance and signal using `::` — consistent with how `::` reads emitted values elsewhere.
 
 **Syntax**:
 
 ```
-instance catch emitted_name: {
+catch instance::signal_name: {
     // handler statements
 }
 ```
@@ -87,27 +87,27 @@ instance catch emitted_name: {
 countdown(dt=100ms) = remaining |> {
     init: { remaining = 10  emit finished = _ }
     remaining = remaining - 1
-    emit finished = _; ! ? (remaining == 0)
+    emit finished = (remaining == 0) ? _; !
 }
 
 process catch_demo, dur=3s: {
     timer = countdown()
     print("remaining:", timer)
 
-    timer catch finished: {
+    catch timer::finished: {
         print("Countdown complete!")
     }
 }
 ```
 
-On each tick, `remaining` is printed. When `finished` emits a trigger (`!`), the catch handler fires and prints `"Countdown complete!"`.
+On each tick, `remaining` is printed. When `finished` emits a trigger (`!`), the catch handler fires once and prints `"Countdown complete!"`.
 
 ### Catch semantics
 
-- The catch block fires **once** — the first time the emitted value becomes truthy.
+- The catch block fires **once** — the first time the named signal becomes truthy.
 - After firing, the catch is deactivated (it does not re-fire on subsequent truthy ticks).
-- The handler statements execute in the same scope as the process block.
-- Multiple catch blocks can be attached to the same instance, watching different emitted names.
+- The handler executes in the same scope as the surrounding process block.
+- Multiple catch blocks can watch different signals from the same instance.
 
 ### Multiple catches
 
@@ -115,22 +115,40 @@ On each tick, `remaining` is printed. When `finished` emits a trigger (`!`), the
 tracker(dt=50ms) = pos |> {
     init: { pos = 0  emit halfway = _  emit done = _ }
     pos = pos + 1
-    emit halfway = _; ! ? (pos == 50)
-    emit done = _; ! ? (pos == 100)
+    emit halfway = (pos == 50)  ? _; !
+    emit done    = (pos == 100) ? _; !
 }
 
 process: {
     t = tracker()
 
-    t catch halfway: {
+    catch t::halfway: {
         print("halfway there")
     }
 
-    t catch done: {
+    catch t::done: {
         print("finished")
     }
 }
 ```
+
+### Anonymous instance catch (experimental)
+
+The instance expression can be an inline call rather than a named binding. The instance is created when the process starts and lives for the lifetime of the process (or until it is removed by hot reload).
+
+```idyl
+process: {
+    // No binding needed — the counter instance is anonymous
+    catch counter_n(4)::done: {
+        print("caught after 4 ticks")
+        stop
+    }
+}
+```
+
+The signal name resolves against the anonymous instance's `emitted_` map. If no matching emitted name is found, the instance's main return value is used (so `catch metro(dt=500ms)::tick: {}` triggers whenever the metro's trigger output is live).
+
+**Lifetime rule**: the anonymous instance is alive as long as the process block that contains the `catch` is alive — it is cancelled automatically when the process stops or is hot-reloaded away.
 
 ---
 

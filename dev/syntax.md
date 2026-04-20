@@ -805,31 +805,42 @@ scramble(flow)       // Randomly permute
 
 ## 12. Event Handling & Lifecycle
 
-### 12.1 Catch Blocks (Basic)
+### 12.1 Catch Blocks
 
-Functions can signal completion or important events:
+Catch blocks subscribe to named emitted signals from a temporal instance. The `::` syntax mirrors how emitted values are read elsewhere in the language.
 
 **Syntax**:
 ```
-variable catch end : { ... }
+catch instance::signal_name : { ... }
+catch instance::end : { ... }
 ```
 
-**Examples**:
+**Named-instance catch** — `instance` is a binding declared earlier in the same process block:
 ```idl
-scheduler = module("scheduler")
-
 process control_sequence: {
-    timeline = scheduler::create_timeline()
-    sequence = scheduler::schedule(timeline, 0s, 30s)
-    
-    sequence catch end : {
+    seq = scheduler::schedule(timeline, 0s, 30s)
+
+    catch seq::end: {
         print("Sequence finished")
     }
 }
 ```
 
-**Event Types** (Core, Alpha):
-- `catch end` — Function reached natural end/expiration
+**Anonymous-instance catch** (experimental) — the instance expression is an inline call; the instance is created at process start and lives for the process lifetime:
+```idl
+process: {
+    catch counter_n(10)::done: {
+        print("Caught after 10 ticks")
+        stop
+    }
+}
+```
+
+**Signal resolution**: the signal name is looked up in the instance's `emitted_` map. If no matching name is found, the instance's main return value is used (useful for native functions like `metro` that don't emit named values).
+
+**Event types** (implemented):
+- `catch instance::signal` — any user-defined emitted signal
+- `catch instance::end` — reserved for function expiration (not yet wired)
 
 ---
 

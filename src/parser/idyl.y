@@ -493,11 +493,9 @@ process_body_statement
     {
         $$ = $1;
     }
-    | expression catch_block
+    | catch_block
     {
-        auto catch_b = std::static_pointer_cast<idyl::parser::catch_block>($2);
-        catch_b->expression_ = $1;
-        $$ = catch_b;
+        $$ = $1;
     }
     | at_block
     {
@@ -590,22 +588,24 @@ start_statement
     ;
 
 catch_block
-    : CATCH END COLON LBRACE process_body_statements RBRACE
+    : CATCH postfix_expression NAMESPACE_DOT IDENTIFIER COLON LBRACE process_body_statements RBRACE
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
-        catch_b->event_type_ = "end";
-        catch_b->handler_ = $5;
-        catch_b->line_ = @1.begin.line;
-        catch_b->column_ = @1.begin.column;
+        catch_b->instance_expr_ = $2;
+        catch_b->signal_name_   = $4;
+        catch_b->handler_       = $7;
+        catch_b->line_          = @1.begin.line;
+        catch_b->column_        = @1.begin.column;
         $$ = catch_b;
     }
-    | CATCH IDENTIFIER COLON LBRACE process_body_statements RBRACE
+    | CATCH postfix_expression NAMESPACE_DOT END COLON LBRACE process_body_statements RBRACE
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
-        catch_b->event_type_ = $2;
-        catch_b->handler_ = $5;
-        catch_b->line_ = @1.begin.line;
-        catch_b->column_ = @1.begin.column;
+        catch_b->instance_expr_ = $2;
+        catch_b->signal_name_   = "end";
+        catch_b->handler_       = $7;
+        catch_b->line_          = @1.begin.line;
+        catch_b->column_        = @1.begin.column;
         $$ = catch_b;
     }
     ;

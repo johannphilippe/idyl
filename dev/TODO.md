@@ -15,6 +15,24 @@ This must be done in a smart way :
 
 ## Next 
 
+
+- [done] Ternary operator syntax change 
+```idyl
+m = metro(dt=500ms)
+(m) ? expr1 // I don't know if this already works
+
+(m) ? expr1 ; expr2 
+
+c = counter(dt=300ms)
+(c) ? expr1; expr2; expr3 .... 
+```
+- [idea] Add a concept of independant block of code : could be used as a scope, or even in ternary conditions 
+```idyl
+(trig) ? {/* block 1 with several statements */}; {/* block 2 */} // etc 
+```
+
+- [important] Change catch syntax so it is more consistent with the rest of emit design `catch a::sig: {/* do something */}` 
+
 - [fixed] trigger functions : result update on first trigger, not on second ... 
 - [fixed] function with trigger parameters work fine in update bloc, but function body is updated even if trig is rest
 - [fixed] hot reload works on flows, not on processes
