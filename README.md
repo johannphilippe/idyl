@@ -449,6 +449,9 @@ Options:
 | `/idyl/process/start` | process name (string) | Start the named process |
 | `/idyl/process/stop` | process name (string) | Stop the named process |
 | `/idyl/process/list` | — | Print available process names |
+| `/idyl/eval` | source code (string) | Hot-reload: re-evaluate a function, flow, or process block while it is running |
+
+`/idyl/eval` is the live-coding entry point. When the payload is a named process block that is currently running, its body is diffed against the live version — surviving temporal instances keep their state, changed reactions and `dt` values take effect on the very next scheduler tick.
 
 Combine with `--process` to pre-start a specific block:
 
@@ -533,7 +536,8 @@ What exists:
 - Clock hierarchy with proportional tempo propagation; clock handles callable as beat-duration functions (`c(2b)`); `tempo(handle)` for BPM queries
 - Library imports with deduplication and namespacing
 - `--process` filter and `--listen` OSC control mode
-- Editor support: VS Code extension, Vim/Neovim syntax
+- Editor support: VS Code extension (tmLanguage grammar), Vim/Neovim syntax highlighting, and a Vim live-coding plugin (`t` eval, `s` start, `q` stop, `<C-e>` insert-mode eval) — install with `editors/vim/install.sh`
+- Hot reload: `/idyl/eval` OSC command diffs a running process against the new source — surviving temporal segments keep state, reactions and `dt` changes apply on the next tick
 - [Online documentation](https://johannphilippe.github.io/idyl/) (GitHub Pages)
 
 ---

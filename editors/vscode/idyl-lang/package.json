@@ -1,8 +1,8 @@
 {
   "name": "idyl-lang",
   "displayName": "Idyl Language",
-  "description": "Syntax highlighting for the Idyl programming language — a functional, time-aware language for scheduling, composition, and reactive behavior.",
-  "version": "0.1.0",
+  "description": "Syntax highlighting and live-coding integration for the Idyl programming language — a functional, time-aware language for scheduling, composition, and reactive behavior.",
+  "version": "0.2.0",
   "publisher": "idyl",
   "engines": {
     "vscode": "^1.75.0"
@@ -10,6 +10,7 @@
   "categories": [
     "Programming Languages"
   ],
+  "main": "./extension.js",
   "contributes": {
     "languages": [
       {
@@ -40,6 +41,55 @@
           "meta.embedded.block.idyl": "idyl"
         }
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "idyl.eval",
+        "title": "Idyl: Hot-reload construct at cursor",
+        "category": "Idyl"
+      },
+      {
+        "command": "idyl.startProcess",
+        "title": "Idyl: Start process block at cursor",
+        "category": "Idyl"
+      },
+      {
+        "command": "idyl.stopProcess",
+        "title": "Idyl: Stop process block at cursor",
+        "category": "Idyl"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "idyl.eval",
+        "key": "ctrl+enter",
+        "when": "editorTextFocus && resourceExtname == .idyl"
+      },
+      {
+        "command": "idyl.startProcess",
+        "key": "ctrl+alt+s",
+        "when": "editorTextFocus && resourceExtname == .idyl"
+      },
+      {
+        "command": "idyl.stopProcess",
+        "key": "ctrl+alt+q",
+        "when": "editorTextFocus && resourceExtname == .idyl"
+      }
+    ],
+    "configuration": {
+      "title": "Idyl",
+      "properties": {
+        "idyl.oscHost": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Hostname or IP address of the running idyl --listen instance."
+        },
+        "idyl.oscPort": {
+          "type": "number",
+          "default": 9000,
+          "description": "OSC UDP port of the running idyl --listen instance."
+        }
+      }
+    }
   }
 }

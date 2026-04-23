@@ -95,13 +95,21 @@ idyl file.idyl -p emit_demo
 
 ### `--listen`
 
-Enter listen mode: load the file, store all process blocks, and wait for OSC commands to start/stop them.
+Enter listen mode: load the file, store all process blocks, and wait for OSC commands to start, stop, and hot-reload them.
 
 ```bash
 idyl file.idyl --listen 9000
 ```
 
-The port argument is optional (defaults to 9000). See [Chapter 9 — Process blocks](ch09_process_blocks.md) for the full listen mode protocol.
+The port argument is optional (defaults to 9000). Key OSC addresses:
+
+| Address | Argument | Effect |
+|---------|----------|--------|
+| `/idyl/process/start` | name | Start a process |
+| `/idyl/process/stop` | name | Stop a process |
+| `/idyl/eval` | source | Hot-reload a definition or running process |
+
+See [Chapter 9 — Process blocks](ch09_process_blocks.md) for the full listen mode protocol and hot-reload behaviour.
 
 ---
 

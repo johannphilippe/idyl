@@ -57,6 +57,8 @@ User programs have no mechanism to catch runtime errors (division by zero, type 
 - **`@` blocks**: previously skipped; now re-executed on hot reload so newly added deferred actions fire.
 - **`shared_reactions` stale state**: fixed — `redistribute_reactions` now always clears `shared_reactions` on all segments, not only when shared reactions exist. Previously, removing a multi-segment reaction left stale entries in `shared_reactions`.
 - **Newly added temporal segments**: handled by pass 2 (unchanged since before).
+- **`dt` change not applying**: fixed — when a segment's temporal function is unchanged but its `dt` is changed (e.g. `counter(dt=0.3s)` → `counter(dt=0.2s)`), the scan pass now re-reads the new `dt` from the AST rather than copying the old value. Pass 1's `dt` update path then reschedules the instance at the correct interval.
+- **Spurious side-effect triggers on hot reload**: fixed — a `speculative_exec_` flag suppresses module function calls (e.g. `cs_note`) during the scan pass, so reactions like `a = note(spike!, freq)` do not fire at hot-reload time.
 Anonymous-instance `catch` (`catch metro(dt=500ms)::tick: {}`) is not re-created on hot reload (existing limitation — the instance is killed with the old process and not respawned).
 
 ### ~~Serial is missing~~ — **resolved**
@@ -275,7 +277,7 @@ Closures use by-reference capture: the function value carries a `shared_ptr<func
 | ✅ | MIDI module | `module("midi")` — RtMidi via FetchContent, all major channel messages |
 | 🟠 | Runtime error handling | Silent failures in long-running programs are dangerous |
 | ✅ | Function definitions in process/lambda scope | Quality of life, code locality |
-| ✅ | Hot reload edge cases | `on` blocks, `catch` updates, `@` blocks, stale `shared_reactions` — all fixed |
+| ✅ | Hot reload edge cases | `on`/`catch`/`@` blocks, stale `shared_reactions`, `dt` change propagation, spurious module-call triggers — all fixed |
 | 🟡 | Consider renaming `process` before 1.0 | Breaking change window is closing |
 | ✅ | Audio-rate scheduler mode | `--audio-clock` CLI flag, RtAudio driver callback, sub-ms at small buffers |
 | ✅ | Local functions and closures | Implemented: process/init/update scope, by-reference capture |

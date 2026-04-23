@@ -100,6 +100,7 @@ idyl song.idyl -l 9090
 | `/idyl/process/start` | `name` (string) | Start the named process block |
 | `/idyl/process/stop` | `name` (string) | Stop the named process block |
 | `/idyl/process/list` | *(none)* | Print all stored process block names |
+| `/idyl/eval` | source code (string) | Hot-reload: re-evaluate a definition or running process block |
 
 ### Example workflow
 
@@ -130,6 +131,54 @@ idyl song.idyl --listen --process drums
 ```
 
 This starts `drums` immediately and waits for OSC commands to start/stop others.
+
+---
+
+## Hot reload
+
+Sending source code to `/idyl/eval` re-evaluates it against the running program without stopping anything. This is the primary live-coding workflow.
+
+### What can be hot-reloaded
+
+| Payload | Behaviour |
+|---------|-----------|
+| Function definition | Replaces the definition in `function_defs_`. Existing temporal instances using the old definition continue with the old code until their next instantiation; reactions that call the function pick up the new body immediately. |
+| Flow definition | Replaces the flow in `flow_defs_` and evicts its cache. The next access rebuilds from the new definition. |
+| Named process block (running) | Diffs the new body against the live process — see below. |
+| Named process block (not running) | Updates the stored AST. The next `start` will use the new version. |
+
+### Process diff
+
+When the payload is a named process block that is currently running, `diff_and_apply` compares the new body against the live segments:
+
+- **Surviving segments** (same temporal function, same variable name): the instance is kept alive with all its state intact. The reaction list and `dt` are updated atomically under a mutex — the change is visible to the scheduler on the very next tick. No gap, no drift, no restart.
+- **Changed `dt`**: if the new binding has a different `dt` value (e.g. `counter(dt=0.3s)` → `counter(dt=0.2s)`), the scheduler interval is updated in place.
+- **Changed temporal function** (e.g. `counter` → `metro`): the old instance is stopped and a new one is started.
+- **Removed bindings**: the instance is stopped and unsubscribed.
+- **New bindings**: a fresh instance is created and subscribed.
+- **Reactions** (`fl = melody(i)[cnt]`, `a = note(...)`, etc.): replaced with the new AST nodes. The redistribution pass runs again so reactions always fire on the correct segment.
+- **`@` blocks**: not re-executed on hot reload — existing deferred timers continue running.
+- **`catch` blocks**: replaced; the new handler takes effect on the next event.
+
+### Vim live-coding keys
+
+The Vim plugin (installed via `editors/vim/install.sh`) binds these keys for `.idyl` buffers:
+
+| Key | Mode | Action |
+|-----|------|--------|
+| `t` | normal | Send the construct at the cursor to `/idyl/eval` (hot-reload) |
+| `s` | normal | Send the process block's name to `/idyl/process/start` |
+| `q` | normal | Send the process block's name to `/idyl/process/stop` |
+| `<C-e>` | insert | Hot-reload without leaving insert mode |
+
+The evaluated range is briefly highlighted. Block detection is brace-based — position the cursor anywhere inside (or on the first line of) the construct you want to send.
+
+Configuration (in `vimrc` / `init.vim`):
+
+```vim
+let g:idyl_osc_host = '127.0.0.1'   " default
+let g:idyl_osc_port = 9000           " default
+```
 
 ---
 

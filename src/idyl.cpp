@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
                 try { audio_sample_rate = static_cast<unsigned int>(std::stoul(argv[++i])); }
                 catch (...) { std::cerr << "Error: invalid sample rate\n"; return 1; }
             }
-        } else if (arg == "--audio-buffer-sizea" || arg == "-abs") {
+        } else if (arg == "--audio-buffer-size" || arg == "-abs") {
             if (i + 1 < argc) {
                 try { audio_buffer_size = static_cast<uint32_t>(std::stoul(argv[++i])); }
                 catch (...) { std::cerr << "Error: invalid buffer size\n"; return 1; }

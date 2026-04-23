@@ -1,0 +1,16 @@
+module("csound")
+import("stdlib")
+
+handle = cs_open("csound_module.csd")
+
+
+process cr: {
+    m1 = metro(dt=1s) 
+
+    on m1: {
+        print("tick")
+        cs_note(handle, "first", 1s, 0.3, mtof(60) )
+    }
+}
+
+

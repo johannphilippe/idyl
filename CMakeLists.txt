@@ -49,23 +49,13 @@ else()
     message(STATUS "Native module: Serial [disabled]")
 endif()
 
-# Audio-clock scheduler — uses a real audio device callback as the master clock
-# for sub-millisecond accurate scheduling (at small buffer sizes).
-# Requires no extra packages: miniaudio is fetched automatically (single-header).
-# On Linux, uses PipeWire/ALSA/JACK automatically (no libasound-dev needed).
-option(IDYL_AUDIO_CLOCK "Enable the audio-callback-driven scheduler (--audio-clock CLI flag)" ON)
+# Audio-clock scheduler — high-resolution timer-driven scheduler (--audio-clock flag).
+# Uses timerfd on Linux (no extra packages; part of the kernel headers).
+# Does NOT open any audio device, so it never conflicts with Csound or other engines.
+# Default tick period: 32 frames / 48 kHz ≈ 0.67 ms.
+option(IDYL_AUDIO_CLOCK "Enable the high-resolution timer scheduler (--audio-clock CLI flag)" ON)
 if(IDYL_AUDIO_CLOCK)
-    include(FetchContent)
-    FetchContent_Declare(
-        rtaudio
-        GIT_REPOSITORY https://github.com/thestk/rtaudio.git
-        GIT_TAG        master
-        GIT_SHALLOW    TRUE
-    )
-    set(RTAUDIO_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
-    set(RTAUDIO_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(rtaudio)
-    message(STATUS "Audio clock scheduler [enabled] (RtAudio via FetchContent)")
+    message(STATUS "Audio clock scheduler [enabled] (timerfd on Linux, sleep fallback elsewhere)")
 else()
     message(STATUS "Audio clock scheduler [disabled]")
 endif()
@@ -136,7 +126,10 @@ endif()
 
 if(IDYL_AUDIO_CLOCK)
     target_compile_definitions(idyl PRIVATE IDYL_AUDIO_CLOCK=1)
-    target_link_libraries(idyl PRIVATE rtaudio)
+    # Windows: winmm provides timeBeginPeriod/timeEndPeriod (fallback path only)
+    if(WIN32)
+        target_link_libraries(idyl PRIVATE winmm)
+    endif()
 endif()
 
 if(IDYL_MODULE_MIDI)

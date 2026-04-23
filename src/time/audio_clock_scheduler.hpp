@@ -1,41 +1,60 @@
 #pragma once
 
 // =============================================================================
-// audio_clock_scheduler.hpp — audio-callback-driven idyl scheduler (RtAudio)
+// audio_clock_scheduler.hpp — high-resolution timer scheduler (cross-platform)
 //
-// Uses a real audio device (via RtAudio) as a high-accuracy master clock.
-// The audio driver calls the data callback at buffer-rate intervals:
-//   128 frames / 48 kHz  →  ~2.67 ms per callback
-//    32 frames / 48 kHz  →  ~0.67 ms per callback   (sub-millisecond)
+// Fires at "buffer rate" (buffer_size / sample_rate Hz) using the best
+// OS timer available on the current platform:
+//
+//   Linux   : timerfd_create(CLOCK_MONOTONIC)   kernel-precision periodic wake
+//   macOS   : mach_wait_until                   same primitive as Core Audio
+//   Windows : CreateWaitableTimerEx (HRTIMER)   Win10 1803+ ≈ 0.5 ms accuracy
+//             → timeBeginPeriod(1) fallback      older Windows ≈ 1 ms
+//   other   : std::this_thread::sleep_until      ≈ 1–5 ms OS jitter
+//
+// No audio device is ever opened, so this never conflicts with Csound,
+// Jack, PipeWire, or any other audio engine running in the same process.
+//
+// Default period: 32 frames / 48 kHz ≈ 0.67 ms
 //
 // Architecture
 // ────────────
-//   audio callback  (RT thread) → increments atomic tick counter
-//                               → releases a counting semaphore
-//   worker thread               → acquires semaphore → fires due subscriptions
+//   timer thread → wakes at each period → checks all subscriptions → fires due
 //
-// The audio callback is minimal and real-time safe: no allocation, no locks,
-// no heavy computation.  All idyl logic runs on the worker thread that wakes
-// at buffer rate.
-//
-// Drift-free scheduling (same model as sys_clock_scheduler):
+// Drift-free scheduling:
 //   next_fire_ms = prev_fire_ms + dt_ms
-// so timing stays accurate across many buffer callbacks.
 // =============================================================================
 
 #ifdef IDYL_AUDIO_CLOCK
 
 #include "time/scheduler.hpp"
 
-#include <RtAudio.h>
-
 #include <atomic>
-#include <cstring>
+#include <chrono>
 #include <iostream>
 #include <mutex>
-#include <semaphore>
 #include <thread>
 #include <unordered_map>
+#include <vector>
+
+// ── Platform headers ──────────────────────────────────────────────────────────
+#if defined(__linux__)
+#  include <poll.h>
+#  include <sys/timerfd.h>
+#  include <unistd.h>
+#elif defined(__APPLE__)
+#  include <mach/mach_time.h>
+#elif defined(_WIN32)
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  include <timeapi.h>
+   // Added in Win10 1803; define locally so we compile against older SDKs too.
+#  ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#    define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#  endif
+#endif
 
 namespace idyl::time {
 
@@ -47,7 +66,7 @@ struct audio_clock_scheduler : idyl_scheduler {
 
     // ── Configuration ──────────────────────────────────────────────────────────
     unsigned int sample_rate_ = 48000;
-    unsigned int buffer_size_ = 128;
+    unsigned int buffer_size_ = 32;
 
     // ── Construction ───────────────────────────────────────────────────────────
 
@@ -70,72 +89,21 @@ struct audio_clock_scheduler : idyl_scheduler {
     void start() override {
         if (running_.load()) return;
 
-        buffer_ms_ = static_cast<double>(buffer_size_) * 1000.0
-                     / static_cast<double>(sample_rate_);
+        period_ns_ = static_cast<long long>(
+            static_cast<double>(buffer_size_) / static_cast<double>(sample_rate_) * 1.0e9);
 
-        unsigned int device_id = audio_.getDefaultOutputDevice();
-        if (device_id == 0) {
-            std::cerr << "[audio_clock] no output device available\n";
-            return;
-        }
-
-        RtAudio::StreamParameters out_params;
-        out_params.deviceId     = device_id;
-        out_params.nChannels    = 1;
-        out_params.firstChannel = 0;
-
-        unsigned int buf = buffer_size_;
-
-        RtAudioErrorType err = audio_.openStream(
-            &out_params,
-            nullptr,
-            RTAUDIO_FLOAT32,
-            sample_rate_,
-            &buf,
-            &audio_clock_scheduler::rt_callback_,
-            this);
-
-        if (err != RTAUDIO_NO_ERROR) {
-            std::cerr << "[audio_clock] openStream failed (error " << err << ")\n";
-            return;
-        }
-
-        // RtAudio may adjust the buffer size; re-derive buffer_ms_
-        if (buf != buffer_size_) {
-            buffer_size_ = buf;
-            buffer_ms_   = static_cast<double>(buf) * 1000.0
-                           / static_cast<double>(sample_rate_);
-        }
-
+        origin_  = steady_clock_t::now();
         running_.store(true);
-        tick_count_.store(0);
-        worker_ = std::thread([this]{ worker_loop_(); });
+        worker_  = std::thread([this] { worker_loop_(); });
 
-        err = audio_.startStream();
-        if (err != RTAUDIO_NO_ERROR) {
-            std::cerr << "[audio_clock] startStream failed (error " << err << ")\n";
-            running_.store(false);
-            worker_sem_.release();
-            if (worker_.joinable()) worker_.join();
-            audio_.closeStream();
-            return;
-        }
-
-        std::cerr << "[audio_clock] running at "
-                  << sample_rate_ << " Hz, "
-                  << buffer_size_ << " frames/buffer ("
-                  << buffer_ms_ << " ms/tick)\n";
+        std::cerr << "[audio_clock] running at " << sample_rate_ << " Hz, "
+                  << buffer_size_ << " frames/tick ("
+                  << static_cast<double>(period_ns_) / 1.0e6 << " ms/tick)\n";
     }
 
     void stop() override {
         if (!running_.exchange(false)) return;
-
-        if (audio_.isStreamRunning()) audio_.stopStream();
-        if (audio_.isStreamOpen())    audio_.closeStream();
-
-        worker_sem_.release();
         if (worker_.joinable()) worker_.join();
-
         std::lock_guard<std::mutex> lk(subs_mutex_);
         subscriptions_.clear();
     }
@@ -176,8 +144,8 @@ struct audio_clock_scheduler : idyl_scheduler {
     // ── Queries ────────────────────────────────────────────────────────────────
 
     double now_ms() const noexcept override {
-        return static_cast<double>(tick_count_.load(std::memory_order_relaxed))
-               * buffer_ms_;
+        auto elapsed = steady_clock_t::now() - origin_;
+        return std::chrono::duration<double, std::milli>(elapsed).count();
     }
 
     std::size_t active_count() const noexcept override {
@@ -200,86 +168,154 @@ private:
     };
 
     // ── State ──────────────────────────────────────────────────────────────────
-    RtAudio audio_;
-    double  buffer_ms_ = 0.0;
+    long long      period_ns_ = 0;
+    time_point_t   origin_;
 
-    std::atomic<bool>     running_{false};
-    std::atomic<uint64_t> tick_count_{0};
-
-    // Counting semaphore: allows a backlog of up to 64 unreleased audio ticks
-    // if the worker is briefly slow — audio callback never blocks.
-    std::counting_semaphore<64> worker_sem_{0};
-    std::thread                 worker_;
+    std::atomic<bool>  running_{false};
+    std::thread        worker_;
 
     mutable std::mutex                               subs_mutex_;
     std::unordered_map<subscription_id, subs_entry>  subscriptions_;
     std::atomic<subscription_id>                     next_id_{1};
 
-    // ── RtAudio callback ───────────────────────────────────────────────────────
-    // Runs on the audio driver's real-time thread.
-    // Kept minimal: output silence, advance tick counter, wake worker.
-    static int rt_callback_(void*                output_buffer,
-                             void*                /*input_buffer*/,
-                             unsigned int         n_frames,
-                             double               /*stream_time*/,
-                             RtAudioStreamStatus  /*status*/,
-                             void*                user_data)
-    {
-        auto* self = static_cast<audio_clock_scheduler*>(user_data);
-        std::memset(output_buffer, 0, n_frames * sizeof(float));
-        self->tick_count_.fetch_add(1, std::memory_order_release);
-        self->worker_sem_.release();
-        return 0;   // 0 = keep stream running
+    // ── Worker thread — platform dispatch ─────────────────────────────────────
+
+    void worker_loop_() {
+// ─── Linux ────────────────────────────────────────────────────────────────────
+#if defined(__linux__)
+        int fd = timerfd_create(CLOCK_MONOTONIC, 0);
+        if (fd >= 0) {
+            struct itimerspec its{};
+            its.it_value.tv_sec  = period_ns_ / 1'000'000'000LL;
+            its.it_value.tv_nsec = period_ns_ % 1'000'000'000LL;
+            its.it_interval      = its.it_value;
+            timerfd_settime(fd, 0, &its, nullptr);
+
+            while (running_.load(std::memory_order_relaxed)) {
+                // poll with 5ms timeout → stop() latency ≤ 5ms
+                struct pollfd pfd{ fd, POLLIN, 0 };
+                if (poll(&pfd, 1, 5) <= 0) continue;
+                uint64_t exp = 0;
+                if (read(fd, &exp, sizeof(exp)) != sizeof(exp)) break;
+                if (!running_.load(std::memory_order_relaxed)) break;
+                fire_due_();
+            }
+            close(fd);
+            return;
+        }
+        std::cerr << "[audio_clock] timerfd unavailable, using sleep fallback\n";
+
+// ─── macOS ────────────────────────────────────────────────────────────────────
+#elif defined(__APPLE__)
+        // mach_wait_until: hard-waits until the Mach absolute time reaches the
+        // target. Sub-100µs jitter — the same primitive Core Audio uses internally.
+        // No audio device is opened.
+        mach_timebase_info_data_t info{};
+        mach_timebase_info(&info);
+        // Convert period_ns_ to Mach absolute time ticks:
+        //   ticks = nanoseconds * denom / numer
+        const uint64_t period_ticks =
+            static_cast<uint64_t>(period_ns_) * info.denom / info.numer;
+
+        uint64_t next = mach_absolute_time() + period_ticks;
+        while (running_.load(std::memory_order_relaxed)) {
+            mach_wait_until(next);
+            next += period_ticks;
+            if (!running_.load(std::memory_order_relaxed)) break;
+            fire_due_();
+        }
+        return;
+
+// ─── Windows ─────────────────────────────────────────────────────────────────
+#elif defined(_WIN32)
+        // Try high-resolution waitable timer (Windows 10 1803+).
+        // Falls back to regular waitable timer + timeBeginPeriod(1) on older systems.
+        HANDLE timer = CreateWaitableTimerExW(nullptr, nullptr,
+                            CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+        bool need_timeend = false;
+        if (!timer) {
+            timer = CreateWaitableTimerW(nullptr, FALSE, nullptr);
+            if (timer) {
+                timeBeginPeriod(1);
+                need_timeend = true;
+            }
+        }
+        if (timer) {
+            // Due time: negative value = relative, unit = 100 ns
+            LARGE_INTEGER due;
+            due.QuadPart = -(static_cast<LONGLONG>(period_ns_) / 100LL);
+            // Periodic interval in ms (SetWaitableTimer period is LONG in ms)
+            LONG period_ms = static_cast<LONG>(
+                std::max(1LL, static_cast<long long>(period_ns_) / 1'000'000LL));
+            SetWaitableTimer(timer, &due, period_ms, nullptr, nullptr, FALSE);
+
+            while (running_.load(std::memory_order_relaxed)) {
+                // 10ms timeout keeps stop() responsive even without a wakeup signal
+                if (WaitForSingleObject(timer, 10) == WAIT_OBJECT_0) {
+                    if (running_.load(std::memory_order_relaxed)) fire_due_();
+                }
+            }
+            CancelWaitableTimer(timer);
+            CloseHandle(timer);
+            if (need_timeend) timeEndPeriod(1);
+            return;
+        }
+        std::cerr << "[audio_clock] waitable timer unavailable, using sleep fallback\n";
+#endif
+
+// ─── Portable fallback ────────────────────────────────────────────────────────
+        // sleep_until: typically ~1–5ms jitter depending on OS scheduler.
+        auto next_tick = steady_clock_t::now() + std::chrono::nanoseconds(period_ns_);
+        while (running_.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_until(next_tick);
+            next_tick += std::chrono::nanoseconds(period_ns_);
+            if (!running_.load(std::memory_order_relaxed)) break;
+            fire_due_();
+        }
     }
 
-    // ── Worker thread ──────────────────────────────────────────────────────────
-    // Wakes at buffer rate; fires all subscriptions whose next_fire_ms_ has passed.
-    void worker_loop_() {
-        while (true) {
-            worker_sem_.acquire();
-            if (!running_.load(std::memory_order_relaxed)) break;
+    // ── Fire all subscriptions that are due ────────────────────────────────────
+    void fire_due_() {
+        const double now = now_ms();
 
-            const double now = now_ms();
+        std::vector<subscription_id> due;
+        {
+            std::lock_guard<std::mutex> lk(subs_mutex_);
+            for (const auto& [id, e] : subscriptions_)
+                if (e.active_ && now >= e.next_fire_ms_)
+                    due.push_back(id);
+        }
 
-            std::vector<subscription_id> due;
+        for (subscription_id id : due) {
+            tick_fn cb;
+            double  dt_ms        = 0.0;
+            double  prev_fire_ms = 0.0;
+
             {
                 std::lock_guard<std::mutex> lk(subs_mutex_);
-                for (const auto& [id, e] : subscriptions_)
-                    if (e.active_ && now >= e.next_fire_ms_)
-                        due.push_back(id);
+                auto it = subscriptions_.find(id);
+                if (it == subscriptions_.end() || !it->second.active_) continue;
+                cb           = it->second.callback_;
+                dt_ms        = it->second.dt_ms_;
+                prev_fire_ms = it->second.next_fire_ms_;
             }
 
-            for (subscription_id id : due) {
-                tick_fn  cb;
-                double   dt_ms        = 0.0;
-                double   prev_fire_ms = 0.0;
+            const bool keep = cb(now, dt_ms);
 
-                {
-                    std::lock_guard<std::mutex> lk(subs_mutex_);
-                    auto it = subscriptions_.find(id);
-                    if (it == subscriptions_.end() || !it->second.active_) continue;
-                    cb           = it->second.callback_;
-                    dt_ms        = it->second.dt_ms_;
-                    prev_fire_ms = it->second.next_fire_ms_;
-                }
+            {
+                std::lock_guard<std::mutex> lk(subs_mutex_);
+                auto it = subscriptions_.find(id);
+                if (it == subscriptions_.end()) continue;
 
-                const bool keep = cb(now, dt_ms);
-
-                {
-                    std::lock_guard<std::mutex> lk(subs_mutex_);
-                    auto it = subscriptions_.find(id);
-                    if (it == subscriptions_.end()) continue;
-
-                    if (!keep) {
-                        subscriptions_.erase(it);
-                    } else {
-                        // Drift-free: advance from scheduled deadline.
-                        // Catch up by whole periods if we fell behind.
-                        double next = prev_fire_ms + it->second.dt_ms_;
-                        while (next <= now)
-                            next += it->second.dt_ms_;
-                        it->second.next_fire_ms_ = next;
-                    }
+                if (!keep) {
+                    subscriptions_.erase(it);
+                } else {
+                    // Drift-free: advance from scheduled deadline.
+                    // Catch up by whole periods if we fell behind.
+                    double next = prev_fire_ms + it->second.dt_ms_;
+                    while (next <= now)
+                        next += it->second.dt_ms_;
+                    it->second.next_fire_ms_ = next;
                 }
             }
         }

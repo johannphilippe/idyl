@@ -24,6 +24,7 @@ EXT_DIR    = os.path.join(SCRIPT_DIR, "idyl-lang")
 # Files to include (relative to EXT_DIR)
 INCLUDE = [
     "package.json",
+    "extension.js",
     "language-configuration.json",
     "syntaxes/idyl.tmLanguage.json",
     "syntaxes/idyl-markdown-injection.json",
