@@ -70,8 +70,19 @@ static void collect_expr_ids(const parser::expr_ptr& expr,
         case parser::node_t::flow_access_expr: {
             auto& e = static_cast<const parser::flow_access_expr&>(*expr);
             if (e.access_) {
-                collect_expr_ids(e.access_->flow_,  out);
-                collect_expr_ids(e.access_->index_, out);
+                if (e.access_->index_) {
+                    // Index access: the accessor drives the evaluation rate.
+                    // Only collect IDs from the index so that temporal variables
+                    // inside the flow expression (e.g. `mod` in `f(i+mod)[cnt]`)
+                    // do not pull the reaction onto a faster segment — the flow
+                    // contents are sampled at the accessor's rate, not recomputed
+                    // independently for every dependency change.
+                    collect_expr_ids(e.access_->index_, out);
+                } else {
+                    // Member access (`flow.member`): no accessor expression;
+                    // timing is driven by the flow itself.
+                    collect_expr_ids(e.access_->flow_, out);
+                }
             }
             break;
         }
@@ -1070,6 +1081,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 if (auto* mf = env_.lookup_module_fn(qualified)) {
                     if (mf->is_native_temporal_)
                         return instantiate_native_temporal(*mf, args, named, pos_exprs, named_exprs);
+                    if (speculative_exec_) return value::number(0.0);
                     return eval_module_fn(*mf, args, expr->line_, expr->column_);
                 }
                 auto it = function_defs_.find(qualified);
@@ -1464,6 +1476,9 @@ value evaluator::eval_call(const parser::function_call& call) {
     if (auto* mf = env_.lookup_module_fn(fn_name)) {
         if (mf->is_native_temporal_)
             return instantiate_native_temporal(*mf, args, named, pos_exprs, named_exprs);
+        // During speculative exec (hot-reload scan pass) suppress side-effecting
+        // module calls (e.g. cs_note) — they only need to return a dummy value.
+        if (speculative_exec_) return value::number(0.0);
         return eval_module_fn(*mf, args, call.line_, call.column_);
     }
 
@@ -2527,9 +2542,14 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
     std::unordered_map<std::string, std::pair<size_t, double>> var_to_seg;
     for (size_t si = 0; si < segments.size(); ++si) {
         if (segments[si].bound_var.empty()) continue;
-        auto iit = instances_.find(segments[si].instance_id);
-        if (iit == instances_.end()) continue;
-        var_to_seg[segments[si].bound_var] = {si, iit->second->dt_ms_};
+        // Use seg.dt_ms directly — works for both real and pre-distribution segments.
+        double dt = segments[si].dt_ms;
+        if (dt <= 0.0) {
+            auto iit = instances_.find(segments[si].instance_id);
+            if (iit == instances_.end()) continue;
+            dt = iit->second->dt_ms_;
+        }
+        var_to_seg[segments[si].bound_var] = {si, dt};
     }
 
     // Map: variable name → ALL segment indices where it is assigned.
@@ -2571,9 +2591,12 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
                     if (mit != var_all_segs.end() && mit->second.size() > 1) {
                         for (size_t seg_idx : mit->second) {
                             ref_segs.insert(seg_idx);
-                            auto iit = instances_.find(segments[seg_idx].instance_id);
-                            if (iit == instances_.end()) continue;
-                            double seg_dt = iit->second->dt_ms_;
+                            double seg_dt = segments[seg_idx].dt_ms;
+                            if (seg_dt <= 0.0) {
+                                auto iit = instances_.find(segments[seg_idx].instance_id);
+                                if (iit == instances_.end()) continue;
+                                seg_dt = iit->second->dt_ms_;
+                            }
                             if (seg_dt > 0.0 && seg_dt < min_dt) {
                                 min_dt = seg_dt;
                                 fastest = seg_idx;
@@ -2631,9 +2654,12 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
     // so that downstream reactions (e.g. print(c) where c = counter(m)) can be
     // moved to the correct segment in pass 2.
     for (size_t si = 0; si < segments.size(); ++si) {
-        auto iit = instances_.find(segments[si].instance_id);
-        if (iit == instances_.end()) continue;
-        double seg_dt = iit->second->dt_ms_;
+        double seg_dt = segments[si].dt_ms;
+        if (seg_dt <= 0.0) {
+            auto iit = instances_.find(segments[si].instance_id);
+            if (iit == instances_.end()) continue;
+            seg_dt = iit->second->dt_ms_;
+        }
         if (seg_dt <= 0.0) continue; // skip unscheduled segments
 
         for (const auto& reaction : work[si]) {
@@ -2736,6 +2762,31 @@ void evaluator::diff_and_apply(live_process& lp,
     // Catch blocks collected here, then linked to segments after pass 2.
     std::vector<std::shared_ptr<parser::catch_block>> new_catch_blocks;
 
+    // Helper: walk an expression's AST to extract the outermost function name
+    // without evaluating anything.  Used below to detect segment function changes
+    // without running speculative exec (which races with the scheduler thread).
+    auto extract_fn_name = [](auto& self, const parser::expr_ptr& expr) -> std::string {
+        if (!expr) return "";
+        switch (expr->type_) {
+            case parser::node_t::function_call_expr: {
+                auto& fce = static_cast<const parser::function_call_expr&>(*expr);
+                if (!fce.call_ || !fce.call_->function_) return "";
+                return self(self, fce.call_->function_);
+            }
+            case parser::node_t::identifier_expr: {
+                auto& ie = static_cast<const parser::identifier_expr&>(*expr);
+                return ie.identifier_ ? ie.identifier_->name_ : "";
+            }
+            case parser::node_t::binary_op_expr: {
+                auto& boe = static_cast<const parser::binary_op_expr&>(*expr);
+                if (!boe.op_) return "";
+                std::string n = self(self, boe.op_->left_);
+                return n.empty() ? self(self, boe.op_->right_) : n;
+            }
+            default: return "";
+        }
+    };
+
     {
         new_seg_info* cur = nullptr;
         for (const auto& s : new_proc.body_->statements_) {
@@ -2748,10 +2799,12 @@ void evaluator::diff_and_apply(live_process& lp,
                 continue;
             }
 
-            // @-blocks are one-shot deferred schedulings: re-execute on hot
-            // reload so that newly added @-blocks fire as expected.
+            // @-blocks: do NOT re-execute on hot reload.
+            // Re-executing them would call scheduler_->subscribe() while the
+            // scheduler thread is running, potentially firing duplicate or
+            // spurious one-shot events and disrupting clock timing.
+            // Existing @-block timers from process start continue running.
             if (s->type_ == parser::node_t::at_block) {
-                exec_stmt(s);
                 continue;
             }
 
@@ -2765,22 +2818,99 @@ void evaluator::diff_and_apply(live_process& lp,
                 bname = static_cast<const parser::assignment&>(*s).name_;
 
             // Only named bindings can create temporal instances.
-            // Pure reaction statements (bname empty) never do, so skip
-            // speculative exec to avoid unintended side effects (e.g. print()
-            // firing during the diff pass).
+            // Pure reaction statements (bname empty) never do.
             if (bname.empty()) {
                 if (cur) cur->reactions.push_back(s);
                 continue;
             }
 
+            // If this binding was already a live segment, reuse its metadata
+            // without speculative exec.  Speculative exec writes to env_ in a
+            // pushed scope which is briefly visible to the scheduler thread —
+            // that creates a data race on shared env_ that can corrupt reads
+            // (e.g. the scheduler seeing cnt=trigger(true) from the pushed
+            // scope instead of the real counter value) and fire spurious events.
+            //
+            // We do an AST-only check to detect whether the temporal function
+            // itself changed.  If it did, we fall through to speculative exec
+            // (function-change is rare; for the common hot-reload of reactions
+            // only, the race is completely avoided).
+            auto old_it = old_seg_by_var.find(bname);
+            if (old_it != old_seg_by_var.end()) {
+                const live_segment& oldseg = *old_it->second;
+
+                // Extract function name from the new binding's RHS (AST only, no eval).
+                parser::expr_ptr value_expr;
+                if (s->type_ == parser::node_t::assignment)
+                    value_expr = static_cast<const parser::assignment&>(*s).value_;
+                else if (s->type_ == parser::node_t::function_definition) {
+                    auto& fd = static_cast<const parser::function_definition&>(*s);
+                    if (!fd.lambda_block_) value_expr = fd.body_;
+                }
+                std::string new_fn = extract_fn_name(extract_fn_name, value_expr);
+
+                // If function name is unchanged (or undeterminable), skip exec.
+                if (new_fn.empty() || new_fn == oldseg.def_name) {
+                    // Re-extract the dt from the new AST so that a dt change
+                    // (e.g. counter(dt=0.3s) → counter(dt=0.5s)) is reflected
+                    // in nsi.dt_ms and triggers the scheduler update in pass 1.
+                    auto extract_dt_arg = [](const parser::stmt_ptr& stmt) -> parser::expr_ptr {
+                        parser::expr_ptr call_expr;
+                        if (stmt->type_ == parser::node_t::assignment)
+                            call_expr = static_cast<const parser::assignment&>(*stmt).value_;
+                        else if (stmt->type_ == parser::node_t::function_definition) {
+                            auto& fd = static_cast<const parser::function_definition&>(*stmt);
+                            if (!fd.lambda_block_) call_expr = fd.body_;
+                        }
+                        if (!call_expr) return nullptr;
+                        if (call_expr->type_ == parser::node_t::binary_op_expr) {
+                            auto& boe = static_cast<const parser::binary_op_expr&>(*call_expr);
+                            if (boe.op_) call_expr = boe.op_->left_;
+                        }
+                        if (!call_expr || call_expr->type_ != parser::node_t::function_call_expr)
+                            return nullptr;
+                        const auto& fce =
+                            static_cast<const parser::function_call_expr&>(*call_expr);
+                        if (!fce.call_) return nullptr;
+                        for (const auto& arg : fce.call_->arguments_)
+                            if (arg && arg->name_ == "dt") return arg->value_;
+                        return nullptr;
+                    };
+
+                    double new_dt = oldseg.dt_ms;
+                    if (auto dt_expr = extract_dt_arg(s)) {
+                        value dt_val = eval_expr(dt_expr);
+                        if (dt_val.number_ > 0.0) new_dt = dt_val.number_;
+                    }
+
+                    new_seg_info nsi;
+                    nsi.def_name     = oldseg.def_name;
+                    nsi.dt_ms        = new_dt;
+                    nsi.binding_stmt = s;
+                    new_segs[bname]  = std::move(nsi);
+                    new_order.push_back(bname);
+                    cur = &new_segs[bname];
+                    continue;
+                }
+                // Function changed — fall through to speculative exec so pass 1
+                // detects the def_name mismatch and kills/recreates the segment.
+            }
+
             // Speculative exec: run the statement in a temporary scope to find
             // out whether it creates a temporal instance (and if so, what
             // def_name and dt the new instance has).
+            // Only reached for genuinely new segments or function-change cases.
+            //
+            // speculative_exec_ suppresses module function side effects
+            // (is_native_temporal_ == false) so that reactions like
+            // `a = note(spike!, freq)` don't call cs_note at hot-reload time.
             uint64_t id_before = next_instance_id_;
+            speculative_exec_ = true;
             env_.push_scope();
             exec_stmt(s);
-            bool created = (next_instance_id_ > id_before);
             env_.pop_scope();
+            speculative_exec_ = false;
+            bool created = (next_instance_id_ > id_before);
 
             if (created) {
                 uint64_t new_id = next_instance_id_ - 1;
@@ -2803,24 +2933,14 @@ void evaluator::diff_and_apply(live_process& lp,
                 new_order.push_back(bname);
                 cur = &new_segs[bname];
             } else {
-                // No instance was created.  This can happen for two reasons:
-                //   (a) bname was never a segment (regular assignment) — treat
-                //       it as a reaction of the current segment.
-                //   (b) bname IS an existing live segment but the temporal
-                //       function was not called because its trigger parameter
-                //       happened to be rest (!-dependent functions like
-                //       note(spike!, ...) only call the inner temporal when
-                //       spike is truthy).
-                //
-                // For case (b), falling through to "reaction" would kill the
-                // live segment on the next pass-1 iteration.  Guard against
-                // this by checking old_seg_by_var: if bname was a segment
-                // before, preserve it as a surviving segment with the old
-                // def_name and dt.
-                auto old_it = old_seg_by_var.find(bname);
-                if (old_it != old_seg_by_var.end()) {
-                    // Trigger-parameter fallback: preserve the old segment.
-                    const live_segment& oldseg = *old_it->second;
+                // No instance created.  Two sub-cases:
+                //   (a) bname was never a segment — it's a reaction.
+                //   (b) bname IS an existing segment but the temporal function
+                //       wasn't called because its trigger parameter was rest.
+                //       Preserve the old segment so pass 1 doesn't kill it.
+                auto old_it2 = old_seg_by_var.find(bname);
+                if (old_it2 != old_seg_by_var.end()) {
+                    const live_segment& oldseg = *old_it2->second;
                     new_seg_info nsi;
                     nsi.def_name     = oldseg.def_name;
                     nsi.dt_ms        = oldseg.dt_ms;
@@ -2833,6 +2953,41 @@ void evaluator::diff_and_apply(live_process& lp,
                 }
             }
         }
+    }
+
+    // ── Pre-redistribute reactions ─────────────────────────────────────────
+    // Distribute reactions across new_segs before any hot-swap so that the
+    // very first tick after hot-reload uses correct segment assignments.
+    // Without this step, reactions end up in the "last segment before them"
+    // bucket (e.g. `mod` at 100ms) and fire at the wrong rate during the
+    // brief window between the pass-1 hot-swap and the final redistribution.
+    {
+        std::vector<live_segment> pre_segs;
+        pre_segs.reserve(new_order.size());
+        for (const auto& varname : new_order) {
+            auto nit = new_segs.find(varname);
+            if (nit == new_segs.end()) continue;
+            live_segment ps;
+            ps.bound_var   = varname;
+            ps.def_name    = nit->second.def_name;
+            ps.dt_ms       = nit->second.dt_ms;
+            ps.instance_id = 0;   // not used after redistribute_reactions patch
+            ps.rxn         = std::make_shared<reaction_set>();
+            ps.rxn->reactions = nit->second.reactions;
+            pre_segs.push_back(std::move(ps));
+        }
+
+        redistribute_reactions(pre_segs);
+
+        size_t idx = 0;
+        for (const auto& varname : new_order) {
+            auto nit = new_segs.find(varname);
+            if (nit == new_segs.end()) continue;
+            if (idx < pre_segs.size())
+                nit->second.reactions = pre_segs[idx].rxn->reactions;
+            ++idx;
+        }
+
     }
 
     // Track which old segments survive, to avoid double-killing

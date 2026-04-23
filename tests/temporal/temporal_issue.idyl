@@ -1,0 +1,24 @@
+import("stdlib")
+
+flow f(i) = [50 + i, 53 + i, 60 + i, 65 + i, 47 + i, 33 + i, 20 + i]
+flow incr = [0, 7, 12, 3, 5]
+
+process: {
+    m1 = counter(dt=3s)
+    i = incr[m1]
+
+    met = metro(dt=0.5s)
+    cnt = counter(dt=0.5s)
+    mod = sine(0.1hz, dt=100ms) * 5
+    fl = f(i)[cnt]
+    fl2 = f(i + mod)[cnt]
+
+    print(fl) // fl is fine, its evaluation depends on cnt (the flow accessor). Also, small issue, the first value of f is evaluated twice (1rst and 2nd tick)
+    print("                ", fl2) // fl2 should not depend on mod dt (mod dt is only used in the recomputation of the f flow, but now fl2 is evaluated at mod rate). fl2 evaluation rate should be its accessor.
+
+     @(60s): {
+        print("End of instance")
+        //stop
+    }
+
+}

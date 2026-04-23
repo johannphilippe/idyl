@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""idyl_send.py — send an OSC /idyl/eval message to a running idyl instance.
+"""idyl_send.py — send an OSC message to a running idyl instance.
 
 Usage:
-    echo '<idyl code>' | python3 idyl_send.py [host [port]]
+    echo '<payload>' | python3 idyl_send.py [host [port [address]]]
 
-Defaults: host=127.0.0.1  port=9000
-Code is read from stdin so that multiline text and special characters do not
-require shell quoting.
+Defaults:
+    host    = 127.0.0.1
+    port    = 9000
+    address = /idyl/eval
+
+The payload is read from stdin and sent as the first (string) OSC argument.
 """
 import sys
 import socket
@@ -19,13 +22,14 @@ def osc_str(b: bytes) -> bytes:
 
 
 def main() -> None:
-    host = sys.argv[1] if len(sys.argv) > 1 else '127.0.0.1'
-    port = int(sys.argv[2]) if len(sys.argv) > 2 else 9000
+    host    = sys.argv[1] if len(sys.argv) > 1 else '127.0.0.1'
+    port    = int(sys.argv[2]) if len(sys.argv) > 2 else 9000
+    address = sys.argv[3] if len(sys.argv) > 3 else '/idyl/eval'
 
-    code = sys.stdin.buffer.read()
+    payload = sys.stdin.buffer.read()
 
-    # OSC message: address + type-tag string + one string argument
-    msg = osc_str(b'/idyl/eval') + osc_str(b',s') + osc_str(code)
+    addr_bytes = address.encode('utf-8') if not isinstance(address, bytes) else address
+    msg = osc_str(addr_bytes) + osc_str(b',s') + osc_str(payload)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:

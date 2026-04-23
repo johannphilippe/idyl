@@ -134,6 +134,114 @@ Currently `on` means two distinct things: flow member gate (`melody on rhythm: [
 
 ---
 
+### Temporal function returning an indexed flow
+
+**What it would bring.** A temporal function with a `|>` block can today only
+expose a single scalar output. Allowing its return expression to be a flow
+literal — `[s, s::phase, amp]` — lets one binding produce multiple related
+values without a wrapper:
+
+```idyl
+oscil(freq, amp, dt=50ms) = [s, s::phase, amp]
+|> {
+    s = sine(freq) * amp
+}
+
+o = oscil(1hz, 0.8)
+send(o[0])       // signal
+show(o[1])       // phase
+```
+
+The sub-values `s` and `s::phase` are internal names resolved inside the `|>`
+block at each tick. The caller receives a snapshot flow indexed 0, 1, 2. No
+`flow` keyword required — the `|>` block makes the temporal nature explicit, and
+the `[...]` literal in return position makes the collection nature explicit.
+
+**What is consistent about it.** The `|>` block already computes named
+sub-variables and exposes one (`= out`). This change simply allows the return
+expression to be a flow literal that bundles several. The `::` accessor on
+instance state (`s::phase`) already exists. Indexed flow access (`o[0]`) already
+exists. Nothing new is introduced — only the output type of a temporal function
+is widened from scalar to optionally flow-valued.
+
+**What it could break / open questions.**
+- `read_output()` in the evaluator currently returns a scalar `value`. It must
+  be widened to return `value_t::flow` when the binding expression evaluates to
+  one. Callers of `read_output()` (retick path, reaction snapshot) need to
+  handle both cases.
+- The flow returned is a static snapshot per tick — no cursors, no per-call-site
+  state needed. Each tick the `|>` block fires and the return expression is
+  re-evaluated to produce a fresh snapshot. This keeps the cursor ownership
+  question entirely out of scope.
+- The return expression is evaluated inside the same scope as the `|>` block,
+  so internal names (`s`, `phase`) are in scope. No special scoping rule needed.
+- The existing temporal-element-inside-flow question (who subscribes `metro`
+  inside a flow literal?) does not arise here: the `[...]` in return position
+  contains references to already-computed variables, not new temporal
+  instantiations.
+
+**Verdict.** Low implementation risk. The evaluator change is contained to
+`instantiate_temporal`, `tick_instance` output capture, and `read_output`.
+The feature is immediately useful for multi-output signal processors (oscillator
+bundles, envelope packages, analyzer outputs). Implement before 1.0.
+
+---
+
+### Temporal function returning a named-member flow
+
+**What it would bring.** Same motivation as indexed flow output, but with
+named fields instead of positional indices. A temporal function whose return
+expression is a record literal exposes its outputs by name:
+
+```idyl
+multilfo(freq, amp, dt=50ms) = {
+    sine_lfo: si
+    sq_lfo:   sq
+    tri_lfo:  tri
+}
+|> {
+    si = sine(freq) * amp
+    sq = square(freq) * amp
+    tri = triangle(freq) * amp
+}
+
+lfo = multilfo(2hz, 0.5)
+send(lfo.sine_lfo)
+send(lfo.sq_lfo)
+```
+
+Again, no `flow` keyword. The record literal `{ name: expr, ... }` in return
+position is the same syntax already used in `flow` definition bodies; it just
+appears as the return expression of a temporal function.
+
+**What is consistent about it.** Member access with `.` already works on flow
+values. A named-member flow snapshot from a temporal function is accessed the
+same way as any other flow member — the caller's code doesn't know or care
+whether the flow came from a `flow` definition or from a temporal function's
+output.
+
+**What it could break / open questions.**
+- The `{ name: expr, ... }` syntax currently only appears inside `flow { }`
+  definition bodies and as flow literals. Allowing it in the return position of
+  a temporal function definition requires the parser to accept it after `=` when
+  a `|>` block follows. This is a grammar extension but should be unambiguous:
+  `= { ... } |>` is only parseable one way.
+- If the parser currently uses `flow` as the discriminator for "this brace block
+  is a record literal and not a process body", that discriminator needs a new
+  trigger (e.g., detect `{ name: expr }` by the presence of `name:` at the
+  start, which is already how flow literals are distinguished from block scopes).
+- The same `read_output()` widening from indexed flow output applies here.
+  Named-member flow is a superset of indexed flow from the evaluator's
+  perspective — both are `value_t::flow`, just with or without member names.
+
+**Verdict.** Slightly higher parser complexity than indexed output, but
+semantically cleaner — field names are self-documenting. Implement after indexed
+flow output is stable. Together, the two features cover the full proposal from
+`flow_syntax_change.md` without touching the `flow` keyword or affecting
+existing code.
+
+---
+
 ## Open design questions
 
 **Should `dt` be per-function or per-instance?**
@@ -160,6 +268,8 @@ Closures use by-reference capture: the function value carries a `shared_ptr<func
 | ✅ | Flow cursor instancing per call-site — resolved | Each call site owns its cursor; polyphony works correctly |
 | ✅ | Catch syntax — resolved | `catch a::sig: {}` implemented; anonymous-instance `catch expr::sig: {}` experimental |
 | 🟣 | Functional flow | allow functions to return flows with standard flow instance properties (flow is recomputed if any parameter changes in the function call, flow can be dynamic, and contain temporal elements) |
+| 🟢 | Temporal function → indexed flow output | `f(dt=...) = [a, b, c] \|> {}` — `read_output()` widening only, no keyword, no cursor complexity |
+| 🟡 | Temporal function → named-member flow output | `f(dt=...) = { x: a, y: b } \|> {}` — same evaluator change, minor parser extension for `{ name: expr }` in return position |
 | 🟣 | Code block feature | Allow block of code (expression bloc, like in @ blocs or catch blocks, that can be used to create anonymous scopes, and can be used in ternary expressions `(condition) ? {/*expressions A*/}; {/*Expressions B*/}`|
 | ✅ | Serial module | `module("serial")` — zero-dependency, POSIX + Win32 |
 | ✅ | MIDI module | `module("midi")` — RtMidi via FetchContent, all major channel messages |

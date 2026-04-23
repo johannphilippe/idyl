@@ -13,8 +13,9 @@
 # The following files are installed:
 #   syntax/idyl.vim       — syntax highlighting
 #   ftdetect/idyl.vim     — filetype detection for *.idyl
-#   ftplugin/idyl.vim     — live-coding key mappings (t, Ctrl+e) + eval highlight
-#   python/idyl_send.py   — OSC UDP sender (used by idyl_live.vim)
+#   ftplugin/idyl.vim           — live-coding functions + eval highlight
+#   after/ftplugin/idyl.vim     — key mappings (t, Ctrl+e, s, q); loaded last
+#   python/idyl_send.py         — OSC UDP sender
 
 set -euo pipefail
 
@@ -37,6 +38,7 @@ FILES=(
   "syntax/idyl.vim"
   "ftdetect/idyl.vim"
   "ftplugin/idyl.vim"
+  "after/ftplugin/idyl.vim"
   "python/idyl_send.py"
 )
 
@@ -202,6 +204,8 @@ echo "    1. idyl yourfile.idyl --listen 9000"
 echo "    2. Open yourfile.idyl in Vim/Neovim"
 echo "    3. Press  t        (normal mode) — evaluate construct at cursor"
 echo "               Ctrl+e  (insert mode) — evaluate without leaving insert mode"
+echo "               s        (normal mode) — start process under cursor"
+echo "               q        (normal mode) — stop  process under cursor"
 echo ""
 echo "  Configuration (add to vimrc / init.vim):"
 echo "    let g:idyl_osc_host = '127.0.0.1'   \" default"

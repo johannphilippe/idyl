@@ -50,15 +50,13 @@ static void print_usage(const char* prog) {
               << "  - If no file is given, reads from stdin.\n"
               << "  - Use '-' as filename to force stdin.\n"
               << "  - Options:\n"
-              << "    --trace                      Enable parser/lexer debug tracing\n"
-              << "    --process <name>             Run only the named process block\n"
-              << "    -p <name>                    Short form of --process\n"
-              << "    --listen [port]              Listen mode: receive OSC on port (default 9000)\n"
-              << "    -l [port]                    Short form of --listen\n"
+              << "    --trace                               Enable parser/lexer debug tracing\n"
+              << "    --process || -p <name>                Run only the named process block\n"
+              << "    --listen || -l [port]                 Listen mode: receive OSC on port (default 9000)\n"
 #ifdef IDYL_AUDIO_CLOCK
-              << "    --audio-clock                Use audio device as master clock\n"
-              << "    --audio-sample-rate <rate>   Sample rate in Hz (default 48000)\n"
-              << "    --audio-buffer-size <frames> Buffer size in frames (default 128)\n"
+              << "    --audio-clock || -ac                  Use audio device as master clock\n"
+              << "    --audio-sample-rate || -asr <rate>    Sample rate in Hz (default 48000)\n"
+              << "    --audio-buffer-size || -abs <frames>  Buffer size in frames (default 32)\n"
 #endif
               ;
 }
@@ -102,21 +100,21 @@ int main(int argc, char** argv) {
     int  listen_port   = 9000;
     bool audio_clock   = false;
     unsigned int audio_sample_rate = 48000;
-    uint32_t     audio_buffer_size = 128;
+    uint32_t     audio_buffer_size = 32;
 
     // Parse command-line arguments
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--trace") {
             trace = true;
-        } else if (arg == "--audio-clock") {
+        } else if (arg == "--audio-clock" || arg == "-ac") { 
             audio_clock = true;
-        } else if (arg == "--audio-sample-rate") {
+        } else if (arg == "--audio-sample-rate" || arg == "-asr") {
             if (i + 1 < argc) {
                 try { audio_sample_rate = static_cast<unsigned int>(std::stoul(argv[++i])); }
                 catch (...) { std::cerr << "Error: invalid sample rate\n"; return 1; }
             }
-        } else if (arg == "--audio-buffer-size") {
+        } else if (arg == "--audio-buffer-sizea" || arg == "-abs") {
             if (i + 1 < argc) {
                 try { audio_buffer_size = static_cast<uint32_t>(std::stoul(argv[++i])); }
                 catch (...) { std::cerr << "Error: invalid buffer size\n"; return 1; }

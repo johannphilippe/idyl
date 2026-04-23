@@ -174,6 +174,12 @@ namespace idyl::core {
         // hot_reload() takes an exclusive (write) lock when updating definitions.
         mutable std::shared_mutex defs_mutex_;
 
+        // Set to true during speculative exec in the hot-reload scan pass.
+        // Module functions that have side effects (is_native_temporal_ == false)
+        // return a dummy value without executing so that reactions like
+        // `a = note(spike!, freq)` don't fire cs_note at hot-reload time.
+        bool speculative_exec_ = false;
+
         // ── Process start / stop (listen mode) ─────────────────────────────────
         bool start_process(const std::string& name);
         bool stop_process(const std::string& name);

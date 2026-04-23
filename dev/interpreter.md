@@ -56,7 +56,7 @@ Later, if performance demands it, a bytecode VM (like Lua's register-based VM or
 
 **Faust** (GRAME): Compiles a functional DSL to C++ signal processing code. Idyl shares Faust's philosophy of "everything is a signal" and explicit memory (`@` operator maps to Faust's `mem` / `'` delay primitive). Key difference: Faust is compiled ahead-of-time; Idyl interprets at runtime for live-coding flexibility.
 
-**Lua** (PUC-Rio): Register-based bytecode VM with reference counting. Idyl borrows Lua's philosophy of minimal core + C module integration. The module system (`import("csound")`) mirrors Lua's `require()` with `dlopen`.
+**Lua** (PUC-Rio): Register-based bytecode VM with reference counting. Idyl borrows Lua's philosophy of minimal core + C module integration. The module system (`module("csound")`) mirrors Lua's `require()` with `dlopen`.
 
 **Elm** (Evan Czaplicki): Purely functional with explicit state via The Elm Architecture (Model → Update → View). Idyl's lambda blocks mirror this: `init` = Model, update statements = Update, output expression = View. Elm's "no runtime exceptions" goal aligns with Idyl's graceful degradation philosophy.
 
