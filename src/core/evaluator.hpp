@@ -151,6 +151,7 @@ namespace idyl::core {
         // running named process.
         struct live_segment {
             uint64_t                        instance_id;
+            std::vector<uint64_t>           all_instance_ids; // every instance created by binding_stmt
             std::string                     bound_var;
             std::string                     def_name;
             double                          dt_ms   = 0.0;

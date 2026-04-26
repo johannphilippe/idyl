@@ -1,0 +1,19 @@
+import("stdlib")
+module("csound") 
+²
+flow seq = {
+	rhythm: [_, !, _, _, !, !, _ , _ , ! , ! , _ ]
+	notes on rhythm: [50, 53, 60, 67, 65, 69] 
+	ch on rhythm: [i= 1..8 : i ]
+}
+
+handle = cs_open("csound_spatialized.csd") 
+
+process play: {
+	m = metro(dt=500ms)
+	s = seq[m] 
+	on s.rhythm: {
+		cs_note(handle, 1, 1s, 0.1,  s.notes, s.ch)
+		print("note", s.notes, s.ch)
+	}
+}

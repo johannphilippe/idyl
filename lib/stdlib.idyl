@@ -92,6 +92,12 @@ ramp(freq, amplitude=1, dt=10ms) = out |> {
 // Metro — periodic trigger at a given frequency.
 metro(dt=10ms) = !
 
+// One shot — trigger once, then returns rest 
+oneshot(dt=10ms) = trig |> {
+    init: { trig = ! }
+    trig = _
+}
+
 // Dust — probabilistic trigger (Poisson-like). `density` = avg triggers/sec.
 dust(density, dt=10ms) = trig |> {
     init: { trig = _ }
@@ -136,6 +142,7 @@ counter(dt=10ms) = cnt |> {
     cnt = cnt + 1
 }
 
+// Resettable counter — counts up on `incr`, resets to 0 on `reset`.
 rcounter(incr!, reset!, dt=10ms) = count |> {
     init: {count = 0}
     count = (reset) ? count + 1; 0

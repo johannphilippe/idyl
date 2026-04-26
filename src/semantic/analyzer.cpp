@@ -891,13 +891,15 @@ namespace idyl::semantic {
                 auto ident = std::static_pointer_cast<parser::identifier>(node);
                 idyl::debug("Resolving identifier: " + ident->name_);
 
-                // Special check: 'dt' used outside a temporal context
-                if (ident->name_ == "dt" && !scope_stack_.is_in_temporal_context()) {
-                    idyl::warning("'dt' used outside temporal function — value is undefined.", node->line_, node->column_);
+                // Special check: 'dt' / 'age' used outside a temporal context
+                if ((ident->name_ == "dt" || ident->name_ == "age") && !scope_stack_.is_in_temporal_context()) {
                     diagnostics_.push_back(diagnostic{severity::warning,
-                        "'dt' used outside temporal function — value is undefined.",
+                        "'" + ident->name_ + "' used outside temporal function — value is undefined.",
                         node->line_, node->column_});
                 }
+
+                // 'dt' and 'age' are implicit reserved bindings in temporal scope — skip error
+                if (ident->name_ == "dt" || ident->name_ == "age") break;
 
                 if(symbol_info* info = scope_stack_.lookup(ident->name_)) {
                     info->referenced_ = true;

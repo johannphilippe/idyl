@@ -41,7 +41,7 @@
 %token <std::string> TIME_LITERAL
 %token <std::string> STRING_LITERAL
 
-%token FLOW PROCESS IMPORT MODULE INIT EMIT CATCH END DT DUR STOP START
+%token FLOW PROCESS IMPORT MODULE INIT EMIT CATCH END DT DUR STOP START AGE
 %token LAMBDA_BLOCK NAMESPACE_DOT RESTART_MARKER MEMORY_OP RANGE REST AT_OP
 %token PLUS MINUS MUL DIV MOD
 %token EQ NEQ LT GT LE GE
@@ -1430,6 +1430,18 @@ primary_expression
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dur";
+        id->line_ = @1.begin.line;
+        id->column_ = @1.begin.column;
+        auto expr = std::make_shared<idyl::parser::identifier_expr>();
+        expr->identifier_ = id;
+        expr->line_ = @1.begin.line;
+        expr->column_ = @1.begin.column;
+        $$ = expr;
+    }
+    | AGE
+    {
+        auto id = std::make_shared<idyl::parser::identifier>();
+        id->name_ = "age";
         id->line_ = @1.begin.line;
         id->column_ = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::identifier_expr>();

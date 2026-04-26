@@ -447,44 +447,45 @@ namespace yy {
     DUR = 271,                     // DUR
     STOP = 272,                    // STOP
     START = 273,                   // START
-    LAMBDA_BLOCK = 274,            // LAMBDA_BLOCK
-    NAMESPACE_DOT = 275,           // NAMESPACE_DOT
-    RESTART_MARKER = 276,          // RESTART_MARKER
-    MEMORY_OP = 277,               // MEMORY_OP
-    RANGE = 278,                   // RANGE
-    REST = 279,                    // REST
-    AT_OP = 280,                   // AT_OP
-    PLUS = 281,                    // PLUS
-    MINUS = 282,                   // MINUS
-    MUL = 283,                     // MUL
-    DIV = 284,                     // DIV
-    MOD = 285,                     // MOD
-    EQ = 286,                      // EQ
-    NEQ = 287,                     // NEQ
-    LT = 288,                      // LT
-    GT = 289,                      // GT
-    LE = 290,                      // LE
-    GE = 291,                      // GE
-    AND = 292,                     // AND
-    OR = 293,                      // OR
-    XOR = 294,                     // XOR
-    NOT = 295,                     // NOT
-    LSHIFT = 296,                  // LSHIFT
-    RSHIFT = 297,                  // RSHIFT
-    QUESTION = 298,                // QUESTION
-    ASSIGN = 299,                  // ASSIGN
-    COLON = 300,                   // COLON
-    SEMICOLON = 301,               // SEMICOLON
-    COMMA = 302,                   // COMMA
-    DOT = 303,                     // DOT
-    TRIGGER = 304,                 // TRIGGER
-    LPAREN = 305,                  // LPAREN
-    RPAREN = 306,                  // RPAREN
-    LBRACKET = 307,                // LBRACKET
-    RBRACKET = 308,                // RBRACKET
-    LBRACE = 309,                  // LBRACE
-    RBRACE = 310,                  // RBRACE
-    ON = 311                       // ON
+    AGE = 274,                     // AGE
+    LAMBDA_BLOCK = 275,            // LAMBDA_BLOCK
+    NAMESPACE_DOT = 276,           // NAMESPACE_DOT
+    RESTART_MARKER = 277,          // RESTART_MARKER
+    MEMORY_OP = 278,               // MEMORY_OP
+    RANGE = 279,                   // RANGE
+    REST = 280,                    // REST
+    AT_OP = 281,                   // AT_OP
+    PLUS = 282,                    // PLUS
+    MINUS = 283,                   // MINUS
+    MUL = 284,                     // MUL
+    DIV = 285,                     // DIV
+    MOD = 286,                     // MOD
+    EQ = 287,                      // EQ
+    NEQ = 288,                     // NEQ
+    LT = 289,                      // LT
+    GT = 290,                      // GT
+    LE = 291,                      // LE
+    GE = 292,                      // GE
+    AND = 293,                     // AND
+    OR = 294,                      // OR
+    XOR = 295,                     // XOR
+    NOT = 296,                     // NOT
+    LSHIFT = 297,                  // LSHIFT
+    RSHIFT = 298,                  // RSHIFT
+    QUESTION = 299,                // QUESTION
+    ASSIGN = 300,                  // ASSIGN
+    COLON = 301,                   // COLON
+    SEMICOLON = 302,               // SEMICOLON
+    COMMA = 303,                   // COMMA
+    DOT = 304,                     // DOT
+    TRIGGER = 305,                 // TRIGGER
+    LPAREN = 306,                  // LPAREN
+    RPAREN = 307,                  // RPAREN
+    LBRACKET = 308,                // LBRACKET
+    RBRACKET = 309,                // RBRACKET
+    LBRACE = 310,                  // LBRACE
+    RBRACE = 311,                  // RBRACE
+    ON = 312                       // ON
       };
     };
 
@@ -496,7 +497,7 @@ namespace yy {
     {
       enum symbol_kind_type
       {
-        YYNTOKENS = 57, ///< Number of tokens.
+        YYNTOKENS = 58, ///< Number of tokens.
         S_YYEMPTY = -2,
         S_YYEOF = 0,                             // YYEOF
         S_YYerror = 1,                           // error
@@ -517,88 +518,89 @@ namespace yy {
         S_DUR = 16,                              // DUR
         S_STOP = 17,                             // STOP
         S_START = 18,                            // START
-        S_LAMBDA_BLOCK = 19,                     // LAMBDA_BLOCK
-        S_NAMESPACE_DOT = 20,                    // NAMESPACE_DOT
-        S_RESTART_MARKER = 21,                   // RESTART_MARKER
-        S_MEMORY_OP = 22,                        // MEMORY_OP
-        S_RANGE = 23,                            // RANGE
-        S_REST = 24,                             // REST
-        S_AT_OP = 25,                            // AT_OP
-        S_PLUS = 26,                             // PLUS
-        S_MINUS = 27,                            // MINUS
-        S_MUL = 28,                              // MUL
-        S_DIV = 29,                              // DIV
-        S_MOD = 30,                              // MOD
-        S_EQ = 31,                               // EQ
-        S_NEQ = 32,                              // NEQ
-        S_LT = 33,                               // LT
-        S_GT = 34,                               // GT
-        S_LE = 35,                               // LE
-        S_GE = 36,                               // GE
-        S_AND = 37,                              // AND
-        S_OR = 38,                               // OR
-        S_XOR = 39,                              // XOR
-        S_NOT = 40,                              // NOT
-        S_LSHIFT = 41,                           // LSHIFT
-        S_RSHIFT = 42,                           // RSHIFT
-        S_QUESTION = 43,                         // QUESTION
-        S_ASSIGN = 44,                           // ASSIGN
-        S_COLON = 45,                            // COLON
-        S_SEMICOLON = 46,                        // SEMICOLON
-        S_COMMA = 47,                            // COMMA
-        S_DOT = 48,                              // DOT
-        S_TRIGGER = 49,                          // TRIGGER
-        S_LPAREN = 50,                           // LPAREN
-        S_RPAREN = 51,                           // RPAREN
-        S_LBRACKET = 52,                         // LBRACKET
-        S_RBRACKET = 53,                         // RBRACKET
-        S_LBRACE = 54,                           // LBRACE
-        S_RBRACE = 55,                           // RBRACE
-        S_ON = 56,                               // ON
-        S_YYACCEPT = 57,                         // $accept
-        S_program = 58,                          // program
-        S_top_level_statements = 59,             // top_level_statements
-        S_top_level_statement = 60,              // top_level_statement
-        S_function_or_flow_definition = 61,      // function_or_flow_definition
-        S_function_definition = 62,              // function_definition
-        S_flow_definition = 63,                  // flow_definition
-        S_flow_members = 64,                     // flow_members
-        S_flow_literal = 65,                     // flow_literal
-        S_flow_elements = 66,                    // flow_elements
-        S_generator_expression = 67,             // generator_expression
-        S_process_block = 68,                    // process_block
-        S_process_body_statements = 69,          // process_body_statements
-        S_process_body_statement = 70,           // process_body_statement
-        S_at_block = 71,                         // at_block
-        S_on_block = 72,                         // on_block
-        S_stop_statement = 73,                   // stop_statement
-        S_start_statement = 74,                  // start_statement
-        S_catch_block = 75,                      // catch_block
-        S_lambda_block = 76,                     // lambda_block
-        S_init_block = 77,                       // init_block
-        S_lambda_statements = 78,                // lambda_statements
-        S_lambda_statement = 79,                 // lambda_statement
-        S_parameter_list = 80,                   // parameter_list
-        S_parameter = 81,                        // parameter
-        S_expression = 82,                       // expression
-        S_assignment_expression = 83,            // assignment_expression
-        S_ternary_expression = 84,               // ternary_expression
-        S_ternary_options = 85,                  // ternary_options
-        S_logical_or_expression = 86,            // logical_or_expression
-        S_logical_and_expression = 87,           // logical_and_expression
-        S_bitwise_or_expression = 88,            // bitwise_or_expression
-        S_bitwise_xor_expression = 89,           // bitwise_xor_expression
-        S_bitwise_and_expression = 90,           // bitwise_and_expression
-        S_equality_expression = 91,              // equality_expression
-        S_relational_expression = 92,            // relational_expression
-        S_shift_expression = 93,                 // shift_expression
-        S_additive_expression = 94,              // additive_expression
-        S_multiplicative_expression = 95,        // multiplicative_expression
-        S_unary_expression = 96,                 // unary_expression
-        S_postfix_expression = 97,               // postfix_expression
-        S_primary_expression = 98,               // primary_expression
-        S_argument_list = 99,                    // argument_list
-        S_argument = 100                         // argument
+        S_AGE = 19,                              // AGE
+        S_LAMBDA_BLOCK = 20,                     // LAMBDA_BLOCK
+        S_NAMESPACE_DOT = 21,                    // NAMESPACE_DOT
+        S_RESTART_MARKER = 22,                   // RESTART_MARKER
+        S_MEMORY_OP = 23,                        // MEMORY_OP
+        S_RANGE = 24,                            // RANGE
+        S_REST = 25,                             // REST
+        S_AT_OP = 26,                            // AT_OP
+        S_PLUS = 27,                             // PLUS
+        S_MINUS = 28,                            // MINUS
+        S_MUL = 29,                              // MUL
+        S_DIV = 30,                              // DIV
+        S_MOD = 31,                              // MOD
+        S_EQ = 32,                               // EQ
+        S_NEQ = 33,                              // NEQ
+        S_LT = 34,                               // LT
+        S_GT = 35,                               // GT
+        S_LE = 36,                               // LE
+        S_GE = 37,                               // GE
+        S_AND = 38,                              // AND
+        S_OR = 39,                               // OR
+        S_XOR = 40,                              // XOR
+        S_NOT = 41,                              // NOT
+        S_LSHIFT = 42,                           // LSHIFT
+        S_RSHIFT = 43,                           // RSHIFT
+        S_QUESTION = 44,                         // QUESTION
+        S_ASSIGN = 45,                           // ASSIGN
+        S_COLON = 46,                            // COLON
+        S_SEMICOLON = 47,                        // SEMICOLON
+        S_COMMA = 48,                            // COMMA
+        S_DOT = 49,                              // DOT
+        S_TRIGGER = 50,                          // TRIGGER
+        S_LPAREN = 51,                           // LPAREN
+        S_RPAREN = 52,                           // RPAREN
+        S_LBRACKET = 53,                         // LBRACKET
+        S_RBRACKET = 54,                         // RBRACKET
+        S_LBRACE = 55,                           // LBRACE
+        S_RBRACE = 56,                           // RBRACE
+        S_ON = 57,                               // ON
+        S_YYACCEPT = 58,                         // $accept
+        S_program = 59,                          // program
+        S_top_level_statements = 60,             // top_level_statements
+        S_top_level_statement = 61,              // top_level_statement
+        S_function_or_flow_definition = 62,      // function_or_flow_definition
+        S_function_definition = 63,              // function_definition
+        S_flow_definition = 64,                  // flow_definition
+        S_flow_members = 65,                     // flow_members
+        S_flow_literal = 66,                     // flow_literal
+        S_flow_elements = 67,                    // flow_elements
+        S_generator_expression = 68,             // generator_expression
+        S_process_block = 69,                    // process_block
+        S_process_body_statements = 70,          // process_body_statements
+        S_process_body_statement = 71,           // process_body_statement
+        S_at_block = 72,                         // at_block
+        S_on_block = 73,                         // on_block
+        S_stop_statement = 74,                   // stop_statement
+        S_start_statement = 75,                  // start_statement
+        S_catch_block = 76,                      // catch_block
+        S_lambda_block = 77,                     // lambda_block
+        S_init_block = 78,                       // init_block
+        S_lambda_statements = 79,                // lambda_statements
+        S_lambda_statement = 80,                 // lambda_statement
+        S_parameter_list = 81,                   // parameter_list
+        S_parameter = 82,                        // parameter
+        S_expression = 83,                       // expression
+        S_assignment_expression = 84,            // assignment_expression
+        S_ternary_expression = 85,               // ternary_expression
+        S_ternary_options = 86,                  // ternary_options
+        S_logical_or_expression = 87,            // logical_or_expression
+        S_logical_and_expression = 88,           // logical_and_expression
+        S_bitwise_or_expression = 89,            // bitwise_or_expression
+        S_bitwise_xor_expression = 90,           // bitwise_xor_expression
+        S_bitwise_and_expression = 91,           // bitwise_and_expression
+        S_equality_expression = 92,              // equality_expression
+        S_relational_expression = 93,            // relational_expression
+        S_shift_expression = 94,                 // shift_expression
+        S_additive_expression = 95,              // additive_expression
+        S_multiplicative_expression = 96,        // multiplicative_expression
+        S_unary_expression = 97,                 // unary_expression
+        S_postfix_expression = 98,               // postfix_expression
+        S_primary_expression = 99,               // primary_expression
+        S_argument_list = 100,                   // argument_list
+        S_argument = 101                         // argument
       };
     };
 
@@ -1876,6 +1878,21 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
+      make_AGE (location_type l)
+      {
+        return symbol_type (token::AGE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_AGE (const location_type& l)
+      {
+        return symbol_type (token::AGE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
       make_LAMBDA_BLOCK (location_type l)
       {
         return symbol_type (token::LAMBDA_BLOCK, std::move (l));
@@ -2562,10 +2579,10 @@ switch (yykind)
       25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
       35,    36,    37,    38,    39,    40,    41,    42,    43,    44,
       45,    46,    47,    48,    49,    50,    51,    52,    53,    54,
-      55,    56
+      55,    56,    57
     };
     // Last valid token kind.
-    const int code_max = 311;
+    const int code_max = 312;
 
     if (t <= 0)
       return symbol_kind::S_YYEOF;
@@ -2904,7 +2921,7 @@ switch (yykind)
 
 
 } // yy
-#line 2908 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
+#line 2925 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
 
 
 

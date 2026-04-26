@@ -222,6 +222,9 @@ namespace idyl::core {
         // dt in ms (0 → trigger-only, no clock subscription)
         double dt_ms_ = 0.0;
 
+        // Elapsed time accumulator: 0 on tick 0, incremented by dt_ms_ after each tick
+        double age_ms_ = 0.0;
+
         // Scheduler subscription handle (0 → not subscribed)
         uint64_t subscription_id_ = 0;
 

@@ -1,0 +1,27 @@
+age_accumulator(dt=200ms) = age
+age_accumulator2(dt=200ms) = x
+|> {
+    x = age
+}
+age_accumulator3(dt=200ms) = x
+|> {
+    init: {x = 0}
+    x = age
+}
+
+// Oneshot: fire trigger only on the first tick (age == 0).
+// Ternary semantics: (cond) ? false_branch ; true_branch
+// (age == 0) is true (1) on first tick -> selects second option (!)
+oneshot(dt=200ms) = (age == 0) ? _ ; !
+
+process counting: {
+    print(age_accumulator(), age_accumulator2(), age_accumulator3())
+    print("accum1", age_accumulator() )
+    print ("accum2" , age_accumulator2() )
+    print ("accum3" , age_accumulator3() )
+}
+
+process oneshot_test: {
+    t = oneshot()
+    print("oneshot fired:", t)
+}

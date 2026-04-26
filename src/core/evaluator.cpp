@@ -306,7 +306,18 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 auto inst_it = instances_.find(inst_id);
                 double seg_dt  = inst_it != instances_.end() ? inst_it->second->dt_ms_  : 0.0;
                 std::string dn = inst_it != instances_.end() ? inst_it->second->def_name_ : "";
-                segments.push_back({inst_id, binding_name, dn, seg_dt, rxn});
+                // Record ALL instance IDs created by this statement for retick_pool_
+                std::vector<uint64_t> all_ids;
+                for (uint64_t id = id_before; id < next_instance_id_; ++id)
+                    all_ids.push_back(id);
+                live_segment seg_entry;
+                seg_entry.instance_id      = inst_id;
+                seg_entry.all_instance_ids = std::move(all_ids);
+                seg_entry.bound_var        = binding_name;
+                seg_entry.def_name         = dn;
+                seg_entry.dt_ms            = seg_dt;
+                seg_entry.rxn              = rxn;
+                segments.push_back(std::move(seg_entry));
                 current_seg = &segments.back();
                 // Register binding so the :: accessor can find this instance
                 if (!binding_name.empty())
@@ -451,9 +462,10 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 std::string var  = seg.bound_var;
                 auto rxn         = seg.rxn;   // shared_ptr — live read each tick
                 auto weak_inst   = std::weak_ptr<function_instance>(inst);
+                auto all_ids     = seg.all_instance_ids;
 
                 inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
-                    [this, def_ptr, weak_inst, var, rxn,
+                    [this, def_ptr, weak_inst, var, rxn, all_ids,
                      dur_ms, start_t = scheduler_->now_ms()]
                     (double t, double /*dt*/) -> bool {
                         // ── Duration check ─────────────────────────────────
@@ -482,9 +494,32 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                             shared_snap    = rxn->shared_reactions;
                         }
 
+                        // Tick all other instances created by the same binding
+                        // statement (e.g. print(a(), b(), c()) creates 3 instances;
+                        // only the last one drives the scheduler, but all must advance).
+                        retick_pool_.clear();
+                        for (uint64_t id : all_ids) {
+                            auto it = instances_.find(id);
+                            if (it == instances_.end()) continue;
+                            auto& pool_inst = it->second;
+                            if (pool_inst.get() == si.get() || !pool_inst->active_) continue;
+
+                            std::shared_ptr<parser::function_definition> pool_def;
+                            if (pool_inst->local_def_) {
+                                pool_def = pool_inst->local_def_;
+                            } else {
+                                std::shared_lock<std::shared_mutex> rl(defs_mutex_);
+                                auto def_it = function_defs_.find(pool_inst->def_name_);
+                                if (def_it != function_defs_.end()) pool_def = def_it->second;
+                            }
+                            tick_instance(pool_inst, pool_def.get());
+                            retick_pool_.push_back(pool_inst.get());
+                        }
+
                         retick_instance_ = si.get();
                         if (binding_snap) exec_stmt(binding_snap);
                         retick_instance_ = nullptr;
+                        retick_pool_.clear();
 
                         // Run segment-local reactions immediately.
                         for (const auto& r : reactions_snap) exec_stmt(r);
@@ -1896,6 +1931,7 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                 env_.define(name, val);
         }
         env_.push_scope();
+        env_.define("age", value::number(0.0));
         for (auto& [name, val] : inst->params_) {
             env_.define(name, val);
         }
@@ -1949,6 +1985,7 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                     env_.define(name, val);
             }
             env_.push_scope();
+            env_.define("age", value::number(inst->age_ms_));
             for (auto& [name, val] : inst->params_)
                 env_.define(name, val);
             for (auto& [name, val] : inst->current_)
@@ -2006,21 +2043,25 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
             inst->write_output(std::move(output));
             env_.pop_scope();
             if (inst->library_scope_) env_.pop_scope();
+            inst->age_ms_ += inst->dt_ms_;
         } else {
             // No init: run first update immediately (no dt delay)
             tick_instance(inst, &def);
         }
     }
 
-    // Constant temporal (no lambda block): evaluate body for initial output
+    // Constant temporal (no lambda block): evaluate body for initial output.
+    // age_ms_ is incremented so the first scheduler tick sees age = dt, not 0 again.
     if (!def.lambda_block_ && def.body_) {
         env_.push_scope();
+        env_.define("age", value::number(0.0));
         for (auto& [name, val] : inst->params_) {
             env_.define(name, val);
         }
         value output = eval_expr(def.body_);
         inst->write_output(std::move(output));
         env_.pop_scope();
+        inst->age_ms_ += inst->dt_ms_;
     }
 
     // ── Store the instance ─────────────────────────────────────────────────
@@ -2077,7 +2118,19 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
         return;  // no commit() needed — native callbacks write current_ directly
     }
 
-    if (!def || !def->lambda_block_) return;
+    // ── Compact temporal (no lambda block): re-evaluate body each tick ────────
+    if (!def || !def->lambda_block_) {
+        if (!def || !def->body_) return;
+        env_.push_scope();
+        env_.define("age", value::number(inst.age_ms_));
+        for (const auto& [name, val] : inst.params_)
+            env_.define(name, val);
+        value output = eval_expr(def->body_);
+        inst.write_output(std::move(output));
+        env_.pop_scope();
+        inst.age_ms_ += inst.dt_ms_;
+        return;
+    }
 
     // If this function came from a namespaced library, push its library-local
     // scope first so internal cross-calls (e.g. lfo → sine_shape) resolve
@@ -2088,9 +2141,10 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
             env_.define(name, val);
     }
 
-    // Build a scope with: parameters (snapshot after re-eval above) + current state
+    // Build a scope with: age + parameters (snapshot after re-eval above) + current state
     env_.push_scope();
 
+    env_.define("age", value::number(inst.age_ms_));
     for (const auto& [name, val] : inst.params_) {
         env_.define(name, val);
     }
@@ -2153,6 +2207,7 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
 
     // ── Commit: next → current ─────────────────────────────────────────────
     inst.commit();
+    inst.age_ms_ += inst.dt_ms_;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

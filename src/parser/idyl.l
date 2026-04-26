@@ -79,6 +79,7 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 "stop"          { TRACK_LOCATION(); return yy::parser::token::STOP; }
 "start"         { TRACK_LOCATION(); return yy::parser::token::START; }
 "on"            { TRACK_LOCATION(); return yy::parser::token::ON; }
+"age"           { TRACK_LOCATION(); return yy::parser::token::AGE; }
 
 {NUMBER}"ms"    { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
 {NUMBER}"s"     { yylval_string = yytext; TRACK_LOCATION(); return yy::parser::token::TIME_LITERAL; }
@@ -269,7 +270,9 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_START(yylloc);
         case yy::parser::token::ON:
             return yy::parser::make_ON(yylloc);
-        default: 
+        case yy::parser::token::AGE:
+            return yy::parser::make_AGE(yylloc);
+        default:
             return yy::parser::make_YYEOF(yylloc);
     }
 }

@@ -46,6 +46,10 @@ sudo make install    # installs to /usr/local/bin
 | Flag | Default | Description |
 |------|---------|-------------|
 | `IDYL_MODULE_OSC` | `ON` | Enable the built-in OSC module |
+| `IDYL_MODULE_MIDI` | `ON` | Enable the built-in MIDI module (requires RtMidi, fetched automatically) |
+| `IDYL_MODULE_SERIAL` | `ON` | Enable the built-in SERIAL module |
+| `IDYL_MODULE_CSOUND` | `ON` | Enable the built-in CSOUND module (requires `libcsound64-dev`) |
+| `IDYL_AUDIO_CLOCK` | `ON` | Enable the high-resolution timer scheduler (`--audio-clock` flag) |
 
 Example:
 
@@ -77,11 +81,17 @@ echo 'silence = 0' | idyl -
 Usage: idyl [file.idyl] [options]
 
 Options:
-  --trace              Enable parser/lexer debug tracing
-  --process <name>     Run only the named process block
-  -p <name>            Short form of --process
-  --listen [port]      Listen mode (default port: 9000)
-  -l [port]            Short form of --listen
+  --trace                        Enable parser/lexer debug tracing
+  --process <name>               Run only the named process block
+  -p <name>                      Short form of --process
+  --listen [port]                Listen mode (default port: 9000)
+  -l [port]                      Short form of --listen
+  --audio-clock                  Use high-resolution timer scheduler
+  -ac                            Short form of --audio-clock
+  --audio-buffer-size <frames>   Scan period in frames (default: 32)
+  -abs <frames>                  Short form of --audio-buffer-size
+  --audio-sample-rate <hz>       Sample rate for period calculation (default: 48000)
+  -asr <hz>                      Short form of --audio-sample-rate
 ```
 
 ### `--process`
@@ -110,6 +120,18 @@ The port argument is optional (defaults to 9000). Key OSC addresses:
 | `/idyl/eval` | source | Hot-reload a definition or running process |
 
 See [Chapter 9 — Process blocks](ch09_process_blocks.md) for the full listen mode protocol and hot-reload behaviour.
+
+### `--audio-clock`
+
+Switch to the high-resolution timer scheduler. Wakes at a fixed period (`buffer_size / sample_rate`) and checks all active temporal subscriptions. Does not open any audio device — safe to use alongside Csound or any other audio engine.
+
+```bash
+idyl file.idyl --audio-clock                               # 0.67 ms scan period (default)
+idyl file.idyl --audio-clock --audio-buffer-size 128       # 2.67 ms scan period, lower CPU
+idyl file.idyl --audio-clock --audio-sample-rate 44100     # 0.73 ms scan period at 44.1 kHz
+```
+
+See [Chapter 8 — Clock & tempo](ch08_clock_tempo.md#scheduler-backends) for a full comparison of both modes and a tuning guide.
 
 ---
 
