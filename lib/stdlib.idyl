@@ -93,10 +93,7 @@ ramp(freq, amplitude=1, dt=10ms) = out |> {
 metro(dt=10ms) = !
 
 // One shot — trigger once, then returns rest 
-oneshot(dt=10ms) = trig |> {
-    init: { trig = ! }
-    trig = _
-}
+oneshot(dt=10ms) = (age > 0) ? ! ; _ 
 
 // Dust — probabilistic trigger (Poisson-like). `density` = avg triggers/sec.
 dust(density, dt=10ms) = trig |> {

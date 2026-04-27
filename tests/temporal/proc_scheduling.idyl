@@ -19,4 +19,8 @@ process a: {
 process b: {
     r = cnt(10)
     print(r)
+    catch r::killsig: {
+        print("Ending process b")
+        stop 
+    }
 }

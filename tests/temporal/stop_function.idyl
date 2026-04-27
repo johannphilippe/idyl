@@ -1,0 +1,16 @@
+counter(limit, dt=200ms) = x
+|> {
+    init: { x = 0 }
+    x = x + 1
+    x >= limit ? _ ; stop
+}
+
+process test: {
+    v = counter(3)
+    s = counter(10)
+    print("count:", v, s)
+    
+    catch v::end: { print("stopped:", v) }
+    catch s::end: { print("stopped:", s) }
+
+}

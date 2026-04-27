@@ -27,12 +27,12 @@ Same for engine implementation.
 
 | | |
 |---|---|
-| **Temporal functions** | Clock-driven (`dt=10ms`), trigger-driven (`spike!`), or hybrid. State via `init` + `\|>` lambda blocks. |
+| **Temporal functions** | Clock-driven (`dt=10ms`), trigger-driven (`spike!`), or hybrid. State via `init` + `\|>` lambda blocks. Self-terminate with `stop` inside the update body; the bound variable freezes at the final output and `catch v::end` fires. |
 | **Delay operator** | `'(expr)` — one-sample delay. `'(expr, N)` — N-sample delay. Circular buffer, per-expression, independent across call sites. |
 | **Deferred blocks** | `@(500ms): { ... }` — schedules a block to run once after a delay. Time expression can be any value. |
 | **Flows** | Ordered sequences with named members, generator expressions, parametric flows, live temporal elements per-slot, dynamic rebuilding when arguments change. |
 | **Emit system** | Side-channel output from temporal functions. Read emitted values with the `::` accessor. |
-| **Catch blocks** | React to events emitted by temporal instances — `catch timer::finished: { ... }` |
+| **Catch blocks** | React to events emitted by temporal instances — `catch timer::finished: { ... }`. Built-in `::end` signal fires automatically when an instance self-terminates via `stop`. |
 | **`on` blocks** | Trigger-gated reaction blocks — `on m: { ... }` fires only when `m` is a live trigger. Also gates flow members: `melody on rhythm: [60, 63, 65]` advances only on rhythm's trigger ticks. |
 | **Clock hierarchy** | Create clocks, bind children to parents, change tempo with automatic proportional propagation. Clock handles are callable: `c(2b)` returns 2 beats at that clock's BPM. Query BPM with `tempo(handle)`. |
 | **First-class functions** | Functions are values. Store them, pass them, select between them with ternary. |

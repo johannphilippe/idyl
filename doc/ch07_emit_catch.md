@@ -152,6 +152,47 @@ The signal name resolves against the anonymous instance's `emitted_` map. If no 
 
 ---
 
+## The `::end` built-in signal
+
+Every temporal instance automatically emits the built-in `end` signal when it self-terminates via `stop`. No `emit end = ...` declaration is needed.
+
+```idyl
+catch instance::end: {
+    // handler runs once when the instance fires `stop`
+}
+```
+
+When the handler fires, the bound variable holds the **frozen** last output value of the stopped instance. Further ticks do not happen — the value remains constant until the process itself ends.
+
+```idyl
+counter(limit, dt=200ms) = x
+|> {
+    init: { x = 0 }
+    x = x + 1
+    x >= limit ? _ ; stop
+}
+
+process: {
+    a = counter(5)
+    b = counter(10)
+    print("a:", a, "b:", b)
+
+    catch a::end: { print("a stopped at", a) }
+    catch b::end: { print("b stopped at", b) }
+}
+```
+
+Both catches fire independently: `a` at 5, `b` at 10. After `a` stops, the `print` line still runs on each tick of `b`, with `a` frozen at 5.
+
+### `::end` semantics
+
+- Fires exactly once, the same tick `stop` executes.
+- Fires in the same scheduler callback, after the final output is committed.
+- The handler sees the frozen value through the bound variable name.
+- Fires even when `stop` executes on the very first tick (no init block, bare `stop`).
+
+---
+
 ## Emit vs. output
 
 | | Main output | Emitted values |

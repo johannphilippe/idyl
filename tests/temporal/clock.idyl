@@ -2,8 +2,11 @@
 import("stdlib")
 process: {
     a = clock(60bpm)
-    m = metro(as_bpm(bpm(a)))
-    m2 = metro(a(0.25b))
-    print(m2)
+    m = counter(a(1b))
+    m2 = counter(a(0.2b))
+    print(m, m2)
+    @(a(5b)): {
+        tempo(a, 120bpm)
+    }
 
 }

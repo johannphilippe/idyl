@@ -102,6 +102,10 @@
         {
           "name": "constant.language.idyl",
           "match": "\\b(pi|tau)\\b"
+        },
+        {
+          "name": "variable.language.idyl",
+          "match": "\\b(age)\\b"
         }
       ]
     },

@@ -235,6 +235,16 @@ private:
                 return std::nullopt;
             }
 
+            // Re-read dt after the callback: tick_instance may have called
+            // update_dt() to reflect a tempo change or dynamic dt update.
+            // Using the post-callback value keeps the reschedule in sync.
+            {
+                std::lock_guard<std::mutex> lock(subs_mutex_);
+                auto it2 = subscriptions_.find(payload.sub_id);
+                if (it2 != subscriptions_.end())
+                    current_dt_ms = it2->second.dt_ms_;
+            }
+
             // Drift-free: next deadline = previous deadline + current dt
             auto current_dt_dur = std::chrono::duration_cast<duration_t>(
                 std::chrono::duration<double, std::milli>(current_dt_ms));

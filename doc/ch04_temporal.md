@@ -131,6 +131,25 @@ synth(freq, dt=10ms) = level |> {
 
 ---
 
+## The `age` variable
+
+Inside any lambda block, `age` is a read-only variable that holds the elapsed time in milliseconds since the instance was created.
+
+```idyl
+ramp(dt=50ms) = age   // output grows by dt every tick: 0, 50, 100, …
+
+oneshot_guard(limit_ms, dt=10ms) = x
+|> {
+    init: { x = 0 }
+    x = x + 1
+    age >= limit_ms ? _ ; stop   // stop after limit_ms milliseconds
+}
+```
+
+`age` starts at `0` and increases by `dt` on every tick. It is always in milliseconds, regardless of the `dt` unit used in the function signature.
+
+---
+
 ## State variables
 
 Variables inside the lambda block are local state. They persist across ticks but are not visible outside the function — unless emitted (see [Chapter 7](ch07_emit_catch.md)).
@@ -241,6 +260,93 @@ envelope(attack, dt=10ms) = level |> {
     delta = abs(level - '(level))
 }
 ```
+
+---
+
+## Self-termination with `stop`
+
+A temporal function can end itself from within its update block by using the `stop` keyword. When `stop` executes, the function:
+
+1. Stops evaluating further update statements for this tick.
+2. Evaluates its output expression one final time (freezing the output value).
+3. Deactivates the instance — no further ticks will fire.
+4. Fires any `catch instance::end` handlers in the surrounding process block.
+5. Unsubscribes from the scheduler.
+
+After stopping, the binding variable in the process body holds the frozen last output value as a constant.
+
+### Bare `stop`
+
+Place `stop` alone as an update statement to terminate unconditionally on the first tick:
+
+```idyl
+oneshot(dt=200ms) = age
+|> {
+    stop   // fires once, then the instance dies
+}
+
+process: {
+    v = oneshot()
+    print("fired at age:", v)
+    catch v::end: { print("done, final value:", v) }
+}
+```
+
+### Conditional stop using ternary
+
+Use the ternary operator to stop when a condition is met:
+
+```idyl
+counter(limit, dt=200ms) = x
+|> {
+    init: { x = 0 }
+    x = x + 1
+    x >= limit ? _ ; stop   // stop when x reaches limit
+}
+
+process: {
+    v = counter(3)
+    print("count:", v)
+    catch v::end: { print("stopped at:", v) }
+}
+// Output:
+//   count: 0
+//   count: 1
+//   count: 2
+//   stopped: 3
+//   (v is now frozen at 3)
+```
+
+Here, `x >= limit ? _ ; stop` means:
+- If `x >= limit` is 0 (false) → select `_` (rest/passthrough), continue as normal
+- If `x >= limit` is 1 (true) → select `stop`, self-terminate
+
+### Parser note: ternary condition and parentheses
+
+In lambda block update statements, avoid wrapping the ternary condition in parentheses when it follows a statement that ends with a bare literal or identifier. The parser can interpret the `(` as the start of a function call on the preceding expression rather than a new statement:
+
+```idyl
+// ✗ May be misparse — '(x >= 3)' consumed as function call on preceding '1'
+x = x + 1
+(x >= 3) ? _ ; stop
+
+// ✓ Correct — condition does not start with '('
+x = x + 1
+x >= 3 ? _ ; stop
+```
+
+When the condition is a comparison, logical expression, or identifier without outer parentheses, it always parses correctly.
+
+### `stop` as an expression
+
+`stop` can appear anywhere an expression is valid, including inside ternary options as shown above. When evaluated, it immediately throws an internal stop signal. This means:
+
+```idyl
+x >= 3 ? _ ; stop   // conditional stop
+stop                 // unconditional stop (as a statement)
+```
+
+Both forms work. The `stop` expression form is most useful inside ternary options. For unconditional termination, the bare statement form is clearest.
 
 ---
 

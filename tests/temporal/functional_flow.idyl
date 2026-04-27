@@ -7,5 +7,5 @@ process: {
     flow_instance = func2()
 
     m = metro(dt=50ms)
-    print( flow_instance[m]) // Should print the sine value at the current count index
+    print( flow_instance[m], functional()[m]) // Should print the sine value at the current count index
 }

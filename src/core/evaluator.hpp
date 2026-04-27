@@ -19,6 +19,10 @@
 
 namespace idyl::core {
 
+    // Thrown by exec_stmt when a bare `stop` is executed inside a temporal
+    // lambda block update section, to break out of the update loop.
+    struct SelfStopSignal {};
+
     // ── Evaluator ──────────────────────────────────────────────────────────────
     // Tree-walking interpreter with temporal function support.
     // Pure functions are evaluated inline; temporal functions (with |> blocks)
@@ -122,6 +126,12 @@ namespace idyl::core {
         // when that process was started.  Used by stop_process().
         std::unordered_map<std::string, std::vector<uint64_t>>
             active_process_instances_;
+
+        // ── Scheduler callback context ─────────────────────────────────────────
+        // Set to the currently-ticking instance while the scheduler callback is
+        // running reactions and catches.  Bare `stop` inside process catch handlers
+        // deactivates this instance to stop the process.
+        function_instance* proc_stop_ctx_ = nullptr;
 
         // ── Hot-reload support structures ──────────────────────────────────────
         //
@@ -265,6 +275,13 @@ namespace idyl::core {
         // the full enclosing expression (e.g. lfo(1hz) + 1 * 2000 + 20) to be
         // re-evaluated with the updated temporal value.
         function_instance* retick_instance_ = nullptr;
+
+        // Set to the instance currently being ticked inside tick_instance().
+        // Used by eval_user_function to skip the closure-scope push for local
+        // functions called from within the same instance's update block: env_
+        // already carries the freshly-updated tick values and the stale
+        // inst->current_ overlay would shadow them.
+        function_instance* currently_ticking_inst_ = nullptr;
 
         // Retick pool for compound flow-slot re-evaluation (case F).
         // When a live_expr slot is re-evaluated, the dep instances are pushed

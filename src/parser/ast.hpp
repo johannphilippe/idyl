@@ -32,6 +32,8 @@ enum class node_t {
     expression_stmt, assignment, catch_block, at_block, on_block,
     function_definition, process_block_body, process_block,
     library_import, module_import, stop_statement, start_statement, sched_statement,
+    // Special expression: self-stop inside temporal lambda block
+    self_stop_expr,
     // Top-level
     program,
 };
@@ -607,6 +609,20 @@ struct parenthesized_expr : expression {
     }
 };
 
+// self_stop_expr: a bare `stop` used in expression context inside a temporal
+// lambda block update section.  Throws SelfStopSignal when evaluated.
+struct self_stop_expr : expression {
+    self_stop_expr() : expression(node_t::self_stop_expr) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "SelfStopExpr\n";
+    }
+    expr_ptr clone() const override {
+        return std::make_shared<self_stop_expr>(*this);
+    }
+};
+
 // ============================================================================
 // Statements
 // ============================================================================
@@ -733,7 +749,8 @@ struct function_definition : statement {
     std::vector<param_ptr> parameters_;
     expr_ptr body_;
     std::shared_ptr<lambda_block> lambda_block_; // Optional, for temporal functions
-    
+    bool has_parens_ = false; // true when defined as name() = expr (callable, not a constant)
+
     function_definition() : statement(node_t::function_definition) {}
     
     void print(int indent = 0) const override {

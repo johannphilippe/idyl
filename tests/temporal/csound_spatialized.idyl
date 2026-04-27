@@ -1,6 +1,6 @@
 import("stdlib")
 module("csound") 
-²
+
 flow seq = {
 	rhythm: [_, !, _, _, !, !, _ , _ , ! , ! , _ ]
 	notes on rhythm: [50, 53, 60, 67, 65, 69] 

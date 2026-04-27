@@ -19,5 +19,6 @@ process: {
     a = counter(dt = 300ms) + 2
     b = '(a)
     c = '(a, 2)
-    print(a, b, c)
+    d = '(c)
+    print(a, b, c, d)
 }

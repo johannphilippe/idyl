@@ -15,6 +15,12 @@ This must be done in a smart way :
 
 ## Next 
 
+- [fixed] functional flow seems broken (see tests/temporal/functional_flow.idyl) — was treating `func2() = expr` as a constant; fixed with `has_parens_` flag
+- [fixed] emit trigger behavior is weird : tests/temporal/catch_emit.idyl — bare `stop` in process catch handler fixed with `proc_stop_ctx_` mechanism
+- [fixed] in tests/temporal/clock.idyl : tempo change ratio mismatch — scheduler now re-reads `dt_ms` after the tick callback so `update_dt()` from within the callback takes effect on the same reschedule
+- [fixed] in tests/temporal/local_function_update.idyl : prints 500 twice — closures defined in update blocks no longer push the stale `inst->current_` scope when called from within the same tick; `currently_ticking_inst_` tracks the active instance so env_ values (freshly updated in the tick) are used instead
+- [fixed] tests/temporal/proc_scheduling.idyl : bare `stop` in process catch handler now deactivates the owning instance via `proc_stop_ctx_`
+
 
 - [done] Ternary operator syntax change 
 ```idyl

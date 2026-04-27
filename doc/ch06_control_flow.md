@@ -58,6 +58,30 @@ x > 0 ? 0; 1      // works
 (x > 0) ? 0; 1    // clearer — recommended
 ```
 
+**Exception — lambda block update statements**: inside a `|>` lambda block, avoid parenthesising a ternary condition when the preceding statement ends with a bare literal or identifier. The parser may treat the `(` as the start of a function call on the preceding expression. Write the condition without outer parentheses instead:
+
+```idyl
+// ✗ Ambiguous in a lambda block
+x = x + 1
+(x >= 3) ? _ ; stop
+
+// ✓ Clear
+x = x + 1
+x >= 3 ? _ ; stop
+```
+
+This restriction only applies inside lambda block update bodies, not in pure-function definitions or top-level expressions.
+
+### `stop` as a ternary option
+
+Inside a temporal lambda block, `stop` can be used as one of the ternary options to self-terminate an instance:
+
+```idyl
+x >= limit ? _ ; stop   // stop when x reaches limit; otherwise pass through
+```
+
+See [Chapter 4](ch04_temporal.md#self-termination-with-stop) for the full `stop` semantics.
+
 ---
 
 ## Arithmetic operators

@@ -69,6 +69,8 @@ syn match   idylParam         '\<\(dt\|dur\|parent\)\ze\s*='
 
 " ── Language constants ───────────────────────────────────────────────────────
 syn keyword idylConstant      pi tau
+" ── Temporal built-in variables (available inside lambda blocks) ─────────────
+syn keyword idylTemporal      age
 
 " ── Built-in functions ───────────────────────────────────────────────────────
 " Math
@@ -131,6 +133,7 @@ hi def link idylControl       Keyword
 hi def link idylDecl          Keyword
 hi def link idylParam         Type
 hi def link idylConstant      Constant
+hi def link idylTemporal      Special
 hi def link idylBuiltin       Function
 hi def link idylProcessName   Title
 hi def link idylFlowName      Type

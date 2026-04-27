@@ -176,9 +176,10 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
     case parser::node_t::function_definition: {
         auto& def = static_cast<const parser::function_definition&>(*stmt);
 
-        // 0-param, no lambda block → constant binding (eagerly evaluate)
+        // 0-param, no parens, no lambda block → constant binding (eagerly evaluate)
         // e.g. "z = func(2.2, 5.5)" or "silence = 0"
-        if (def.parameters_.empty() && !def.lambda_block_ && def.body_) {
+        // has_parens_ = true means "name() = expr" — a callable zero-arg function.
+        if (def.parameters_.empty() && !def.has_parens_ && !def.lambda_block_ && def.body_) {
             value result = eval_expr(def.body_);
             env_.define(def.name_, std::move(result));
             break;
@@ -459,6 +460,20 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                     }
                 }
 
+                // Instance already stopped during its initial seed tick (no init block
+                // and the update statements fired `stop` immediately).  Fire ::end
+                // catches now — there is no scheduler tick to fire them.
+                if (!inst->active_) {
+                    for (auto& c : seg.rxn->catches) {
+                        if (c.watched_emit == "end" && !c.fired) {
+                            c.fired = true;
+                            for (const auto& h : c.handler)
+                                exec_stmt(h);
+                        }
+                    }
+                    continue;
+                }
+
                 std::string var  = seg.bound_var;
                 auto rxn         = seg.rxn;   // shared_ptr — live read each tick
                 auto weak_inst   = std::weak_ptr<function_instance>(inst);
@@ -481,6 +496,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         // (epoch-transition flush removed — see epoch_flush below)
 
                         tick_instance(si, def_ptr.get());
+                        bool self_stopped = !si->active_;
 
                         // Snapshot reactions under lock so that hot_reload()
                         // can safely replace them on the main thread.
@@ -516,6 +532,10 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                             retick_pool_.push_back(pool_inst.get());
                         }
 
+                        // Set context so that bare `stop` inside binding/reaction/catch
+                        // handlers can deactivate this instance (process-level stop).
+                        proc_stop_ctx_ = si.get();
+
                         retick_instance_ = si.get();
                         if (binding_snap) exec_stmt(binding_snap);
                         retick_instance_ = nullptr;
@@ -536,13 +556,21 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         // during hot swap.  Handlers execute while holding the
                         // lock — they are short statements and cannot call
                         // hot_reload, so no deadlock risk.
-                        bool should_end = false;
+                        // ── self-stop or normal catch processing ──────────────
+                        bool should_end = self_stopped;
                         {
                             std::lock_guard<std::mutex> lk(rxn->mutex);
                             for (auto& c : rxn->catches) {
                                 if (c.fired) continue;
-                                if (c.watched_emit == "end") continue;
-
+                                if (c.watched_emit == "end") {
+                                    // Fire ::end on self-stop
+                                    if (self_stopped) {
+                                        c.fired = true;
+                                        for (const auto& h : c.handler)
+                                            exec_stmt(h);
+                                    }
+                                    continue;
+                                }
                                 auto emit_it = si->emitted_.find(c.watched_emit);
                                 if (emit_it != si->emitted_.end() && emit_it->second.is_truthy()) {
                                     c.fired = true;
@@ -551,6 +579,11 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                                 }
                             }
                         }
+
+                        proc_stop_ctx_ = nullptr;
+
+                        // Bare `stop` inside any handler deactivates the instance.
+                        if (!si->active_) should_end = true;
 
                         // ── Defer trigger reset to end of epoch ─────────────
                         if (!var.empty()) {
@@ -663,21 +696,21 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
     }
 
     case parser::node_t::stop_statement: {
-        // Iterate through all active processes and stop those matching the target name (or all if target is empty)
         auto& stop_stmt = static_cast<const parser::stop_statement&>(*stmt);
         std::string target = stop_stmt.target_;
-        for (auto& [proc_name, instance_ids] : active_process_instances_) {
-            if (target.empty() || proc_name == target) {
-                for (auto& id : instance_ids) {
-                    auto inst_it = instances_.find(id);
-                    if (inst_it != instances_.end()) {
-                        auto& inst = inst_it->second;
-                        if (scheduler_ && inst->subscription_id_ != 0) {
-                            scheduler_->unsubscribe(inst->subscription_id_);
-                            inst->subscription_id_ = 0;
-                        }
-                    }
-                }
+        if (!target.empty()) {
+            // Named stop: stop the named process via the proper helper.
+            stop_process(target);
+        } else {
+            // Bare stop: if we're inside a scheduler callback, deactivate that
+            // instance (the process wrapping this catch/reaction ends after this tick).
+            // Otherwise stop all running processes.
+            if (proc_stop_ctx_) {
+                proc_stop_ctx_->active_ = false;
+            } else {
+                std::vector<std::string> names;
+                for (auto& [n, _] : active_process_instances_) names.push_back(n);
+                for (auto& n : names) stop_process(n);
             }
         }
         break;
@@ -696,7 +729,13 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
     // ── Expression statement → evaluate (for side effects / output) ────────
     case parser::node_t::expression_stmt: {
         auto& es = static_cast<const parser::expression_stmt&>(*stmt);
-        eval_expr(es.expression_);
+        try { eval_expr(es.expression_); }
+        catch (const SelfStopSignal&) {
+            // `stop` used in a process body (catch handler, reaction, etc.).
+            // Deactivate the currently-ticking scheduler instance so the process
+            // ends after this tick.  Outside any scheduler context, this is a no-op.
+            if (proc_stop_ctx_) proc_stop_ctx_->active_ = false;
+        }
         break;
     }
 
@@ -896,6 +935,11 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
         auto& pe = static_cast<const parser::parenthesized_expr&>(*expr);
         return eval_expr(pe.expr_);
     }
+
+    // ── Self-stop expression (`stop` used in expression context) ──────────
+    // Throws SelfStopSignal to break out of the update loop in tick_instance.
+    case parser::node_t::self_stop_expr:
+        throw SelfStopSignal{};
 
     // ── Flow literal expression ────────────────────────────────────────────
     case parser::node_t::flow_literal_expr: {
@@ -1761,24 +1805,28 @@ value evaluator::eval_user_function(const parser::function_definition& def,
 
             // Run the update block (trigger fired)
             if (tdi) tdi->next_.clear();
-            for (const auto& stmt : def.lambda_block_->update_statements_) {
-                if (!stmt) continue;
-                if (stmt->type_ == parser::node_t::expression_stmt) {
-                    eval_expr(static_cast<const parser::expression_stmt&>(*stmt).expression_);
-                } else if (stmt->type_ == parser::node_t::assignment) {
-                    auto& a = static_cast<const parser::assignment&>(*stmt);
-                    value v = eval_expr(a.value_);
-                    if (tdi) { tdi->next_[a.name_] = v; }
-                    env_.define(a.name_, v);
-                    if (a.is_emit_ && tdi) tdi->emitted_[a.name_] = v;
-                } else if (stmt->type_ == parser::node_t::function_definition) {
-                    auto& upd = static_cast<const parser::function_definition&>(*stmt);
-                    if (upd.parameters_.empty() && upd.body_) {
-                        value v = eval_expr(upd.body_);
-                        if (tdi) tdi->next_[upd.name_] = v;
-                        env_.define(upd.name_, v);
+            try {
+                for (const auto& stmt : def.lambda_block_->update_statements_) {
+                    if (!stmt) continue;
+                    if (stmt->type_ == parser::node_t::expression_stmt) {
+                        eval_expr(static_cast<const parser::expression_stmt&>(*stmt).expression_);
+                    } else if (stmt->type_ == parser::node_t::assignment) {
+                        auto& a = static_cast<const parser::assignment&>(*stmt);
+                        value v = eval_expr(a.value_);
+                        if (tdi) { tdi->next_[a.name_] = v; }
+                        env_.define(a.name_, v);
+                        if (a.is_emit_ && tdi) tdi->emitted_[a.name_] = v;
+                    } else if (stmt->type_ == parser::node_t::function_definition) {
+                        auto& upd = static_cast<const parser::function_definition&>(*stmt);
+                        if (upd.parameters_.empty() && upd.body_) {
+                            value v = eval_expr(upd.body_);
+                            if (tdi) tdi->next_[upd.name_] = v;
+                            env_.define(upd.name_, v);
+                        }
                     }
                 }
+            } catch (const SelfStopSignal&) {
+                if (tdi) tdi->active_ = false;
             }
             if (tdi) tdi->commit();
         }
@@ -1803,14 +1851,26 @@ value evaluator::eval_user_function(const parser::function_definition& def,
     if (!def.body_) return value::nil();
 
     // ── Pure function evaluation ────────────────────────────────────────────
-    // For closures: push the owning instance's params and state first so the
-    // body can read them by reference (sees current values, not a snapshot).
+    // For closures: push the owning instance's params and state so the body
+    // can read them by reference.  Skip this push when we're already inside
+    // tick_instance for that same instance: env_ already has the freshly-updated
+    // tick values and overlaying the stale inst->current_ would shadow them.
+    bool pushed_closure_scope = false;
     if (closure_inst) {
-        env_.push_scope();
-        for (const auto& [n, v] : closure_inst->params_)
-            env_.define(n, v);
-        for (const auto& [n, v] : closure_inst->current_)
-            env_.define(n, v);
+        bool inside_same_tick = (closure_inst.get() == currently_ticking_inst_);
+        if (!inside_same_tick) {
+            for (auto* p : retick_pool_) {
+                if (p == closure_inst.get()) { inside_same_tick = true; break; }
+            }
+        }
+        if (!inside_same_tick) {
+            env_.push_scope();
+            for (const auto& [n, v] : closure_inst->params_)
+                env_.define(n, v);
+            for (const auto& [n, v] : closure_inst->current_)
+                env_.define(n, v);
+            pushed_closure_scope = true;
+        }
     }
     env_.push_scope();
 
@@ -1833,7 +1893,7 @@ value evaluator::eval_user_function(const parser::function_definition& def,
 
     value result = eval_expr(def.body_);
     env_.pop_scope();
-    if (closure_inst) env_.pop_scope();
+    if (pushed_closure_scope) env_.pop_scope();
     return result;
 }
 
@@ -2005,37 +2065,44 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
                 }
             }
 
-            // First pass: run update statements for variables NOT in init
+            // First pass: run update statements for variables NOT in init.
+            // If `stop` fires here (seed/init pass), treat it as a no-op:
+            // stop only takes effect during real scheduler ticks.
             inst->next_.clear();
-            for (const auto& stmt : def.lambda_block_->update_statements_) {
-                if (!stmt) continue;
-                if (stmt->type_ == parser::node_t::function_definition) {
-                    auto& upd = static_cast<const parser::function_definition&>(*stmt);
-                    if (upd.parameters_.empty() && upd.body_ &&
-                            !init_names.count(upd.name_)) {
-                        value v = eval_expr(upd.body_);
-                        inst->next_[upd.name_] = v;
-                        env_.define(upd.name_, v);
-                    } else if (!upd.parameters_.empty() || upd.lambda_block_) {
-                        // Tick-local alias — stored as a closure so the body can
-                        // read current instance state via the scope chain.
-                        auto fn_ptr = std::static_pointer_cast<parser::function_definition>(
-                            std::const_pointer_cast<parser::statement>(stmt));
-                        env_.define(upd.name_, value::closure(upd.name_, fn_ptr, inst));
+            try {
+                for (const auto& stmt : def.lambda_block_->update_statements_) {
+                    if (!stmt) continue;
+                    if (stmt->type_ == parser::node_t::stop_statement) {
+                        auto& stop = static_cast<const parser::stop_statement&>(*stmt);
+                        if (stop.target_.empty()) throw SelfStopSignal{};
+                    } else if (stmt->type_ == parser::node_t::function_definition) {
+                        auto& upd = static_cast<const parser::function_definition&>(*stmt);
+                        if (upd.parameters_.empty() && upd.body_ &&
+                                !init_names.count(upd.name_)) {
+                            value v = eval_expr(upd.body_);
+                            inst->next_[upd.name_] = v;
+                            env_.define(upd.name_, v);
+                        } else if (!upd.parameters_.empty() || upd.lambda_block_) {
+                            auto fn_ptr = std::static_pointer_cast<parser::function_definition>(
+                                std::const_pointer_cast<parser::statement>(stmt));
+                            env_.define(upd.name_, value::closure(upd.name_, fn_ptr, inst));
+                        }
+                    } else if (stmt->type_ == parser::node_t::assignment) {
+                        auto& assign = static_cast<const parser::assignment&>(*stmt);
+                        if (!init_names.count(assign.name_)) {
+                            value v = eval_expr(assign.value_);
+                            inst->next_[assign.name_] = v;
+                            env_.define(assign.name_, v);
+                            if (assign.is_emit_)
+                                inst->emitted_[assign.name_] = v;
+                        }
+                    } else if (stmt->type_ == parser::node_t::expression_stmt) {
+                        auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+                        eval_expr(es.expression_);
                     }
-                } else if (stmt->type_ == parser::node_t::assignment) {
-                    auto& assign = static_cast<const parser::assignment&>(*stmt);
-                    if (!init_names.count(assign.name_)) {
-                        value v = eval_expr(assign.value_);
-                        inst->next_[assign.name_] = v;
-                        env_.define(assign.name_, v);
-                        if (assign.is_emit_)
-                            inst->emitted_[assign.name_] = v;
-                    }
-                } else if (stmt->type_ == parser::node_t::expression_stmt) {
-                    auto& es = static_cast<const parser::expression_stmt&>(*stmt);
-                    eval_expr(es.expression_);
                 }
+            } catch (const SelfStopSignal&) {
+                // stop during seed pass is a no-op — only takes effect on real ticks
             }
             inst->commit();
 
@@ -2083,6 +2150,12 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
 void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                               const parser::function_definition* def) {
     function_instance& inst = *inst_ptr;
+
+    // Track the instance being ticked so closures defined inside this update
+    // block skip the stale inst->current_ scope overlay (see eval_user_function).
+    function_instance* prev_ticking = currently_ticking_inst_;
+    currently_ticking_inst_ = inst_ptr.get();
+
     // ── Re-evaluate dynamic parameter expressions (all instance types) ────
     // This lets dt and other params evolve when driven by temporal sources.
     {
@@ -2156,44 +2229,52 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
     inst.next_.clear();
     inst.emitted_.clear();
 
-    for (const auto& stmt : def->lambda_block_->update_statements_) {
-        if (!stmt) continue;
-        if (stmt->type_ == parser::node_t::function_definition) {
-            auto& upd = static_cast<const parser::function_definition&>(*stmt);
-            if (upd.parameters_.empty() && !upd.lambda_block_ && upd.body_) {
-                // Bare assignment (0-param constant binding)
-                value v = eval_expr(upd.body_);
-                inst.next_[upd.name_] = v;
-                env_.define(upd.name_, v);
-            } else if (!upd.parameters_.empty() || upd.lambda_block_) {
-                // Tick-local alias — stored as a closure so escaped values see
-                // current instance state when called.
-                auto fn_ptr = std::static_pointer_cast<parser::function_definition>(
-                    std::const_pointer_cast<parser::statement>(stmt));
-                auto fn_val = value::closure(upd.name_, fn_ptr, inst_ptr);
-                env_.define(upd.name_, fn_val);
-                // Not stored in inst.next_ — tick-local, does not persist between ticks
-            }
-        } else if (stmt->type_ == parser::node_t::assignment) {
-            auto& assign = static_cast<const parser::assignment&>(*stmt);
-            value v = eval_expr(assign.value_);
-            if (assign.name_ == "dt") {
-                double new_dt = v.as_number();
-                if (new_dt != inst.dt_ms_ && new_dt > 0.0) {
-                    inst.dt_ms_ = new_dt;
-                    if (scheduler_ && inst.subscription_id_ != 0)
-                        scheduler_->update_dt(inst.subscription_id_, new_dt);
+    bool self_stopped = false;
+    try {
+        for (const auto& stmt : def->lambda_block_->update_statements_) {
+            if (!stmt) continue;
+            if (stmt->type_ == parser::node_t::stop_statement) {
+                auto& stop = static_cast<const parser::stop_statement&>(*stmt);
+                if (stop.target_.empty()) throw SelfStopSignal{};
+            } else if (stmt->type_ == parser::node_t::function_definition) {
+                auto& upd = static_cast<const parser::function_definition&>(*stmt);
+                if (upd.parameters_.empty() && !upd.lambda_block_ && upd.body_) {
+                    // Bare assignment (0-param constant binding)
+                    value v = eval_expr(upd.body_);
+                    inst.next_[upd.name_] = v;
+                    env_.define(upd.name_, v);
+                } else if (!upd.parameters_.empty() || upd.lambda_block_) {
+                    // Tick-local alias — stored as a closure so escaped values see
+                    // current instance state when called.
+                    auto fn_ptr = std::static_pointer_cast<parser::function_definition>(
+                        std::const_pointer_cast<parser::statement>(stmt));
+                    auto fn_val = value::closure(upd.name_, fn_ptr, inst_ptr);
+                    env_.define(upd.name_, fn_val);
+                    // Not stored in inst.next_ — tick-local, does not persist between ticks
                 }
+            } else if (stmt->type_ == parser::node_t::assignment) {
+                auto& assign = static_cast<const parser::assignment&>(*stmt);
+                value v = eval_expr(assign.value_);
+                if (assign.name_ == "dt") {
+                    double new_dt = v.as_number();
+                    if (new_dt != inst.dt_ms_ && new_dt > 0.0) {
+                        inst.dt_ms_ = new_dt;
+                        if (scheduler_ && inst.subscription_id_ != 0)
+                            scheduler_->update_dt(inst.subscription_id_, new_dt);
+                    }
+                }
+                inst.next_[assign.name_] = v;
+                env_.define(assign.name_, v);
+                if (assign.is_emit_) {
+                    inst.emitted_[assign.name_] = v;
+                }
+            } else if (stmt->type_ == parser::node_t::expression_stmt) {
+                auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+                eval_expr(es.expression_);
             }
-            inst.next_[assign.name_] = v;
-            env_.define(assign.name_, v);
-            if (assign.is_emit_) {
-                inst.emitted_[assign.name_] = v;
-            }
-        } else if (stmt->type_ == parser::node_t::expression_stmt) {
-            auto& es = static_cast<const parser::expression_stmt&>(*stmt);
-            eval_expr(es.expression_);
         }
+    } catch (const SelfStopSignal&) {
+        self_stopped = true;
     }
 
     // ── Evaluate output expression ─────────────────────────────────────────
@@ -2208,6 +2289,11 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
     // ── Commit: next → current ─────────────────────────────────────────────
     inst.commit();
     inst.age_ms_ += inst.dt_ms_;
+
+    // ── Self-stop: freeze this instance after this tick ────────────────────
+    if (self_stopped) inst.active_ = false;
+
+    currently_ticking_inst_ = prev_ticking;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

@@ -200,6 +200,7 @@ function_definition
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = $1;
         func->parameters_ = {};
+        func->has_parens_ = true;
         func->body_ = $5;
         func->line_ = @1.begin.line;
         func->column_ = @1.begin.column;
@@ -221,6 +222,7 @@ function_definition
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = $1;
         func->parameters_ = {};
+        func->has_parens_ = true;
         func->body_ = $5;
         func->lambda_block_ = $6;
         func->line_ = @1.begin.line;
@@ -614,14 +616,6 @@ stop_statement
     {
         auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
         stop_stmt->target_ = $2;
-        stop_stmt->line_ = @1.begin.line;
-        stop_stmt->column_ = @1.begin.column;
-        $$ = stop_stmt;
-    }
-    | STOP 
-    {
-        auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
-        stop_stmt->target_ = "";
         stop_stmt->line_ = @1.begin.line;
         stop_stmt->column_ = @1.begin.column;
         $$ = stop_stmt;
@@ -1471,6 +1465,13 @@ primary_expression
         $$ = paren;
     }
     | flow_literal { $$ = $1; }
+    | STOP
+    {
+        auto stop_expr = std::make_shared<idyl::parser::self_stop_expr>();
+        stop_expr->line_ = @1.begin.line;
+        stop_expr->column_ = @1.begin.column;
+        $$ = stop_expr;
+    }
     ;
 
 argument_list

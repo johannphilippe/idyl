@@ -12,10 +12,10 @@ flow incr = [0, 12, -12]
 process static: {
     m = metro(dt=500ms)
     p = pattern(12)
-    print(p[m])                  // expects 52, 62, 72 cycling
+    print("52, 62, 72 : ", p[m])                  // expects 52, 62, 72 cycling
 
-    print(pattern(1)[m])         // expects 41, 51, 61 cycling
+    print("41, 51, 61 : ", pattern(1)[m])         // expects 41, 51, 61 cycling
 
     pat = complex_pattern(5)
-    print(pat.notes[m])          // expects 45, 55, 65 cycling
+    print("45, 55, 65 : ", pat.notes[m])          // expects 45, 55, 65 cycling
 }
