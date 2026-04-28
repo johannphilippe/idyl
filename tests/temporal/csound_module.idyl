@@ -5,12 +5,12 @@ handle = cs_open("csound_module.csd")
 
 flow melody(i) = {
     rhythm: [!, !, _, !, !, !, _, _, _, !, _, !, !, !]
-    notes: [50+i, 53+i, 60+i, 65+i, 47+i, 33+i, 20+i]
+    notes on rhythm : [50+i, 53+i, 60+i, 65+i, 47+i, 33+i, 20+i]
 }
 
 flow octaver = [12, 7, 0, 3, 5]
 
-note(spike!, note) = (spike) ? _; cs_note(handle, "first", 0.1s, 0.3, note) // This reveals an error in triggered functions That should only be triggered when the trigger is true
+note(spike!, note) = cs_note(handle, "first", 0.1s, 0.3, note) 
 
 
 process cr: {
@@ -23,7 +23,9 @@ process cr: {
    fl = melody(i)[cnt]
    fl2 = melody(i + mod)[-cnt]
 
+   print(fl.notes)
     a = note(fl.rhythm, mtof(fl.notes))
+
     //b = note(fl2.rhythm, mtof(fl2.notes + 3))
 
     //c = note(met, mtof(83) )

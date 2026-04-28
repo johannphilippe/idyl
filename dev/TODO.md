@@ -39,10 +39,9 @@ c = counter(dt=300ms)
 
 - [done] Change catch syntax so it is more consistent with the rest of emit design `catch a::sig: {/* do something */}` 
 
-- [bug] hot-reload of running process creates a small glitch. Sometimes, hot reload of non running process still triggers some calculation (thus, can send a note in csound_module.idyl for example)
+- [fixed] hot-reload of running process creates a small glitch. Sometimes, hot reload of non running process still triggers some calculation (thus, can send a note in csound_module.idyl for example)
 - [feature] the `'` delay operator should be able to operate with time values as well (like `'(val, 5ms)`)
-- [bug] the start and stop process shortcut works on neovim, not in vim
-- [bug] when calling a flow like this `fl = melody(i)[trig]` : it is weird : 
+- [fixed] the start and stop process shortcut works on neovim, not in vim — root cause: old `plugin/idyl_live.vim` and `ftplugin/idyl_live.vim` from a previous plugin version were still installed; they registered a FileType autocmd that remapped `t` after `after/ftplugin` ran and never mapped `s`/`q`. Fixed by deleting legacy files and adding legacy cleanup to install.sh. Also removed `abort` from `s:ApplyIdylMappings()` and moved `s`/`q` before `<C-e>` so a failing inoremap can't block them.
 
 - [fixed] trigger functions : result update on first trigger, not on second ... 
 - [fixed] function with trigger parameters work fine in update bloc, but function body is updated even if trig is rest

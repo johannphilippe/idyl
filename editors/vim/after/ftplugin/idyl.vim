@@ -1,20 +1,29 @@
 " after/ftplugin/idyl.vim — buffer-local mappings for idyl
 "
-" Lives in after/ftplugin/ so it runs after all plugin FileType handlers,
-" preventing any plugin from overriding these mappings.
+" Lives in after/ftplugin/ so it runs after all plugin FileType handlers.
+" Mappings are (re-)applied via BufEnter autocmd so that plugins loaded
+" after this file (e.g. vim-sneak, vim-sandwich) cannot override them.
+" This also fixes the classic-Vim quirk where buffer-local q mappings
+" can fail to register on the first FileType event.
 
-" t — evaluate construct at cursor (shadows till-char motion)
-nnoremap <buffer> <nowait> <silent> t :<C-u>call IdylEvalAtCursor()<CR>
+function! s:ApplyIdylMappings()
+  " s/q first — critical for start/stop; no abort so <C-e> failure can't block them
+  nnoremap <buffer> <nowait> <silent> s :<C-u>call IdylStartProcess()<CR>
+  nnoremap <buffer> <nowait> <silent> q :<C-u>call IdylStopProcess()<CR>
 
-" <C-e> — evaluate from insert mode without leaving it
-inoremap <buffer> <nowait> <silent> <C-e> <C-o>:call IdylEvalAtCursor()<CR>
+  " t — evaluate construct at cursor (shadows till-char motion)
+  nnoremap <buffer> <nowait> <silent> t :<C-u>call IdylEvalAtCursor()<CR>
 
-" s — start the process block the cursor is in (shadows substitute-char)
-nnoremap <buffer> <nowait> <silent> s :<C-u>call IdylStartProcess()<CR>
+  " <C-e> — evaluate from insert mode without leaving it
+  silent! inoremap <buffer> <nowait> <silent> <C-e> <C-o>:call IdylEvalAtCursor()<CR>
+endfunction
 
-" q — stop the process block the cursor is in (shadows macro-record)
-nnoremap <buffer> <nowait> <silent> q :<C-u>call IdylStopProcess()<CR>
+call s:ApplyIdylMappings()
+
+augroup IdylMappings
+  autocmd! BufEnter <buffer> call s:ApplyIdylMappings()
+augroup END
 
 let b:undo_ftplugin = get(b:, 'undo_ftplugin', '')
 if !empty(b:undo_ftplugin) | let b:undo_ftplugin .= ' | ' | endif
-let b:undo_ftplugin .= 'nunmap <buffer> t | iunmap <buffer> <C-e> | nunmap <buffer> s | nunmap <buffer> q'
+let b:undo_ftplugin .= 'nunmap <buffer> t | iunmap <buffer> <C-e> | nunmap <buffer> s | nunmap <buffer> q | autocmd! IdylMappings'

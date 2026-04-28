@@ -2,10 +2,15 @@ import("stdlib")
 
 functional() = [i = 0 .. 10 : i ]
 func2() = [5, 4, 3, 2]
+func3(dt=10ms) = [si, sq]
+|> {
+    si = sine(1hz, dt=dt)
+    sq = square(1hz, dt=dt)
+}
 
 process: {
     flow_instance = func2()
-
+    dynamic_function_instance = func3(dt=50ms) 
     m = metro(dt=50ms)
-    print( flow_instance[m], functional()[m]) // Should print the sine value at the current count index
+    print( flow_instance[m], functional()[m], dynamic_function_instance[0], dynamic_function_instance[1]) // Should print the sine value at the current count index
 }

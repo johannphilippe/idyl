@@ -108,7 +108,7 @@ Functions are values. A function name used as an expression (without parentheses
 
 ```idyl
 // Select between sin and cos
-wave_select(selector) = sin; cos ? selector
+wave_select(selector) = (selector) ? sin; cos  
 ```
 
 The selected function can be called indirectly:

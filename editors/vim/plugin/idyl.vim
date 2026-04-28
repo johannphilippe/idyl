@@ -1,21 +1,25 @@
-" ftplugin/idyl.vim — function definitions for idyl live-coding
+" plugin/idyl.vim — Idyl live-coding integration
 "
-" Mappings are in after/ftplugin/idyl.vim so they survive any plugin
-" FileType autocmds that run after this file.
+" Loaded unconditionally by Vim (no 'filetype plugin on' required).
+" Uses a FileType autocmd to apply buffer-local mappings for *.idyl files.
 "
-" Configuration (set in vimrc / init.vim):
+" Configuration (set in vimrc before this loads):
 "   let g:idyl_osc_host = '127.0.0.1'   " default
 "   let g:idyl_osc_port = 9000           " default
+
+if exists('g:loaded_idyl_plugin') | finish | endif
+let g:loaded_idyl_plugin = 1
 
 if !exists('g:idyl_osc_host') | let g:idyl_osc_host = '127.0.0.1' | endif
 if !exists('g:idyl_osc_port') | let g:idyl_osc_port = 9000         | endif
 
-let s:this_file    = resolve(expand('<sfile>:p'))
-let s:runtime_root = fnamemodify(s:this_file, ':h:h')
+let s:plugin_dir   = fnamemodify(resolve(expand('<sfile>:p')), ':h')
+let s:runtime_root = fnamemodify(s:plugin_dir, ':h')
 let s:py_sender    = s:runtime_root . '/python/idyl_send.py'
 
 highlight default IdylEval ctermbg=58 guibg=#5f5f00
 
+" ── OSC send ─────────────────────────────────────────────────────────────────
 function! s:SendOsc(payload, address) abort
   if !executable('python3')
     echohl WarningMsg | echom '[idyl] python3 not found' | echohl None
@@ -40,6 +44,7 @@ function! s:SendOsc(payload, address) abort
   endif
 endfunction
 
+" ── Block detection ───────────────────────────────────────────────────────────
 function! s:BlockStart(lnum) abort
   let l = a:lnum
   while l >= 1
@@ -76,6 +81,7 @@ function! s:BlockEnd(start) abort
   return last
 endfunction
 
+" ── Flash highlight ───────────────────────────────────────────────────────────
 function! s:FlashRange(start, end) abort
   let l:pat = '\%>' . (a:start - 1) . 'l\%<' . (a:end + 1) . 'l'
   let l:mid = matchadd('IdylEval', l:pat)
@@ -87,6 +93,7 @@ function! s:FlashRange(start, end) abort
   endif
 endfunction
 
+" ── Public functions ──────────────────────────────────────────────────────────
 function! IdylEvalAtCursor() abort
   let s    = s:BlockStart(line('.'))
   let e    = s:BlockEnd(s)
@@ -97,7 +104,7 @@ function! IdylEvalAtCursor() abort
 endfunction
 
 function! IdylProcessNameAtCursor() abort
-  let l:lnum = line('.')
+  let l:lnum  = line('.')
   let l:start = s:BlockStart(l:lnum)
   let l:top   = getline(l:start)
   if get(g:, 'idyl_debug', 0)
@@ -114,15 +121,11 @@ function! IdylProcessNameAtCursor() abort
 endfunction
 
 function! s:CleanName(n) abort
-  " Strip anything that isn't a word character (e.g. trailing \n from system())
   return substitute(a:n, '[^A-Za-z0-9_]', '', 'g')
 endfunction
 
 function! IdylStartProcess() abort
   let l:name = s:CleanName(IdylProcessNameAtCursor())
-  if get(g:, 'idyl_debug', 0)
-    echom '[idyl] start: raw bytes ' . join(map(range(len(l:name)), {_, i -> printf('%02X', char2nr(l:name[i]))}), ' ')
-  endif
   if empty(l:name)
     echom '[idyl] no process name found — is cursor inside a process block?'
     return
@@ -141,8 +144,6 @@ function! IdylStopProcess() abort
   call s:SendOsc(l:name, '/idyl/process/stop')
 endfunction
 
-" :IdylDiag <name> — send a start OSC directly, bypassing cursor detection.
-" Use this to verify OSC works when s/q don't: :IdylDiag myprocess
 function! IdylDiag(name) abort
   let l:name = s:CleanName(a:name)
   echom '[idyl-diag] sending start "' . l:name . '"'
@@ -150,3 +151,16 @@ function! IdylDiag(name) abort
   echom '[idyl-diag] shell_error=' . v:shell_error
 endfunction
 command! -nargs=1 IdylDiag call IdylDiag(<q-args>)
+
+" ── Buffer-local mappings ─────────────────────────────────────────────────────
+function! s:ApplyMappings() abort
+  nnoremap <buffer> <nowait> <silent> s :<C-u>call IdylStartProcess()<CR>
+  nnoremap <buffer> <nowait> <silent> q :<C-u>call IdylStopProcess()<CR>
+  nnoremap <buffer> <nowait> <silent> t :<C-u>call IdylEvalAtCursor()<CR>
+  silent! inoremap <buffer> <nowait> <silent> <C-e> <C-o>:call IdylEvalAtCursor()<CR>
+endfunction
+
+augroup idyl_plugin
+  autocmd!
+  autocmd FileType idyl call s:ApplyMappings()
+augroup END

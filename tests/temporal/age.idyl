@@ -1,11 +1,12 @@
-age_accumulator(dt=200ms) = age
-age_accumulator2(dt=200ms) = x
+base_dt = 100ms 
+age_accumulator(dt=base_dt) = age
+age_accumulator2(dt=base_dt) = x
 |> {
     x = age
 }
-age_accumulator3(dt=200ms) = x
+age_accumulator3(dt=base_dt) = x
 |> {
-    init: {x = 0}
+    init: {x = age}
     x = age
 }
 

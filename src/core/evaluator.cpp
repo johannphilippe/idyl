@@ -301,15 +301,26 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
             if (created_instance) {
                 has_temporal = true;
-                uint64_t inst_id = next_instance_id_ - 1;
+                // Use last_instantiated_ as the driver when available: it is reset
+                // to the top-level instance at the end of instantiate_temporal, even
+                // when sub-instances (e.g. sine/square inside a func3 first-tick)
+                // were created at higher IDs.  For plain multi-call expressions like
+                // print(a(), b(), c()), last_instantiated_ ends up as the last
+                // top-level call — same behaviour as before.
+                uint64_t inst_id = (last_instantiated_ && last_instantiated_->id_ >= id_before)
+                                   ? last_instantiated_->id_
+                                   : next_instance_id_ - 1;
                 auto rxn = std::make_shared<reaction_set>();
                 rxn->binding_stmt = s;
                 auto inst_it = instances_.find(inst_id);
                 double seg_dt  = inst_it != instances_.end() ? inst_it->second->dt_ms_  : 0.0;
                 std::string dn = inst_it != instances_.end() ? inst_it->second->def_name_ : "";
-                // Record ALL instance IDs created by this statement for retick_pool_
+                // Only include instances up to inst_id in the retick pool.
+                // Sub-instances created during a first-tick (e.g. oscillators inside
+                // a lambda-block function) have IDs above inst_id; they are already
+                // scheduled by auto_schedule_flow and must not be re-ticked by the pool.
                 std::vector<uint64_t> all_ids;
-                for (uint64_t id = id_before; id < next_instance_id_; ++id)
+                for (uint64_t id = id_before; id <= inst_id; ++id)
                     all_ids.push_back(id);
                 live_segment seg_entry;
                 seg_entry.instance_id      = inst_id;
@@ -1082,6 +1093,26 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     double t = std::fmod(v, 1.0);
                     if (t < 0.0) t += 1.0;
                     mi = static_cast<int>(std::floor(t * mn)) % mn;
+                } else if (!m.gate_name_.empty()) {
+                    // Integer index with an 'on <gate>' constraint: maintain an
+                    // independent cursor that advances only when (a) the integer
+                    // index has changed since the last evaluation at this site,
+                    // AND (b) the gate member's element for this step is a live
+                    // trigger.  This lets counter-driven flows respect 'on'.
+                    // Keys \x01/\x02 + name are unreachable by valid identifiers.
+                    int& cur      = cursors[m.name_];
+                    int& prev_set = cursors["\x01" + m.name_]; // 0=never seen,1=seen
+                    int& prev_val = cursors["\x02" + m.name_]; // previous int_idx
+                    bool idx_changed = (prev_set == 0) || (prev_val != int_idx);
+                    prev_set = 1;
+                    prev_val = int_idx;
+                    auto git = resolved_this_tick.find(m.gate_name_);
+                    bool gate_fires = (git != resolved_this_tick.end() &&
+                                       git->second.type_ == value_t::trigger &&
+                                       git->second.trigger_);
+                    mi = cur % mn;
+                    if (idx_changed && gate_fires)
+                        cur = (cur + 1) % mn;
                 } else {
                     // Integer with per-member wrapping
                     mi = ((int_idx % mn) + mn) % mn;
@@ -2165,6 +2196,16 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
             for (const auto& [name, snapshot] : inst.params_) {
                 auto pit = expr_it->second.find(name);
                 if (pit != expr_it->second.end() && pit->second) {
+                    // Skip re-eval for bare identifiers not currently in scope.
+                    // Sub-instances created inside a lambda_block may have param
+                    // exprs that reference the parent's local variables (e.g.
+                    // `sine(1hz, dt=dt)` inside func3). When ticking independently
+                    // those names are gone — keep the captured value instead.
+                    if (pit->second->type_ == parser::node_t::identifier_expr) {
+                        auto& ie = static_cast<const parser::identifier_expr&>(*pit->second);
+                        if (ie.identifier_ && !env_.lookup(ie.identifier_->name_))
+                            continue;
+                    }
                     param_updates.push_back({name, eval_expr(pit->second)});
                 }
             }
@@ -2239,10 +2280,32 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
             } else if (stmt->type_ == parser::node_t::function_definition) {
                 auto& upd = static_cast<const parser::function_definition&>(*stmt);
                 if (upd.parameters_.empty() && !upd.lambda_block_ && upd.body_) {
-                    // Bare assignment (0-param constant binding)
+                    // If a prior tick created a sub-instance for this name, point
+                    // retick_instance_ at it so the temporal call returns that
+                    // instance's current output instead of creating a new one.
+                    function_instance* prev_retick = retick_instance_;
+                    {
+                        auto cit = inst.current_.find(upd.name_);
+                        if (cit != inst.current_.end() &&
+                                cit->second.type_ == value_t::instance_ref &&
+                                cit->second.instance_)
+                            retick_instance_ = cit->second.instance_.get();
+                    }
+                    last_instantiated_ = nullptr;
                     value v = eval_expr(upd.body_);
-                    inst.next_[upd.name_] = v;
-                    env_.define(upd.name_, v);
+                    retick_instance_ = prev_retick;
+                    // Determine what to store: new instance_ref, existing one, or plain value.
+                    value store = v;
+                    if (last_instantiated_) {
+                        store = value::instance_ref(last_instantiated_);
+                    } else {
+                        auto cit = inst.current_.find(upd.name_);
+                        if (cit != inst.current_.end() &&
+                                cit->second.type_ == value_t::instance_ref)
+                            store = cit->second;
+                    }
+                    inst.next_[upd.name_] = store;
+                    env_.define(upd.name_, store);
                 } else if (!upd.parameters_.empty() || upd.lambda_block_) {
                     // Tick-local alias — stored as a closure so escaped values see
                     // current instance state when called.
@@ -2254,7 +2317,18 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                 }
             } else if (stmt->type_ == parser::node_t::assignment) {
                 auto& assign = static_cast<const parser::assignment&>(*stmt);
+                // Same sub-instance preservation for non-emitted assignments.
+                function_instance* prev_retick = retick_instance_;
+                if (!assign.is_emit_) {
+                    auto cit = inst.current_.find(assign.name_);
+                    if (cit != inst.current_.end() &&
+                            cit->second.type_ == value_t::instance_ref &&
+                            cit->second.instance_)
+                        retick_instance_ = cit->second.instance_.get();
+                }
+                last_instantiated_ = nullptr;
                 value v = eval_expr(assign.value_);
+                retick_instance_ = prev_retick;
                 if (assign.name_ == "dt") {
                     double new_dt = v.as_number();
                     if (new_dt != inst.dt_ms_ && new_dt > 0.0) {
@@ -2263,8 +2337,19 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                             scheduler_->update_dt(inst.subscription_id_, new_dt);
                     }
                 }
-                inst.next_[assign.name_] = v;
-                env_.define(assign.name_, v);
+                value store = v;
+                if (!assign.is_emit_) {
+                    if (last_instantiated_) {
+                        store = value::instance_ref(last_instantiated_);
+                    } else {
+                        auto cit = inst.current_.find(assign.name_);
+                        if (cit != inst.current_.end() &&
+                                cit->second.type_ == value_t::instance_ref)
+                            store = cit->second;
+                    }
+                }
+                inst.next_[assign.name_] = store;
+                env_.define(assign.name_, store);
                 if (assign.is_emit_) {
                     inst.emitted_[assign.name_] = v;
                 }
@@ -2538,8 +2623,9 @@ value evaluator::resolve_flow_element(const flow_member& m, int i) {
     const value& v = m.elements_[i];
 
     // Direct temporal slot: return current instance output (thread-safe via mutex)
-    if (v.type_ == value_t::instance_ref && v.instance_)
+    if (v.type_ == value_t::instance_ref && v.instance_) {
         return v.instance_->read_output();
+    }
 
     // Compound temporal slot: re-evaluate the stored expression with a retick
     // guard so the temporal call inside it returns the dep's current output

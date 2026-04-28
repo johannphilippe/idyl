@@ -37,9 +37,16 @@ die()  { printf "${RED}✗${NC} %s\n" "$*" >&2; exit 1; }
 FILES=(
   "syntax/idyl.vim"
   "ftdetect/idyl.vim"
+  "plugin/idyl.vim"
+  "python/idyl_send.py"
+)
+
+# ── Legacy files from older plugin versions that must be removed ──────────────
+LEGACY_FILES=(
+  "plugin/idyl_live.vim"
+  "ftplugin/idyl_live.vim"
   "ftplugin/idyl.vim"
   "after/ftplugin/idyl.vim"
-  "python/idyl_send.py"
 )
 
 # ── Install all files into a Vim-compatible runtime directory ─────────────────
@@ -48,6 +55,15 @@ install_to() {
   local label="$2"
 
   info "Installing into $dst_root  ($label)"
+
+  # Remove legacy files that conflict with the current plugin layout
+  for rel in "${LEGACY_FILES[@]}"; do
+    local dst="$dst_root/$rel"
+    if [[ -f "$dst" ]]; then
+      rm -f "$dst"
+      warn "  removed legacy $rel"
+    fi
+  done
 
   local any=0
   for rel in "${FILES[@]}"; do

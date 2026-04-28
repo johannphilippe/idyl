@@ -22,11 +22,11 @@ sawtooth(frequency, dt=50ms) = phase |> {
 }
 
 // Constant for testing pure + temporal coexistence
-pi = 3.14159
+mpi = 3.14159
 
 process: {
     // Pure expression still works
-    print(pi)
+    print(mpi)
 
     // Instantiate temporal functions — first tick runs immediately
     c = clock_counter()
