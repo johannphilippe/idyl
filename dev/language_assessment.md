@@ -1,7 +1,7 @@
 # Language assessment — current state
 
 A candid review of what is working well, what is fragile, and what is missing.
-Written against the pre-alpha state (April 2026).
+Written against the pre-alpha state (May 2026).
 
 ---
 
@@ -20,128 +20,352 @@ The segment + reaction model — temporal bindings followed by reactions that re
 No `if/else`, no mutation outside `|>` lambda blocks, no implicit state. Every binding is a definition. This is enforced structurally, not just stylistically. Code is easy to reason about locally.
 
 ### Emit/catch is a good side-channel design
-Emitting named signals out of temporal functions (`emit finished = !`) and catching them (`timer catch finished: { }`) is clean and avoids the need for callbacks, observers, or a separate event bus. It composes naturally with the reactive model.
+Emitting named signals out of temporal functions (`emit finished = !`) and catching them (`catch timer::finished: {}`) is clean and avoids the need for callbacks, observers, or a separate event bus. It composes naturally with the reactive model.
 
 ### Flows are powerful and growing
-Named members, generator expressions, parametric flows, live temporal elements per-slot, dynamic rebuilding when arguments change, and now `on` gating — flows have become a real data model, not just a list wrapper. The cursor-per-member model handles polyphony and rhythm naturally.
+Named members, generator expressions, parametric flows, live temporal elements per-slot, dynamic rebuilding when arguments change, and `on` gating — flows have become a real data model, not just a list wrapper. The cursor-per-member model handles polyphony and rhythm naturally.
 
 ### Clock hierarchy solves a real problem
 Proportional tempo propagation — children that scale automatically when the parent changes — is something no mainstream language provides out of the box. Being able to call a clock handle as `c(2b)` to get a beat duration is elegant.
 
 ### 7-pass semantic analysis before execution
-All errors are reported before anything runs. This eliminates a class of bugs (wrong arity, undefined names, scope violations) that would otherwise surface as confusing runtime crashes. For a time-based language where programs run "forever", this is especially valuable.
-
-### Editor support exists early
-Vim syntax, VSCode extension with tmLanguage grammar, and a Vim live-coding plugin that sends code via OSC. Most languages don't get editor support until much later.
+All errors are reported before anything runs. This eliminates a class of bugs (wrong arity, undefined names, scope violations) that would otherwise surface as confusing runtime crashes.
 
 ---
 
-## Weaknesses
+## Consistency analysis
 
-### ~~49 reduce/reduce + 8 shift/reduce parser conflicts~~ — **resolved (r/r), contained (s/r)**
-The grammar now uses the `glr2.cc` skeleton (GLR parser). The 51 reduce/reduce conflicts were all caused by a single duplicate rule (`primary_expression: generator_expression`, unreachable because `flow_literal` already included it) — removing that rule eliminated all r/r conflicts. 16 shift/reduce conflicts remain; all are benign operator-precedence resolutions (Bison correctly resolves them as "prefer shift") and are locked in with `%expect 16` so they cannot silently accumulate. No behavioral change to the parser.
+### `::` overloaded across two unrelated roles
+The `::` operator means two different things:
 
-### ~~Function definitions are global-scope only~~ — **resolved**
-Local functions and closures are now supported at process-block, init-block, and update-block scope. Functions defined inside a process or lambda block are visible only within that scope and do not pollute global namespace. Closures capture the enclosing temporal instance by reference (Option B): at call time the closure reads the instance's current params and state, so the caller always sees live values. Mutual recursion between local functions is not yet supported — declarations must appear before use within the same scope.
+```idyl
+u = import("utils")
+u::my_function(42)   // (1) namespace access — function call on library u
 
-### The ternary operator ~~is unusual and hard to read~~ — **resolved**
-The syntax has been changed to condition-first: `condition ? false_val; true_val`. The condition now reads left-to-right. A single-option shorthand `cond ? expr` (equivalent to `cond ? _; expr`) makes the trigger-gate pattern concise. The multi-way N-way form remains unchanged in semantics: `index ? opt0; opt1; opt2; …`.
+c = counter(dt=100ms)
+c::step              // (2) emit accessor — read side-channel value of instance c
+```
 
-### No explicit error handling at runtime
-User programs have no mechanism to catch runtime errors (division by zero, type mismatches, bad flow access). The evaluator either silently returns 0 or crashes. For long-running temporal programs, a silent wrong value is worse than an informative error.
+Both produce a value from a named member of some "owner", so the surface similarity is intentional. But the operational semantics are unrelated: (1) is a static dispatch into a namespace resolved at load time; (2) is a dynamic read from live instance state. A reader seeing `x::y` cannot tell without context whether `x` is a module/library or a temporal instance.
 
-### ~~Hot reload is partially working~~ — **resolved**
-`diff_and_apply` now handles all statement types in a named process body:
-- **`on` blocks**: previously skipped entirely; now correctly added to the owning segment's reaction list and redistributed. `on` blocks added, removed, or changed during hot reload take effect on the next tick with no subscription gap.
-- **`catch` blocks**: previously skipped; now collected during the scan and linked to segments after pass 2 (same logic as initial setup). Cleared on surviving segments so the new handler replaces the old one atomically.
-- **`@` blocks**: previously skipped; now re-executed on hot reload so newly added deferred actions fire.
-- **`shared_reactions` stale state**: fixed — `redistribute_reactions` now always clears `shared_reactions` on all segments, not only when shared reactions exist. Previously, removing a multi-segment reaction left stale entries in `shared_reactions`.
-- **Newly added temporal segments**: handled by pass 2 (unchanged since before).
-- **`dt` change not applying**: fixed — when a segment's temporal function is unchanged but its `dt` is changed (e.g. `counter(dt=0.3s)` → `counter(dt=0.2s)`), the scan pass now re-reads the new `dt` from the AST rather than copying the old value. Pass 1's `dt` update path then reschedules the instance at the correct interval.
-- **Spurious side-effect triggers on hot reload**: fixed — a `speculative_exec_` flag suppresses module function calls (e.g. `cs_note`) during the scan pass, so reactions like `a = note(spike!, freq)` do not fire at hot-reload time.
-Anonymous-instance `catch` (`catch metro(dt=500ms)::tick: {}`) is not re-created on hot reload (existing limitation — the instance is killed with the old process and not respawned).
+**Options:** keep and document clearly; or split with a different accessor (e.g. `.` for module namespacing, `::` only for emit). No strong recommendation — the visual alignment of `a::b` for both "member of a" concepts is arguably an asset. But the documentation must be explicit.
 
-### ~~Serial is missing~~ — **resolved**
-Serial I/O is now available via `module("serial")`. Exposes `serial_open(port, baud)`, `serial_close(handle)`, `serial_write(handle, data)`, and the native temporal `serial_recv(handle, dt=10ms)` which emits `received` on each incoming chunk. Implemented as a zero-dependency header (`utilities/serial.hpp`) using POSIX `termios` on Linux/macOS and Win32 `CreateFile`/`DCB` on Windows.
+---
 
-### ~~MIDI is missing~~ — **resolved**
-MIDI I/O is now available via `module("midi")`. RtMidi is fetched automatically by CMake (`FetchContent`, always latest `master`). No manual installation required; on Linux, ALSA and JACK are auto-detected. Covers all major MIDI 1.0 channel messages: `midi_note_on`, `midi_note_off`, `midi_cc`, `midi_program`, `midi_pitch_bend`, `midi_pressure`, `midi_aftertouch`. Port discovery via `midi_ports_in()` / `midi_ports_out()`. The native temporal `midi_recv(handle, dt=1ms)` polls for incoming messages and emits typed signals (`note_on`, `note_off`, `cc`, `program`, `pitch_bend`, `pressure`) with output flow `[type, channel, data1, data2]`.
+### `on` carries two unrelated meanings
 
-### HTML documentation is manually regenerated
-`doc/html/` is generated from `doc/*.md` via `build_html.sh` and committed separately. It will drift out of sync whenever the markdown is updated. A CI step or a note in contributing docs would help.
+```idyl
+// (1) Flow member gate — inside a flow literal
+flow pattern = {
+    rhythm:  [!, _, _, !]
+    melody on rhythm: [60, 63, 65]   // melody only advances when rhythm fires
+}
 
-### `process` keyword semantics
-The TODO itself notes that `process` doesn't fit the language's vocabulary ("tide", "weave", etc. were considered). This is a pre-alpha window to rename it — after 1.0, renaming a keyword is a breaking change with no easy migration path.
+// (2) Reactive block — inside a process body
+process: {
+    r = rhythm[m]
+    on r: { print("tick") }          // react to trigger r
+}
+```
 
-### Flow cursors ~~are global, not per-call-site~~ — **resolved**
-Cursors are now per-call-site, keyed by the stable AST node pointer of the `flow_access_expr`. `pattern[m1]` and `pattern[m2]` each own independent cursors and step through the flow at their own rate. Polyphonic use works correctly for static, dynamic, and parametric flows.
+Both meanings share the concept "when this signal fires, do something". Form (1) gates a flow cursor; form (2) executes a block. The grammar disambiguates them by context (inside `flow { }` vs inside `process { }`), so there is no parser conflict.
 
-### ~~No audio-rate scheduling~~ — **resolved**
-An audio-callback-driven scheduler (`audio_clock_scheduler`) is implemented via RtAudio. The audio driver callback increments an atomic tick counter and releases a counting semaphore; a worker thread fires due subscriptions at buffer rate. At 32 frames / 48 kHz this gives ~0.67 ms accuracy. Enabled with `--audio-clock` (optionally `--audio-sample-rate` / `--audio-buffer-size`). Falls back to `sys_clock_scheduler` when not requested.
+The risk is cognitive, not technical: a programmer reading `melody on rhythm` and `on r:` will correctly guess the relationship but may not realize the semantics are significantly different (cursor advance vs block execution). If a third `on` form is added — e.g. event subscription like `on "note_on": { }` — the keyword will become genuinely overloaded.
 
-### The `on` keyword could accumulate ambiguity
-Currently `on` means two distinct things: flow member gate (`melody on rhythm: [...]`) and reaction block (`on m: { ... }`). Both are syntactically unambiguous today, but if a future event-handler form is added (`on "note_on": { ... }`), the keyword will carry three senses. Worth monitoring as the language grows.
+**Recommendation:** document both forms explicitly and side-by-side. Consider whether the block form should use a distinct keyword (`when`, `react`, `if`) before the API is stable. The cost of renaming before 1.0 is low; after 1.0 it is a breaking change.
+
+---
+
+### `flow` keyword — partially redundant and heading toward optionality
+
+The `flow` keyword currently serves three roles, and each has a different redundancy level:
+
+| Usage | Example | Redundant? |
+|---|---|---|
+| Non-parametric global sequence | `flow notes = [60, 62, 64]` | Mostly — global constants work fine |
+| Parametric sequence | `flow pattern(i) = [40+i, 50+i]` | **Yes** — identical to `pattern(i) = [40+i, 50+i]` |
+| Multi-member flow | `flow drum = { kick: [...], snare: [...] }` | Partly — `{name: ...}` literal is parseable without it |
+
+The `functional_flow` and `functional_flow_member` tests demonstrate the redundancy directly: `func2() = [5, 4, 3, 2]` and `func() = a: [...] b: [...]` already work without the `flow` keyword. The semantic difference between `flow pattern(i)` and `pattern(i)` is zero.
+
+See the dedicated section below for a full analysis.
+
+---
+
+### The ternary `?`/`;` is internally consistent but unusual
+
+```idyl
+// Selection by index
+note(deg) = (deg % 5) ? 261; 293; 329; 349; 391
+
+// Boolean guard (0 = false → first option; 1 = true → second option)
+x = (age > 0) ? _; !
+
+// Single-option shorthand (cond ? expr ≡ cond ? _; expr)
+(trig) ? cs_note(handle, "first", 0.1s, 0.3, mtof(note))
+```
+
+The semantics are consistent: the condition evaluates to an integer index selecting among the options. This unifies boolean guards and multi-way dispatch under one operator.
+
+However, `;` as an option separator (instead of `:`) catches every newcomer. The reason `:` is unavailable is that it is already used for flow member names (`kick: [...]`). This is a legitimate grammar constraint, not a design error. The `;` is slightly uncomfortable but not wrong.
+
+One internal inconsistency: the shorthand `(m) ? expr` implies "do expr when m is truthy", which is index=1 → the second slot. The absence of a slot-0 value is filled with `_`. This is logical but easy to misread as "if m, do expr" in a zero-indexed way, since the intent IS "do expr when m fires" but the index is 1, not 0. The single-option form could instead be read as `(m) ? _; expr` where `_` is implicit. That's exactly what it is — just ensure the documentation shows the equivalence.
+
+---
+
+### `process` naming does not fit the language vocabulary
+
+The existing assessment already noted this. `process` is a computing term; the language's domain is musical and temporal composition. `flow`, `tempo`, `metro`, `phasor` all come from music/signal vocabulary. `process` stands out.
+
+Candidates: `part`, `voice`, `phrase`, `pattern`, `score`, `run`, `patch`. The word `part` reads naturally: `part drums: { ... }` / `part bass, dur=8b: { ... }`. It also avoids collision with common programming meanings.
+
+**Priority:** rename before 1.0. This is the last zero-cost window.
+
+---
+
+### `stop` semantics split across contexts
+
+```idyl
+// (1) Self-stop inside a lambda block
+age >= limit ? stop; _
+
+// (2) Stop another process from a process block
+stop process_name
+
+// (3) Stop in a ternary expression slot (stops the current instance if branch taken)
+remaining == 0 ? stop; remaining - 1
+```
+
+Forms (1) and (3) are the same concept in two syntactic positions (statement vs expression). Form (2) is a completely different operation. A reader writing `stop` inside a lambda expects it to mean "I'm done". Writing `stop drums` inside a process means "kill another block". The two share a keyword but have no operational relationship.
+
+**Recommendation:** consider separating these: `halt` for self-termination (inside lambda/ternary), `stop name` for process termination (inside process blocks). Or keep `stop` for both and accept the dual semantics — they are already grammatically distinct by position.
+
+---
+
+### `module()` and `import()` — similar calls, different systems
+
+```idyl
+import("stdlib")         // load an .idyl file; functions merged into global scope
+u = import("utils")      // load an .idyl file into a namespace
+
+module("osc")            // load a compiled module; functions merged globally
+osc = module("osc")      // load a compiled module into a namespace
+```
+
+The two calls look identical syntactically but load completely different things (an interpreted file vs a compiled binary module). They also have different namespace behaviors: a bare `import("stdlib")` merges into global scope; a bare `module("osc")` also merges. Both support namespaced loading (`u = import(...)`). So they are consistent in that respect.
+
+The redundancy is the call syntax itself — why not a single `load("stdlib")` that detects whether the target is a file or compiled module? The split is currently justified by the need to signal to the programmer what they are loading. Worth keeping for now, but the distinction should be noted in documentation.
+
+---
+
+### Naming in stdlib
+
+Several pairs overlap or could be confusing:
+
+| Pair | Issue |
+|---|---|
+| `counter` vs `accum` | Both count up on trigger. `counter` is free-running (no wrap); `accum` wraps and uses `trig_in` naming. Inconsistent parameter naming conventions. |
+| `rcounter` vs `accum` | `rcounter` has a named `reset!` trigger; `accum` implicitly resets at `wrap_at`. Different abstractions but the naming doesn't signal this. |
+| `gate` (temporal) vs `gate_in` (param name) | `gate` as a function name collides with the conventional meaning of "gate signal" used as a parameter name throughout the library. |
+| `oneshot` | Fires `!` on tick 0 (age=0, condition false → first option), then `_`. The name is accurate but the behavior feels backwards to read: `(age > 0) ? !; _` fires the trigger when age is NOT > 0, i.e. the first tick only. |
+
+**Recommendation:** rename `rcounter` to `counter_r` or add it as `counter(reset!)`. Rename `accum` to `step_counter`. Review parameter names for trigger-vs-signal consistency.
+
+---
+
+## Feature collisions / gaps
+
+### No type distinction between a number and a boolean
+`1 > 0` returns `value_t::number(1.0)`. The ternary uses this as an index. Bitwise operators (`&`, `|`) work on numbers. There is no `bool` type. This is pragmatic — it matches signal-processing conventions (1=on, 0=off) — but it means no static protection against accidentally using a number as a condition when a trigger is expected.
+
+### `emit` is a secondary return value dressed as a side effect
+`emit x = ...` is semantically a second output channel from a temporal function. But it is syntactically a statement inside a `|>` block, which makes it look like a side effect rather than an output. The `::` accessor then reads this "side effect" value. The design works but fights the functional framing: if outputs are values, the second output should look like a second value, not an emission.
+
+This is the strongest argument for the "temporal function returning a flow" proposal — `f() = [primary, secondary] |> { ... }` makes both outputs explicit and symmetric.
+
+### No runtime error handling
+Programs have no mechanism to catch runtime errors (division by zero, undefined flow access, type mismatches). The evaluator silently returns 0 or `_`. For long-running temporal programs, a silent wrong value is worse than an informative error. This is the most dangerous omission for production use.
+
+---
+
+## Conciseness
+
+### Excellent
+- Time units inline: `100ms`, `1hz`, `4b`, `120bpm`
+- Trigger/rest literals: `!`, `_`
+- Generator expressions: `[i = 0..9 : i * 2]`
+- Ternary multi-way: `(x) ? a; b; c; d` replaces switch entirely
+- `flow` member gating: `melody on rhythm: [...]` — highly expressive per character
+- Named process duration: `process intro, dur=8b: { }` — one line
+
+### Acceptable but slightly verbose
+- Lambda block header: `output_var |> { init: { ... } ... }` — the `init:` block inside the `|>` adds one nesting level. For simple stateful functions (counter, etc.) this feels heavy.
+- `emit finished = (remaining == 0) ? _; !` — the `emit` keyword and the inverted ternary (for "fire when condition true") requires a mental double-step.
+
+### Genuinely awkward
+- `(age > 0) ? !; _` for oneshot behavior — reads as "if age>0 then !, else _" but since index 0 = `!` it actually fires on the FIRST tick (age=0). First-time readers get this backwards.
+- Parametric flow definition with `flow` keyword alongside equivalent function syntax creates needless surface area: `flow pattern(i) = [...]` vs `pattern(i) = [...]` — identical semantics, two spellings.
+
+---
+
+## The `flow` keyword and the `{ }` grammar collision
+
+### The core problem
+
+The grammar distinguishes three kinds of `{ }` blocks, all unambiguous today because each is preceded by a distinct keyword or operator:
+
+| Syntax | What precedes `{` | Meaning |
+|---|---|---|
+| `flow drum = { kick: [...] }` | `flow name =` | named-member flow literal |
+| `f(dt=..) = expr \|> { ... }` | `\|>` | lambda (update) block |
+| `process: { ... }` | `process ...:` | process body |
+| `@(t): { ... }` | `@(expr):` | timed callback |
+| `catch x::sig: { ... }` | `catch ...:` | catch handler |
+| `on x: { ... }` | `on expr:` | reaction block |
+| `init: { ... }` | `init:` | init block |
+
+There is currently **no `{ }` in expression position** — specifically, a function body is always a single `expression`, never a brace block.
+
+This creates two problems simultaneously:
+
+**Problem 1 — Multi-member flows from functions don't work.**
+`functional_flow_member.idyl` attempts:
+```idyl
+func() = 
+    a: [1, 2, 3]
+    b: [4, 5, 6]
+```
+The parser grammar has no rule for `function_definition` with a `flow_members` body. The bare `IDENTIFIER COLON flow_literal` sequence is not a valid `expression`. This test is **not currently supported** — there is no grammar rule for it.
+
+**Problem 2 — Future code blocks need that same expression slot.**
+The planned code block feature `(cond) ? { expr; expr }; { expr }` requires `{ }` in expression position. If named-member flows also claim `{ }` in expression position (e.g. `func() = { a: [...], b: [...] }`), the two are syntactically indistinguishable without lookahead:
+
+```idyl
+func() = { a: [1, 2, 3] }     // flow member? or code block with label 'a'?
+func() = { a + b }             // unambiguously a code block expression
+```
+
+At one token of lookahead (`{`, then `IDENTIFIER`, then `:`) the parser can technically discriminate — `identifier:` is only a flow member, not a valid expression start — but this adds a fragile context-sensitive disambiguation to an already GLR grammar.
+
+---
+
+### The solution: migrate `flow` from definition-level to literal-level
+
+Instead of `flow` being a definition-prefix keyword (`flow drum = { ... }`), make it a **literal-level type tag** that can appear in any expression position:
+
+```idyl
+flow { name: expr, ... }   // named-member flow literal — anywhere an expression is valid
+```
+
+This disambiguates perfectly with zero lookahead:
+- `flow { ... }` → named-member flow literal (the `flow` keyword is the signal)
+- `{ ... }` → code block (no `flow` prefix)
+
+The `[...]` list form needs no tag — it is already unambiguous in all positions.
+
+---
+
+### What this looks like in practice
+
+**Simple flows — unchanged:**
+```idyl
+notes = [60, 62, 64]             // [..] is unambiguous everywhere
+pattern(i) = [40+i, 50+i]        // function returning simple flow — works today
+```
+
+**Named-member flows — `flow { }` as a literal:**
+```idyl
+// Global constant (definition-level `flow` becomes optional)
+drum = flow { kick: [!, _, _, _], snare: [_, _, !, _] }
+
+// Function returning named-member flow (NOW WORKS)
+rhythm() = flow {
+    kick:  [!, _, _, _]
+    snare: [_, _, !, _]
+}
+
+// Parametric named-member flow (replaces `flow complex(i) = { }`)
+pattern(i) = flow {
+    notes:  [40+i, 50+i, 60+i]
+    rhythm: [!, _, !, !]
+}
+
+// Temporal function returning named-member flow (new capability)
+multilfo(freq, amp, dt=50ms) = flow {
+    sine_lfo: si
+    sq_lfo:   sq
+}
+|> {
+    si = sine(freq) * amp
+    sq = square(freq) * amp
+}
+```
+
+**Code blocks in ternary — no collision:**
+```idyl
+(cond) ? { print("a"); 42 }; { print("b"); 0 }    // plain { } = code block
+(cond) ? flow { x: [1,2], y: [3,4] }; default_flow // flow { } = named-member flow
+```
+
+**`on` gating works naturally inside `flow { }`:**
+```idyl
+rhythm() = flow {
+    kick:           [!, _, _, _]
+    melody on kick: [60, 63, 65]
+}
+```
+
+---
+
+### Grammar change summary
+
+One new production is needed — a `flow_record_literal` expression form:
+
+```
+expression: ...
+    | FLOW LBRACE flow_members RBRACE   → flow_record_literal_expr
+    ;
+```
+
+The existing `flow_definition` rules can be rewritten as sugar:
+```
+flow_definition:
+    FLOW name = flow_record_literal  →  name = flow_record_literal  (just a global constant)
+    FLOW name(params) = expr         →  name(params) = expr          (already works without 'flow')
+```
+
+Eventually, the `flow_definition` grammar rule can be deprecated entirely. `flow` at the definition level becomes optional, which is consistent with the assessment's recommendation.
+
+---
+
+### What `flow` becomes
+
+The keyword migrates from **"I am declaring a flow"** (definition-level) to **"this brace block is a sequence, not a code block"** (literal-level). The migration is:
+
+| Before | After | Notes |
+|---|---|---|
+| `flow notes = [60, 62]` | `notes = [60, 62]` | `[...]` is self-evident, no `flow` needed |
+| `flow pattern(i) = [...]` | `pattern(i) = [...]` | already works, `flow` was always redundant |
+| `flow drum = { kick: [...] }` | `drum = flow { kick: [...] }` | `flow` moves to the literal |
+| `flow complex(i) = { notes: [...] }` | `complex(i) = flow { notes: [...] }` | same migration |
+| *(new)* | `f(dt=..) = flow { a: x, b: y } \|> {...}` | temporal multi-output |
+
+The `flow` keyword at definition level (`flow drum = ...`) can be kept as accepted sugar indefinitely — it is simply redundant, not harmful.
+
+### Does this make `flow` useless at the definition level?
+
+For simple flows (`[...]`) — yes, the definition-level `flow` is redundant and can be omitted.
+For named-member flows — the `flow` keyword migrates INTO the literal, where it is load-bearing (it disambiguates `flow { }` from code blocks).
+
+The net result: **`flow` is never useless**, but its role shifts from a statement-level declaration keyword to a literal-level type tag. It says "this brace block is a sequence" rather than "this definition produces a sequence". That is a more precise and consistent meaning.
 
 ---
 
 ## Proposed features — analysis
 
-### Catch syntax: `catch a::sig: { }` instead of `timer catch sig: { }`
-
-**What it would bring.** The proposed form reuses the `::` accessor already present in the language (`timer::finished` reads the emitted value; `catch timer::finished: {}` would subscribe to it). This makes the two operations — reading and catching — visually parallel. It also opens the door to catching from anonymous or inline expressions without pre-naming the binding, e.g. `catch metro(dt=500ms)::tick: {}`, which the current form cannot express at all.
-
-**What is consistent about it.** The `a::sig` notation already implies "signal `sig` from instance `a`". Overloading it in `catch` position is a natural extension: `catch` tells the parser "subscribe, don't just read". No new operator or keyword is needed.
-
-**What it could break / open questions.**
-- All existing `catch` code is a straightforward mechanical rename — `x catch y: {}` → `catch x::y: {}`. Low risk, high churn.
-- The semantic overlap between `a::sig` as a read (returns the current value) and `catch a::sig` as a subscription (installs a handler) needs to be clearly documented. Both are valid but do different things; the difference is the leading `catch` keyword, which is unambiguous in the grammar.
-- `catch` currently belongs to a specific reaction-set context (inside process blocks, after a temporal binding). The new form needs to clarify whether `catch` can appear anywhere or only in those same positions.
-- If anonymous-instance catching (`catch metro(dt=500ms)::tick: {}`) is supported, the scheduler needs to own the anonymous instance's lifetime — defining where it is destroyed.
-
-**Verdict.** Worth doing before 1.0. The symmetry gain is real, the mechanical breakage is contained, and the anonymous-instance form unlocks a genuinely new pattern. The open-question around lifetime ownership of anonymous instances should be resolved in the design before implementation.
-
----
-
-### Functional flow — functions returning flows
-
-**What it would bring.** Today, parameterized flows (`flow pattern(key) = { melody: [...], rhythm: [...] }`) are first-class at the definition level but are a special syntactic form. If ordinary functions could return flows, the distinction disappears: any function that evaluates to a flow value is a parameterized flow. Computed flows become possible — flows whose structure is derived from runtime arithmetic, not just literal arrays. Composition becomes natural: `f(g(x))` where `g` returns a flow that `f` sequences or merges.
-
-**What is consistent about it.** The language already has the concept of a flow as a typed value (`value_t::flow` presumably exists internally). Making it returnable from a function is the same as making any other value type returnable. The "recomputed when parameters change" behavior already exists for parametric flows — it would just be triggered by argument-change detection at the function-call level instead of at the flow-definition level.
-
-**What it could break / open questions.**
-- **Type system gap.** The evaluator currently doesn't know at call time whether a function returns a flow. A caller writing `pattern[m]` needs to know `pattern` is a flow, not a number. Either functions need return-type annotations, or the evaluator needs to do a runtime check on every indexed access — both are significant changes.
-- **Cursor ownership.** A flow returned from a function call needs its own cursor state. Currently cursors live inside `flow_site_cursors_` keyed by AST node. If the same function is called at two sites and both return flows, each return value needs independent cursors — the ownership model becomes recursive.
-- **Temporal elements inside returned flows.** If the flow contains `metro(dt=100ms)` as an element, who subscribes it to the scheduler? The subscription must be tied to the lifetime of the flow value, not the function call frame.
-- **Recomputation on parameter change.** Implementing "recompute when arguments change" requires tracking which call sites have which argument values and diffing them on each tick — essentially a memoization layer on top of the evaluator. This is non-trivial to implement correctly for temporal elements.
-- **Interaction with hot reload.** If a function body changes during hot reload and it returns a flow, all existing flow instances from previous calls need to be invalidated.
-
-**Verdict.** High impact, high complexity. The semantic payoff is large — it would unify parameterized flows with regular functions and enable fully computed flows. However, it touches cursor ownership, the type system, the scheduler, and hot reload simultaneously. This is a 1.0+ feature unless scope is narrowed (e.g., restrict to stateless flows — no temporal elements, no cursors — as a first step).
-
----
-
-### Code block feature — anonymous expression blocks in ternary
-
-**What it would bring.** `(condition) ? { expr_a; expr_b }; { expr_c; expr_d }` allows multi-statement branches without hoisting them to a named function. It partially addresses the "functions are global-scope only" weakness: local helper logic stays local. It also reads naturally for anyone coming from a C-style background. As a generalization, named `{...}` scopes inside expressions would be the foundation closures need.
-
-**What is consistent about it.** `{...}` already denotes scoped blocks in process bodies, lambda bodies (`|> { ... }`), and `@` deferred blocks. Making a block an expression that evaluates to its last statement is a direct extension of the existing convention.
-
-**What it could break / open questions.**
-- **Grammar ambiguity.** `{...}` is currently unambiguous because it only appears after specific keywords or operators (`:`, `|>`). In expression position — especially inside ternary options — the parser would need to distinguish a block expression from a flow literal (`{...}` with named members) and from a process body. This adds grammar complexity to a grammar already carrying 50+ conflicts.
-- **Return value semantics.** What does a block evaluate to? Options: (a) the value of the last expression, (b) a tuple of all expression values, (c) `_` (side-effects only). Option (a) is most natural and consistent with how `|>` lambda bodies work.
-- **Scope and capture.** Variables defined inside a block (`{ x = ...; x * 2 }`) must not escape. But the block needs to read from enclosing scope. If the enclosing scope contains temporal variables, capturing them is effectively a closure — which means the block-as-expression feature and closures are tightly coupled design decisions.
-- **Temporal bindings inside blocks.** `{ m = metro(dt=100ms); m }` in a ternary branch — does `m` subscribe if the branch is evaluated? What if the other branch is taken next tick? This requires careful semantics around conditional scheduler subscription, which does not exist today.
-- **Interaction with the ternary evaluator.** Currently `eval_expr` on ternary options is lazy (only the selected branch is evaluated). Block expressions would need the same lazy semantics — and temporal subscriptions inside the unevaluated branch must not fire.
-
-**Verdict.** Very useful ergonomically; the multi-statement branch case is a genuine pain point. But the grammar, scope, and temporal-subscription problems make this non-trivial. A safe first step: allow blocks only in non-temporal contexts (static functions, outside process blocks), deferring the temporal-subscription question. That subset is implementable without touching the scheduler and would address the most common use case (local helper logic in pure functions).
-
----
-
 ### Temporal function returning an indexed flow
 
-**What it would bring.** A temporal function with a `|>` block can today only
-expose a single scalar output. Allowing its return expression to be a flow
-literal — `[s, s::phase, amp]` — lets one binding produce multiple related
-values without a wrapper:
+**What it would bring.** A temporal function with a `|>` block today exposes a single scalar output. Allowing the return expression to be a flow literal lets one binding produce multiple related values without a wrapper:
 
 ```idyl
 oscil(freq, amp, dt=50ms) = [s, s::phase, amp]
@@ -154,133 +378,82 @@ send(o[0])       // signal
 show(o[1])       // phase
 ```
 
-The sub-values `s` and `s::phase` are internal names resolved inside the `|>`
-block at each tick. The caller receives a snapshot flow indexed 0, 1, 2. No
-`flow` keyword required — the `|>` block makes the temporal nature explicit, and
-the `[...]` literal in return position makes the collection nature explicit.
-
-**What is consistent about it.** The `|>` block already computes named
-sub-variables and exposes one (`= out`). This change simply allows the return
-expression to be a flow literal that bundles several. The `::` accessor on
-instance state (`s::phase`) already exists. Indexed flow access (`o[0]`) already
-exists. Nothing new is introduced — only the output type of a temporal function
-is widened from scalar to optionally flow-valued.
-
-**What it could break / open questions.**
-- `read_output()` in the evaluator currently returns a scalar `value`. It must
-  be widened to return `value_t::flow` when the binding expression evaluates to
-  one. Callers of `read_output()` (retick path, reaction snapshot) need to
-  handle both cases.
-- The flow returned is a static snapshot per tick — no cursors, no per-call-site
-  state needed. Each tick the `|>` block fires and the return expression is
-  re-evaluated to produce a fresh snapshot. This keeps the cursor ownership
-  question entirely out of scope.
-- The return expression is evaluated inside the same scope as the `|>` block,
-  so internal names (`s`, `phase`) are in scope. No special scoping rule needed.
-- The existing temporal-element-inside-flow question (who subscribes `metro`
-  inside a flow literal?) does not arise here: the `[...]` in return position
-  contains references to already-computed variables, not new temporal
-  instantiations.
-
-**Verdict.** Low implementation risk. The evaluator change is contained to
-`instantiate_temporal`, `tick_instance` output capture, and `read_output`.
-The feature is immediately useful for multi-output signal processors (oscillator
-bundles, envelope packages, analyzer outputs). Implement before 1.0.
+**Verdict.** Low implementation risk. The evaluator change is contained to `tick_instance` output capture and `read_output`. The flow is a static snapshot per tick — no cursors, no per-call-site state. Implement before 1.0.
 
 ---
 
 ### Temporal function returning a named-member flow
 
-**What it would bring.** Same motivation as indexed flow output, but with
-named fields instead of positional indices. A temporal function whose return
-expression is a record literal exposes its outputs by name:
+**What it would bring.** Same motivation but with named fields:
 
 ```idyl
-multilfo(freq, amp, dt=50ms) = {
-    sine_lfo: si
-    sq_lfo:   sq
-    tri_lfo:  tri
-}
+multilfo(freq, amp, dt=50ms) =
+    sine_lfo: [si, si::phase]
+    sq_lfo:   [sq, sq::phase]
 |> {
     si = sine(freq) * amp
     sq = square(freq) * amp
-    tri = triangle(freq) * amp
 }
 
 lfo = multilfo(2hz, 0.5)
 send(lfo.sine_lfo)
-send(lfo.sq_lfo)
 ```
 
-Again, no `flow` keyword. The record literal `{ name: expr, ... }` in return
-position is the same syntax already used in `flow` definition bodies; it just
-appears as the return expression of a temporal function.
+**Verdict.** Minor parser extension on top of indexed output (accept `{ name: expr }` or bare `name: expr` in return position after `=`). Implement after indexed output is stable. Together, these two features complete the `flow_syntax_change.md` proposal without removing the `flow` keyword or breaking anything.
 
-**What is consistent about it.** Member access with `.` already works on flow
-values. A named-member flow snapshot from a temporal function is accessed the
-same way as any other flow member — the caller's code doesn't know or care
-whether the flow came from a `flow` definition or from a temporal function's
-output.
+---
 
-**What it could break / open questions.**
-- The `{ name: expr, ... }` syntax currently only appears inside `flow { }`
-  definition bodies and as flow literals. Allowing it in the return position of
-  a temporal function definition requires the parser to accept it after `=` when
-  a `|>` block follows. This is a grammar extension but should be unambiguous:
-  `= { ... } |>` is only parseable one way.
-- If the parser currently uses `flow` as the discriminator for "this brace block
-  is a record literal and not a process body", that discriminator needs a new
-  trigger (e.g., detect `{ name: expr }` by the presence of `name:` at the
-  start, which is already how flow literals are distinguished from block scopes).
-- The same `read_output()` widening from indexed flow output applies here.
-  Named-member flow is a superset of indexed flow from the evaluator's
-  perspective — both are `value_t::flow`, just with or without member names.
+### Catch syntax: `catch a::sig: { }` instead of `timer catch sig: { }`
 
-**Verdict.** Slightly higher parser complexity than indexed output, but
-semantically cleaner — field names are self-documenting. Implement after indexed
-flow output is stable. Together, the two features cover the full proposal from
-`flow_syntax_change.md` without touching the `flow` keyword or affecting
-existing code.
+**Verdict.** Worth doing before 1.0. The symmetry gain is real (`a::b` reads and `catch a::b:{}` subscribes — same accessor, two actions). The mechanical breakage is a search-and-replace. The anonymous-instance form (`catch metro(dt=500ms)::tick: {}`) unlocks a genuinely new pattern. Lifetime ownership of anonymous instances needs a design decision before implementation.
+
+---
+
+### Code block feature — anonymous expression blocks
+
+**What it would bring.** `(cond) ? { expr_a; expr_b }; { expr_c; expr_d }` for multi-statement branches without hoisting to a named function.
+
+**Verdict.** Useful ergonomically; the multi-statement branch case is a genuine pain point. Grammar, scope, and temporal-subscription semantics make this non-trivial. A safe first step: allow blocks in non-temporal contexts only. Defer to post-1.0.
 
 ---
 
 ## Open design questions
 
-**Should `dt` be per-function or per-instance?**
-Right now `dt` is a parameter — you pass it at the call site. This means the same function definition can run at multiple rates, which is flexible. But it also means the function definition alone doesn't encode its expected rate, making it harder to reason about at a glance.
+### Should flows be immutable values or mutable streams?
+The current model is a hybrid: flows are defined immutably, cursors are mutable state. Formalizing the split — flows as pure sequences, streams as advancing views — would clarify semantics and make cursor ownership unambiguous.
 
-**Should flows be immutable values or mutable streams?**
-The current model is a hybrid: flows are defined immutably but their cursors are mutable state. Formalizing this distinction — flows as pure sequences, streams as advancing views over them — would clarify the semantics and make cursor ownership unambiguous.
+### Is `emit` a side effect or a return value?
+Semantically, `emit` is an out-of-band signal. In practice it is a secondary return value. The "temporal function returning a flow" proposal unifies the two concepts: instead of `emit x = ...`, the second output is an element of the returned flow. This is cleaner; `::` then becomes just "index a named member of the returned flow", which is already what it does for named flows elsewhere.
 
-**Is `emit` a side effect or a return value?**
-Semantically, `emit` is an out-of-band signal, but in practice it is used as a secondary return value. Unifying the two concepts (a temporal function that returns multiple named values) might be cleaner and make the `::` accessor feel more natural.
-
-**What happens to scoping rules when closures are added?** — **resolved**
-Closures use by-reference capture: the function value carries a `shared_ptr<function_instance>` to its owning temporal instance. At call time the instance's `params_` and `current_` state are pushed as a scope frame below the function's own parameter frame. This means a closure always sees the instance's most-recently-committed state — temporal by-reference semantics without observer callbacks. Process-scope closures (functions defined at process level capturing process-local variables) work through the lexical scope chain, which stays alive for the duration of the process.
+### `dt` per-function vs per-instance
+`dt` is currently a parameter — the same function can run at multiple rates. This is flexible but means the function definition alone doesn't encode its expected rate. No strong recommendation; the current behavior is correct for a multi-rate composition language.
 
 ---
 
-## Priority ranking (subjective)
+## Priority ranking
 
-🟣 - Means dangerous, or not sure
+🟣 Uncertain / risky
+🟢 High value, low risk
+🟡 Medium value or medium risk
+🟠 Important but harder
 
-| | Item | Impact |
+| Status | Item | Impact |
 |---|---|---|
-| ✅ | Fix parser conflicts | Switched to GLR (`glr2.cc`), eliminated all 51 r/r; 16 s/r locked with `%expect 16` |
-| ✅ | Flow cursor instancing per call-site — resolved | Each call site owns its cursor; polyphony works correctly |
-| ✅ | Catch syntax — resolved | `catch a::sig: {}` implemented; anonymous-instance `catch expr::sig: {}` experimental |
-| 🟣 | Functional flow | allow functions to return flows with standard flow instance properties (flow is recomputed if any parameter changes in the function call, flow can be dynamic, and contain temporal elements) |
-| 🟢 | Temporal function → indexed flow output | `f(dt=...) = [a, b, c] \|> {}` — `read_output()` widening only, no keyword, no cursor complexity |
-| 🟡 | Temporal function → named-member flow output | `f(dt=...) = { x: a, y: b } \|> {}` — same evaluator change, minor parser extension for `{ name: expr }` in return position |
-| 🟣 | Code block feature | Allow block of code (expression bloc, like in @ blocs or catch blocks, that can be used to create anonymous scopes, and can be used in ternary expressions `(condition) ? {/*expressions A*/}; {/*Expressions B*/}`|
-| ✅ | Serial module | `module("serial")` — zero-dependency, POSIX + Win32 |
-| ✅ | MIDI module | `module("midi")` — RtMidi via FetchContent, all major channel messages |
-| 🟠 | Runtime error handling | Silent failures in long-running programs are dangerous |
-| ✅ | Function definitions in process/lambda scope | Quality of life, code locality |
-| ✅ | Hot reload edge cases | `on`/`catch`/`@` blocks, stale `shared_reactions`, `dt` change propagation, spurious module-call triggers — all fixed |
-| 🟡 | Consider renaming `process` before 1.0 | Breaking change window is closing |
-| ✅ | Audio-rate scheduler mode | `--audio-clock` CLI flag, RtAudio driver callback, sub-ms at small buffers |
-| ✅ | Local functions and closures | Implemented: process/init/update scope, by-reference capture |
-| 🟢 | Traits | flow traits allowing changing behavior of flow (operator overloading, flow methods etc) |
-| ✅ | Ternary syntax — resolved | Condition-first `cond ? a; b` implemented |
-
+| ✅ | Parser conflicts resolved (GLR, 16 s/r locked with `%expect 16`) | |
+| ✅ | Flow cursor instancing per call-site (polyphony works) | |
+| ✅ | `catch a::sig:{}` syntax implemented | |
+| ✅ | Serial module | |
+| ✅ | MIDI module | |
+| ✅ | Audio-rate scheduler (`--audio-clock`) | |
+| ✅ | Local functions and closures | |
+| ✅ | Hot reload edge cases fixed | |
+| ✅ | Ternary condition-first syntax (`cond ? a; b`) | |
+| 🟢 | Temporal function → indexed flow output `f(dt=..) = [a,b] \|> {}` | Low risk, high payoff |
+| 🟡 | Temporal function → named-member flow output | Minor parser extension |
+| 🟢 | Migrate `flow` to literal-level: `flow { }` as named-member flow literal | One grammar rule; unlocks functional multi-member flows and reserves `{ }` for code blocks |
+| 🟡 | Rename `process` before 1.0 | Breaking; window is closing |
+| 🟡 | Rename `on` block to `when`/`react` | Pre-1.0 window only |
+| 🟠 | Runtime error handling | Silent failures dangerous in production |
+| 🟣 | Full functional flow (recomputed, temporal elements, cursors) | High impact, high complexity |
+| 🟣 | Code block feature (anonymous blocks in ternary) | Grammar complexity |
+| 🟢 | Flow traits (operator overloading, flow methods) | Long term |
