@@ -1,11 +1,12 @@
 import("stdlib")
 
-func() = 
-    a: [1, 2, 3, 4 , 5]
+func() = flow {
+    a: [1, 2, 3, 4, 5]
     b: [5, 4, 3, 2, 1]
+}
 
 process: {
     flow_instance = func()
     m = metro(dt=100ms)
-    print( flow_instance.a[m], flow_instance.b[m]) // Should print the values at the current count index
+    print(flow_instance.a[m], flow_instance.b[m])
 }

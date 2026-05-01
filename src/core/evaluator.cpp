@@ -111,9 +111,13 @@ static void collect_expr_ids(const parser::expr_ptr& expr,
         }
         case parser::node_t::flow_literal_expr: {
             auto& e = static_cast<const parser::flow_literal_expr&>(*expr);
-            if (e.flow_)
+            if (e.is_named()) {
+                for (const auto& m : e.named_members_)
+                    if (m && m->value_) collect_expr_ids(m->value_, out);
+            } else if (e.flow_) {
                 for (const auto& elem : e.flow_->elements_)
                     collect_expr_ids(elem, out);
+            }
             break;
         }
         default: break;
@@ -955,6 +959,12 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
     // ── Flow literal expression ────────────────────────────────────────────
     case parser::node_t::flow_literal_expr: {
         auto& fle = static_cast<const parser::flow_literal_expr&>(*expr);
+        if (fle.is_named()) {
+            value result;
+            result.type_ = value_t::flow;
+            result.flow_ = eval_flow_members(fle.named_members_);
+            return result;
+        }
         if (!fle.flow_) return value::nil();
         return eval_flow_literal(*fle.flow_);
     }

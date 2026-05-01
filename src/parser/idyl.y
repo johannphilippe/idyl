@@ -1465,6 +1465,14 @@ primary_expression
         $$ = paren;
     }
     | flow_literal { $$ = $1; }
+    | FLOW LBRACE flow_members RBRACE
+    {
+        auto expr = std::make_shared<idyl::parser::flow_literal_expr>();
+        expr->named_members_ = $3;
+        expr->line_ = @1.begin.line;
+        expr->column_ = @1.begin.column;
+        $$ = expr;
+    }
     | STOP
     {
         auto stop_expr = std::make_shared<idyl::parser::self_stop_expr>();

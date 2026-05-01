@@ -44,7 +44,7 @@ Idƴl has a small, implicit type system. There are no type annotations — the a
 | `trigger` | Instantaneous event | `!` |
 | `rest` | Absence of event | `_` |
 | `string` | Text | `"hello"` |
-| `flow` | Ordered sequence | `[1 2 3]` |
+| `flow` | Ordered sequence literal | `[1, 2, 3]` or `flow { name: [...] }` |
 | `function` | Callable reference | `sin`, `my_func` |
 | `handle` | Opaque module resource | returned by `osc_out(...)` |
 | `nil` | Nothing | default uninitialized state |

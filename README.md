@@ -30,7 +30,7 @@ Same for engine implementation.
 | **Temporal functions** | Clock-driven (`dt=10ms`), trigger-driven (`spike!`), or hybrid. State via `init` + `\|>` lambda blocks. Self-terminate with `stop` inside the update body; the bound variable freezes at the final output and `catch v::end` fires. |
 | **Delay operator** | `'(expr)` — one-sample delay. `'(expr, N)` — N-sample delay. Circular buffer, per-expression, independent across call sites. |
 | **Deferred blocks** | `@(500ms): { ... }` — schedules a block to run once after a delay. Time expression can be any value. |
-| **Flows** | Ordered sequences with named members, generator expressions, parametric flows, live temporal elements per-slot, dynamic rebuilding when arguments change. |
+| **Flows** | Ordered sequence literals: `[...]` for simple lists, `flow { name: [...] }` for named-member records. Both forms appear anywhere an expression is valid — in assignments, function returns, ternary branches, temporal bodies. Supports generator expressions, live temporal elements per-slot, and dynamic rebuilding when arguments change. |
 | **Emit system** | Side-channel output from temporal functions. Read emitted values with the `::` accessor. |
 | **Catch blocks** | React to events emitted by temporal instances — `catch timer::finished: { ... }`. Built-in `::end` signal fires automatically when an instance self-terminates via `stop`. |
 | **`on` blocks** | Trigger-gated reaction blocks — `on m: { ... }` fires only when `m` is a live trigger. Also gates flow members: `melody on rhythm: [60, 63, 65]` advances only on rhythm's trigger ticks. |
@@ -111,23 +111,37 @@ note(degree) = (degree % 5) ? 261; 293; 329; 349; 391
 
 Ordered sequences — the data structure of Idƴl. Single or multi-member, with generator expressions. Flow slots can hold **live temporal expressions** that update on every tick, and parametric flows can be called with temporal arguments for dynamic rebuilding.
 
-```idyl
-flow notes = [60, 62, 64, 67, 69]
+**Flows are literals.** A bracketed list `[...]` is a flow value anywhere an expression is valid. A named-member flow uses `flow { }` to distinguish it from a future code block. The `flow` prefix is only needed for named-member forms.
 
-flow drum_pattern = {
+```idyl
+// Simple list — a flow literal anywhere
+notes = [60, 62, 64, 67, 69]
+
+// Named-member flow literal — requires `flow { }` to distinguish from a code block
+drum_pattern = flow {
     kick:  [!, _, _, _]
     snare: [_, _, !, _]
     hat:   [!, !, !, !]
 }
 
+// Functions returning flows — no `flow` keyword needed for simple lists
 chromatic(root) = [semitone = 0..11 : root * pow(2.0, semitone / 12.0)]
+intervals(root) = [root, root * 1.25, root * 1.5]
+
+// Functions returning named-member flows — use `flow { }`
+chord(root) = flow {
+    note:     [root, root * 1.25, root * 1.5]
+    velocity: [100, 80, 90]
+}
 
 // Live temporal elements — each slot is a running oscillator
-flow oscs = [sine(1hz, dt=100ms), sine(3hz, dt=100ms)]
+oscs = [sine(1hz, dt=100ms), sine(3hz, dt=100ms)]
 
 // Dynamic parametric flow — rebuilt automatically when argument changes
-flow melody(transpose) = [60 + transpose, 62 + transpose, 67 + transpose]
+melody(transpose) = [60 + transpose, 62 + transpose, 67 + transpose]
 ```
+
+The old `flow name = { }` definition syntax remains valid — it is sugar for `name = flow { }` and is kept for readability at global scope.
 
 ### Temporal functions
 
@@ -528,7 +542,7 @@ What exists:
 - `start`/`stop` keywords for process-to-process control
 - Dynamic parameter re-evaluation — temporal function parameters can themselves be temporal
 - Local functions and closures — process-scope, init-scope, update-scope; by-reference capture over temporal instance state
-- Flows with live temporal elements (per-slot running instances) and dynamic parametric flows (auto-rebuilt when arguments change)
+- Flows as literals: `[...]` simple lists and `flow { name: [...] }` named-member records — both valid anywhere an expression is valid (assignments, function returns, ternary branches, temporal function bodies). The `flow` prefix is only required on named-member forms to disambiguate from future code blocks. Dynamic parametric flows auto-rebuild when arguments change.
 - `on` blocks — trigger-gated reaction blocks (`on m: { ... }`) and flow member gates (`melody on rhythm: [...]`)
 - Built-in OSC module: send, receive, `osc_recv` native temporal poller
 - Built-in Csound module: `cs_open`, `cs_note`, `cs_chnset`, `cs_chnget` (native temporal)

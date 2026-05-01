@@ -538,14 +538,23 @@ struct generator_expr_node : expression {
 };
 
 struct flow_literal_expr : expression {
-    std::shared_ptr<flow_literal> flow_;
-    
+    std::shared_ptr<flow_literal> flow_;                       // simple [a, b, c] form
+    std::vector<std::shared_ptr<flow_member>> named_members_;  // flow { x: [...] } form
+
     flow_literal_expr() : expression(node_t::flow_literal_expr) {}
-    
+
+    bool is_named() const { return !named_members_.empty(); }
+
     void print(int indent = 0) const override {
-        if (flow_) flow_->print(indent);
+        if (is_named()) {
+            printIndent(indent);
+            std::cout << "FlowRecord(" << named_members_.size() << " members)\n";
+            for (const auto& m : named_members_) if (m) m->print(indent + 1);
+        } else if (flow_) {
+            flow_->print(indent);
+        }
     }
-    
+
     expr_ptr clone() const override {
         return std::make_shared<flow_literal_expr>(*this);
     }

@@ -810,7 +810,13 @@ namespace idyl::semantic {
             case parser::node_t::flow_literal_expr:
             {
                 idyl::debug("Resolving flow literal expression.");
-                resolve(std::static_pointer_cast<parser::flow_literal_expr>(node)->flow_);
+                auto fle = std::static_pointer_cast<parser::flow_literal_expr>(node);
+                if (fle->is_named()) {
+                    for (const auto& m : fle->named_members_)
+                        if (m) resolve(m);
+                } else {
+                    resolve(fle->flow_);
+                }
                 break;
             }
             case parser::node_t::flow_literal:

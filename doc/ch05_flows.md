@@ -6,14 +6,23 @@
 
 Flows are **ordered sequences** — the data structure of Idƴl. They hold numbers, time values, triggers, strings, or even nested flows. Flows wrap around when indexed past their length.
 
+**Flows are literals.** Both flow forms are expressions — they can appear on the right-hand side of any assignment, as function return values, inside ternary branches, and inside temporal function bodies.
+
 ---
 
 ## Simple flows
 
-A flow literal is a bracketed list of values separated by commas:
+A bracketed list `[...]` is a flow literal. It needs no keyword:
 
 ```idyl
-flow notes = [60, 62, 64, 67, 69]
+notes = [60, 62, 64, 67, 69]
+```
+
+A name at global scope can use `flow` as an optional prefix for readability — both lines below are identical:
+
+```idyl
+flow notes = [60, 62, 64, 67, 69]   // same as above
+notes      = [60, 62, 64, 67, 69]
 ```
 
 ---
@@ -43,12 +52,29 @@ The range `start..end` is inclusive of `start`, exclusive of `end`.
 
 ---
 
-## Multi-member flows
+## Named-member flows
 
-Flows can have multiple named members — like a struct of parallel sequences:
+A **named-member flow** is written as `flow { name: [...] }`. The `flow` keyword is required here to distinguish the brace block from a future code block:
 
 ```idyl
+drum_pattern = flow {
+    kick:  [!, _, _, _]
+    snare: [_, _, !, _]
+    hat:   [!, !, !, !]
+}
+```
+
+At global scope you can write `flow name = { }` as shorthand — the two forms are exactly equivalent:
+
+```idyl
+// Both declare the same named-member flow:
 flow drum_pattern = {
+    kick:  [!, _, _, _]
+    snare: [_, _, !, _]
+    hat:   [!, !, !, !]
+}
+
+drum_pattern = flow {
     kick:  [!, _, _, _]
     snare: [_, _, !, _]
     hat:   [!, !, !, !]
@@ -56,6 +82,22 @@ flow drum_pattern = {
 ```
 
 Each member is a named sequence. Members are accessed with dot notation: `drum_pattern.kick`, `drum_pattern.snare`.
+
+Because `flow { }` is an expression, named-member flows can be returned from functions:
+
+```idyl
+// A function returning a named-member flow
+rhythm_pair(a, b) = flow {
+    fast: [a, _, a, _]
+    slow: [b, _, _, _]
+}
+
+process: {
+    rp = rhythm_pair(!, !)
+    m  = metro(dt=200ms)
+    print(rp.fast[m], rp.slow[m])
+}
+```
 
 ---
 
@@ -94,12 +136,16 @@ The gate member must appear **before** the gated member in the flow body — mem
 
 ## Parameterized flows
 
-Flows are functions. They can take parameters:
+Since flows are expressions, any function can return one. Simple lists need no special syntax; named-member flows use `flow { }`:
 
 ```idyl
+// Function returning a simple flow — no keyword needed
+scale(root) = [root, root * 1.125, root * 1.25, root * 1.5]
+
+// Function returning a named-member flow
 sustain_lvl = 0.7
 
-flow envelope_data(attack_time, decay_time, release_time) = {
+envelope_data(attack_time, decay_time, release_time) = flow {
     attack:  [i = 0..100 : i / 100]
     decay:   [i = 0..50 : sustain_lvl + (1 - sustain_lvl) * (1 - i / 50)]
     sustain: [sustain_lvl]
@@ -157,6 +203,30 @@ process: {
     print("slow:", row.slow, "fast:", row.fast)
 }
 ```
+
+---
+
+## Temporal functions returning flows
+
+Because `flow { }` is a literal expression, temporal functions can return named-member flows. This is the idiomatic way to expose multiple synchronized outputs from a single temporal instance:
+
+```idyl
+import("stdlib")
+
+// Temporal function whose output is a named-member flow
+dual_osc(freq1, freq2, dt=100ms) = flow {
+    a: [sine(freq1, dt=dt)]
+    b: [sine(freq2, dt=dt)]
+} |> { }
+
+process: {
+    pair = dual_osc(1hz, 3hz)
+    m    = metro(dt=300ms)
+    print("a:", pair.a[m], "b:", pair.b[m])
+}
+```
+
+The `|> { }` is the minimal lambda block — the body runs on every tick. The `flow { }` literal in the return position is re-evaluated each tick, giving live values per member.
 
 ---
 

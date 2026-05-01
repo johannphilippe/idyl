@@ -488,25 +488,55 @@ harmonics(fundamental) = [h = 1..16 : fundamental * h]
 
 ## 7. Flows & Sequences
 
-A **flow** is a special function that organizes data into named, indexed sequences.
+A **flow** is an ordered sequence literal — either a bracketed list `[...]` or a named-member record `flow { name: [...] }`. Both forms are expressions and can appear anywhere a value is expected: in assignments, as function return values, inside ternary branches, and inside temporal function bodies.
 
-### 7.1 Flow Definition
+### 7.1 Flow Literals
 
-**Syntax**:
+**Simple list** — no keyword needed:
 ```
-flow flow_name(params) = {
-    member1: [values_or_generator],
-    member2: [values_or_generator],
+[val1, val2, val3, ...]
+```
+
+**Named-member record** — `flow` keyword required to distinguish from a future code block:
+```
+flow {
+    member1: [values_or_generator]
+    member2: [values_or_generator]
     ...
 }
 ```
 
-**For single-member flows**:
+**Global-scope shorthand** — `flow name = { }` is sugar for `name = flow { }`:
 ```
-flow flow_name(params) = [val1, val2, val3, ...]
+flow flow_name = { member: [...] }       // shorthand — identical to below
+flow_name      = flow { member: [...] }  // explicit literal form
 ```
 
-### 7.2 Flow Semantics
+### 7.2 Functions Returning Flows
+
+Any function can return a flow literal — simple or named-member:
+
+```idl
+// Simple list — no keyword
+scale(root) = [root, root * 1.25, root * 1.5]
+
+// Named-member — use flow { }
+chord(root) = flow {
+    note:     [root, root * 1.25, root * 1.5]
+    velocity: [100, 80, 90]
+}
+```
+
+Temporal functions can also return flows:
+
+```idl
+dual(f1, f2, dt=100ms) = flow {
+    a: [sine(f1, dt=dt)]
+    b: [sine(f2, dt=dt)]
+} |> { }
+```
+
+### 7.3 Flow Semantics
 
 - **Automatic wrapping**: Flows wrap around when indexed beyond their length
 - **Synchronized members**: All members have the same logical length; shorter members repeat
@@ -514,33 +544,28 @@ flow flow_name(params) = [val1, val2, val3, ...]
 
 **Examples**:
 ```idl
-// Single member, no parenthesis needed when no arguments
-flow notes = [60, 62, 64]
+// Simple list
+notes = [60, 62, 64]
 
-// Multi-member
+// Named-member record (expression form)
+drum_pattern = flow {
+    kick:  [!, _, _, _]
+    snare: [_, _, !, _]
+    hat:   [!, !, !, !]
+}
+
+// Global-scope shorthand (equivalent to above)
 flow drum_pattern = {
-    kick: [ ! _ _ _ ]
-    snare: [ _ _ ! _ ]
-    hat: [ ! ! ! ! ]
-}
-
-// With repetition
-flow verse = {
-    bass: [ 50  |4|| 53 ]
-    melody: [ 60 62 64 65 :|2 || 61 62 66 68 |3|| ]
-}
-
-// With restart
-flow complex = {
-    rhythm: [ ! |2|| || _ ! |2|| ]
+    kick:  [!, _, _, _]
+    snare: [_, _, !, _]
+    hat:   [!, !, !, !]
 }
 
 // Programmatic generation
-flow lookup_table(size, func) = 
-    [i = 0..(size-1) : func(i / size)]
+lookup_table(size, func) = [i = 0..(size-1) : func(i / size)]
 ```
 
-### 7.3 Flow Access Methods
+### 7.4 Flow Access Methods
 
 #### Trigger-Based Indexing
 ```idl
@@ -560,7 +585,7 @@ phase = phasor(1hz)
 current_note = drum_pattern.kick[phase]
 ```
 
-### 7.4 Flow Generation Features
+### 7.5 Flow Generation Features
 
 #### Bitwise Patterns
 

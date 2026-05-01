@@ -32,6 +32,7 @@ m = metro(dt=500ms)
 c = counter(dt=300ms)
 (c) ? expr1; expr2; expr3 .... 
 ```
+- [done] `flow { }` as a literal expression: `name = flow { member: [...] }` — the `flow` keyword is now a type tag on a brace block, required only for named-member forms to distinguish them from future code blocks `{ }`. Simple list `[...]` was always a literal. Functions and temporal functions can return both forms. Old `flow name = { }` definition syntax is backward-compatible sugar.
 - [idea] Add a concept of independant block of code : could be used as a scope, or even in ternary conditions 
 ```idyl
 (trig) ? {/* block 1 with several statements */}; {/* block 2 */} // etc 
