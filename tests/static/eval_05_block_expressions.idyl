@@ -1,0 +1,94 @@
+/*
+  Evaluator Test 05: Block Expressions
+  ─────────────────────────────────────
+  Tests: anonymous block expressions { stmt; ...; expr }
+         — multi-statement sequences that return the last expression value.
+
+  Note: inside a block, ternary expressions that are not the last statement
+  must be wrapped in parentheses so that `;` closes the ternary rather than
+  being treated as the block statement separator.
+*/
+
+// ── Simple value return ───────────────────────────────────────────
+just_val = { 42 }
+
+// Multi-statement block: intermediate binding, last expr is return value.
+sum_block = { a = 10; b = 20; a + b }
+
+// ── Block as function body ────────────────────────────────────────
+// Ternaries mid-block require parens so `;` doesn't extend the ternary.
+clamp(x, lo, hi) = { t = ((x < lo) ? x ; lo); ((t > hi) ? t ; hi) }
+
+clamped_low  = clamp(0 - 5, 0, 10)
+clamped_mid  = clamp(5, 0, 10)
+clamped_high = clamp(15, 0, 10)
+
+// ── Nested blocks ────────────────────────────────────────────────
+nested = { inner = { 3 * 7 }; inner + 1 }
+
+// ── Block in ternary branch ───────────────────────────────────────
+// Ternary: cond ? opt_when_0 ; opt_when_1
+// abs_val: (x >= 0) = 0 when negative → negate; = 1 when positive → keep x.
+abs_val(x) = (x >= 0) ? { 0 - x } ; { x }
+
+abs_pos  = abs_val(7)
+abs_neg  = abs_val(0 - 4)
+abs_zero = abs_val(0)
+
+// ── Empty block ───────────────────────────────────────────────────
+empty_block = {}
+
+// ── Reusable computation in a block ──────────────────────────────
+square_minus_one(x) = { sq = x * x; sq - 1 }
+
+sm1_3  = square_minus_one(3)
+sm1_5  = square_minus_one(5)
+
+// ── Three-way ternary with block branches ────────────────────────
+// (x>0)=0 (x<=0) → check inner; =1 (x>0) → return 1.
+// inner: (x<0)=0 (x==0) → return 0; =1 (x<0) → return -1.
+sign(x) = (x > 0) ? { (x < 0) ? { 0 } ; { 0 - 1 } } ; { 1 }
+
+sign_pos  = sign(7)
+sign_neg  = sign(0 - 3)
+sign_zero = sign(0)
+
+process: {
+    // Simple block value
+    print(just_val)
+
+    // Multi-step block
+    print(sum_block)
+
+    // Clamp function using blocks
+    print(clamped_low)
+    print(clamped_mid)
+    print(clamped_high)
+
+    // Nested blocks
+    print(nested)
+
+    // Absolute value via ternary with block branches
+    print(abs_pos)
+    print(abs_neg)
+    print(abs_zero)
+
+    // Empty block → nil
+    print(empty_block)
+
+    // Reusable block computation
+    print(sm1_3)
+    print(sm1_5)
+
+    // Three-way ternary with block branches
+    print(sign_pos)
+    print(sign_neg)
+    print(sign_zero)
+
+    // Inline block as argument
+    print({ 100 + 1 })
+
+    // Block inside process with local scope
+    result = { x = 5; y = x * x; y - 1 }
+    print(result)
+}

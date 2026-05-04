@@ -18,6 +18,9 @@ namespace idyl::core {
 // AST identifier collection — used by reaction redistribution
 // ════════════════════════════════════════════════════════════════════════════════
 
+static void collect_stmt_ids(const parser::stmt_ptr& stmt,
+                              std::unordered_set<std::string>& out); // forward decl
+
 // Recursively collect all identifier names referenced by an expression.
 static void collect_expr_ids(const parser::expr_ptr& expr,
                               std::unordered_set<std::string>& out) {
@@ -118,6 +121,12 @@ static void collect_expr_ids(const parser::expr_ptr& expr,
                 for (const auto& elem : e.flow_->elements_)
                     collect_expr_ids(elem, out);
             }
+            break;
+        }
+        case parser::node_t::block_expr: {
+            auto& e = static_cast<const parser::block_expr&>(*expr);
+            for (const auto& s : e.statements_)
+                collect_stmt_ids(s, out);
             break;
         }
         default: break;
@@ -746,10 +755,16 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         auto& es = static_cast<const parser::expression_stmt&>(*stmt);
         try { eval_expr(es.expression_); }
         catch (const SelfStopSignal&) {
-            // `stop` used in a process body (catch handler, reaction, etc.).
-            // Deactivate the currently-ticking scheduler instance so the process
-            // ends after this tick.  Outside any scheduler context, this is a no-op.
-            if (proc_stop_ctx_) proc_stop_ctx_->active_ = false;
+            if (proc_stop_ctx_) {
+                // Inside a tick — deactivate the current instance.
+                proc_stop_ctx_->active_ = false;
+            } else {
+                // Outside a tick (e.g. at-block callback, direct process body).
+                // Mirror bare stop_statement: stop all running processes.
+                std::vector<std::string> names;
+                for (auto& [n, _] : active_process_instances_) names.push_back(n);
+                for (auto& n : names) stop_process(n);
+            }
         }
         break;
     }
@@ -955,6 +970,33 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
     // Throws SelfStopSignal to break out of the update loop in tick_instance.
     case parser::node_t::self_stop_expr:
         throw SelfStopSignal{};
+
+    // ── Block expression { stmt; ...; expr } ──────────────────────────────
+    case parser::node_t::block_expr: {
+        auto& be = static_cast<const parser::block_expr&>(*expr);
+        if (be.statements_.empty()) return value::nil();
+        env_.push_scope();
+        value result = value::nil();
+        try {
+            for (size_t i = 0; i < be.statements_.size(); ++i) {
+                const auto& s = be.statements_[i];
+                if (!s) continue;
+                if (i + 1 == be.statements_.size()
+                        && s->type_ == parser::node_t::expression_stmt) {
+                    // Last statement is a bare expression — its value is the block's result.
+                    auto& es = static_cast<const parser::expression_stmt&>(*s);
+                    result = eval_expr(es.expression_);
+                } else {
+                    exec_stmt(s);
+                }
+            }
+        } catch (...) {
+            env_.pop_scope();
+            throw;
+        }
+        env_.pop_scope();
+        return result;
+    }
 
     // ── Flow literal expression ────────────────────────────────────────────
     case parser::node_t::flow_literal_expr: {
@@ -2770,7 +2812,7 @@ std::vector<std::string> evaluator::list_stored_processes() const {
 // ════════════════════════════════════════════════════════════════════════════════
 
 void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
-    if (segments.size() <= 1) return;
+    if (segments.empty()) return;
 
     // Map: variable name → (segment index, dt_ms).
     // Populated from segment bound vars, then augmented with reaction LHS
@@ -2800,7 +2842,11 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
     // When a reaction references variables from multiple distinct segments,
     // it is placed in ALL of those segments so that every trigger can fire it.
     // When it references only one segment (or none), it goes to that one only.
-    auto one_pass = [&](std::vector<std::vector<parser::stmt_ptr>>& current)
+    // drop_zero_dep: if true, reactions with no resolved temporal dependency are
+    // silently dropped — they already ran once at process setup and should not
+    // be re-evaluated on every tick (e.g. `begin = now()` after a metro binding).
+    auto one_pass = [&](std::vector<std::vector<parser::stmt_ptr>>& current,
+                        bool drop_zero_dep)
         -> std::vector<std::vector<parser::stmt_ptr>>
     {
         std::vector<std::vector<parser::stmt_ptr>> result(segments.size());
@@ -2857,8 +2903,13 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
                     // every referenced segment so any trigger can fire it.
                     for (size_t target : ref_segs)
                         result[target].push_back(reaction);
+                } else if (ref_segs.empty() && drop_zero_dep) {
+                    // No temporal dependencies resolved — this reaction has no
+                    // data-flow link to any temporal instance. It already ran
+                    // once during process setup; do not re-run it on every tick.
                 } else {
-                    // Single-segment or unresolved: assign to fastest (or keep current).
+                    // Single-segment or unresolved (pass 1 only): assign to
+                    // fastest (or keep current position for later augmentation).
                     result[fastest].push_back(reaction);
                 }
             }
@@ -2884,8 +2935,11 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
     for (size_t si = 0; si < segments.size(); ++si)
         work[si] = segments[si].rxn->reactions;
 
-    // Pass 1 — redistribute using segment bound vars only
-    work = one_pass(work);
+    // Pass 1 — redistribute using segment bound vars only.
+    // Keep zero-dep reactions in place so the augment step can see their LHS
+    // names and track downstream deps (e.g. y = x+5 where x comes from a
+    // reaction — x is not yet in var_to_seg until augmentation).
+    work = one_pass(work, /*drop_zero_dep=*/false);
 
     // Augment var_to_seg with assignment LHS names produced by pass-1 reactions,
     // so that downstream reactions (e.g. print(c) where c = counter(m)) can be
@@ -2913,8 +2967,10 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
         }
     }
 
-    // Pass 2 — re-check with augmented var_to_seg (handles chained deps)
-    work = one_pass(work);
+    // Pass 2 — re-check with augmented var_to_seg (handles chained deps).
+    // Drop reactions with no resolved temporal deps: they have no data-flow
+    // link to any temporal instance, so they should not fire on every tick.
+    work = one_pass(work, /*drop_zero_dep=*/true);
 
     for (size_t si = 0; si < segments.size(); ++si) {
         std::lock_guard<std::mutex> lk(segments[si].rxn->mutex);

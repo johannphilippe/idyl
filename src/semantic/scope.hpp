@@ -11,12 +11,13 @@
 namespace idyl::semantic {
     enum class scope_t {
         global,
-        function_body, 
-        lambda_body, 
-        init_block, 
+        function_body,
+        lambda_body,
+        init_block,
         process_block,
         catch_block,
         at_block,
+        block,       // anonymous block expression { stmt; ...; expr }
     };
 
     struct scope {

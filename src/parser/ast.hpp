@@ -28,6 +28,8 @@ enum class node_t {
     literal_expr, identifier_expr, binary_op_expr, unary_op_expr, ternary_op_expr,
     memory_op_expr, generator_expr_node, flow_literal_expr, function_call_expr,
     flow_access_expr, module_access_expr, parenthesized_expr,
+    // Anonymous block expression { stmt; stmt; expr }
+    block_expr,
     // Statements
     expression_stmt, assignment, catch_block, at_block, on_block,
     function_definition, process_block_body, process_block,
@@ -629,6 +631,24 @@ struct self_stop_expr : expression {
     }
     expr_ptr clone() const override {
         return std::make_shared<self_stop_expr>(*this);
+    }
+};
+
+// block_expr: anonymous code block in expression position.
+// Executes statements in order; returns the value of the last statement if it
+// is a bare expression, otherwise returns nil.  Introduces a lexical scope.
+struct block_expr : expression {
+    std::vector<stmt_ptr> statements_;
+
+    block_expr() : expression(node_t::block_expr) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "BlockExpr(" << statements_.size() << " stmts)\n";
+        for (const auto& s : statements_) if (s) s->print(indent + 1);
+    }
+    expr_ptr clone() const override {
+        return std::make_shared<block_expr>(*this);
     }
 };
 

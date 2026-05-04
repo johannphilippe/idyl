@@ -1,0 +1,21 @@
+// Block expressions in a process body.
+// Each tick: a block computes an intermediate value with a local binding.
+// The block's local variable `sq` does not exist outside the block.
+
+import("stdlib")
+
+process: {
+    tick = counter(dt=100ms)
+
+    // Inline block — sq is scoped to the block, only the result escapes.
+    squared_plus_one = { sq = tick * tick; sq + 1 }
+
+    // Block in a ternary branch — multi-step conditional result each tick.
+    // (tick > 3) = 0 when tick <= 3 → "early"; = 1 after → "late"
+    label = (tick > 3) ? { "early" } ; { "late" }
+
+    print(tick, squared_plus_one, label)
+
+    // Stop after ~550ms (between tick 5 and 6).
+    @(550ms): { stop }
+}

@@ -613,6 +613,17 @@ namespace idyl::semantic {
                 break;
             }
 
+            case parser::node_t::block_expr:
+            {
+                idyl::debug("Resolving block expression.");
+                auto be = std::static_pointer_cast<parser::block_expr>(node);
+                scope_stack_.push(scope_t::block);
+                for (const auto& s : be->statements_)
+                    if (s) resolve(s);
+                scope_stack_.pop();
+                break;
+            }
+
             case parser::node_t::parenthesized_expr:
             {
                 idyl::debug("Resolving parenthesized expression.");
@@ -1274,6 +1285,17 @@ namespace idyl::semantic {
                 if (id_expr->identifier_) {
                     if (symbol_info* info = scope_stack_.lookup(id_expr->identifier_->name_)) {
                         return info->inferred_type_;
+                    }
+                }
+                return inferred_t::unknown;
+            }
+            case parser::node_t::block_expr: {
+                auto be = std::static_pointer_cast<parser::block_expr>(node);
+                if (!be->statements_.empty()) {
+                    const auto& last = be->statements_.back();
+                    if (last && last->type_ == parser::node_t::expression_stmt) {
+                        auto es = std::static_pointer_cast<parser::expression_stmt>(last);
+                        return infer_expr_type(es->expression_);
                     }
                 }
                 return inferred_t::unknown;

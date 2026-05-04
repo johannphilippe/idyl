@@ -1,0 +1,12 @@
+
+import("stdlib")
+
+fibonacci(n) = (n <= 1) ? 
+                fibonacci(n-1) + fibonacci(n-2)
+                ; n 
+
+process: {
+        begin = now()
+        print(fibonacci(5), fibonacci(10), fibonacci(20))
+        print("Time taken: " + (now() - begin))
+}

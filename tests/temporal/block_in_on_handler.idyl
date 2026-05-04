@@ -1,0 +1,36 @@
+// Block expressions inside an on-block handler.
+// When the rhythm trigger fires, a block runs multi-step logic before emitting.
+
+import("stdlib")
+
+// classify: returns a string based on the note's register.
+// Ternary: cond=0 → opt0, cond=1 → opt1.
+// (note < 48)=0 means note >= 48 → check further; =1 means note < 48 → "bass"
+// (note < 72)=0 means note >= 72 → "high"; =1 means 48 <= note < 72 → "mid"
+classify(note) = (note < 48) ? { (note < 72) ? { "high" } ; { "mid" } }
+                              ; { "bass" }
+
+flow melody = [60, 30, 72, 45, 80]
+flow rhythm = [!, !, !, !, !, _]
+    
+
+process: {
+    //begin = now() // If begin is here, the final printing is fine 
+    m   = metro(dt=250ms)
+    begin = now() // If begin is here, the final printing is 250ms, which means that everything defined after the metro temporal instance is evaluated at each of its ticks 
+    r   = rhythm[m]
+    n   = melody[m]
+
+    on r: {
+        // Block computes a derived value locally, then passes it to classify.
+        // `shifted` stays inside the block; only the class string escapes.
+        info = { shifted = n + 12; classify(shifted) }
+        print("note:", n, "→ class:", info)
+    }
+
+
+    @(1500ms): { 
+        print("Done", "Time taken:", now() - begin  )
+        stop 
+    }
+}

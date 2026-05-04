@@ -4,5 +4,5 @@ process: {
     @(delay): {
         print("variable delay fired")
     }
-    @(300ms): print("single-statement form")
+    @(300ms): { print("fired after 300ms") }
 }

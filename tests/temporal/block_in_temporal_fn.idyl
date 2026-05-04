@@ -1,0 +1,18 @@
+// Block expressions inside a temporal function body.
+// The function uses a block to clamp its output and emit a done signal.
+
+// clamp: keeps value in [lo, hi] using blocks for multi-step ternary
+clamp(x, lo, hi) = { t = ((x < lo) ? x ; lo); ((t > hi) ? t ; hi) }
+
+// ramp: increases by `step` each tick, clamped to [0, max_val]
+ramp(step, max_val, dt=100ms) = val |> {
+    init: { val = 0  emit done = _ }
+    val   = clamp(val + step, 0, max_val)
+    emit done = (val >= max_val) ? _ ; !
+}
+
+process: {
+    r = ramp(2, 10)
+    print(r)
+    catch r::done: { print("done") stop}
+}

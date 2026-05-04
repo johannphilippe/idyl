@@ -2,7 +2,7 @@
 %require "3.8"
 %language "c++"
 
-%expect 16
+%expect 17
 
 %locations
 %define parse.error verbose
@@ -105,6 +105,8 @@
 %type <idyl::parser::expr_ptr> generator_expression
 %type <std::vector<idyl::parser::stmt_ptr>> process_body_statements
 %type <idyl::parser::stmt_ptr> process_body_statement
+%type <std::vector<idyl::parser::stmt_ptr>> block_body
+%type <idyl::parser::stmt_ptr> block_body_statement
 %type <std::shared_ptr<idyl::parser::catch_block>> catch_block
 %type <std::shared_ptr<idyl::parser::at_block>> at_block
 %type <std::shared_ptr<idyl::parser::on_block>> on_block
@@ -569,21 +571,12 @@ process_body_statement
     }
     ;
 
-at_block   
+at_block
     : AT_OP LPAREN expression RPAREN COLON LBRACE process_body_statements RBRACE
     {
         auto at_stmt = std::make_shared<idyl::parser::at_block>();
         at_stmt->time_expr_ = $3;
         at_stmt->handler_ = $7;
-        at_stmt->line_ = @1.begin.line;
-        at_stmt->column_ = @1.begin.column;
-        $$ = at_stmt;
-    }
-    | AT_OP LPAREN expression RPAREN COLON process_body_statement
-    {
-        auto at_stmt = std::make_shared<idyl::parser::at_block>();
-        at_stmt->time_expr_ = $3;
-        at_stmt->handler_ = {$6};
         at_stmt->line_ = @1.begin.line;
         at_stmt->column_ = @1.begin.column;
         $$ = at_stmt;
@@ -596,15 +589,6 @@ on_block
         auto on_stmt = std::make_shared<idyl::parser::on_block>();
         on_stmt->trigger_expr_ = $2;
         on_stmt->handler_ = $5;
-        on_stmt->line_ = @1.begin.line;
-        on_stmt->column_ = @1.begin.column;
-        $$ = on_stmt;
-    }
-    | ON expression COLON process_body_statement
-    {
-        auto on_stmt = std::make_shared<idyl::parser::on_block>();
-        on_stmt->trigger_expr_ = $2;
-        on_stmt->handler_ = {$4};
         on_stmt->line_ = @1.begin.line;
         on_stmt->column_ = @1.begin.column;
         $$ = on_stmt;
@@ -779,6 +763,53 @@ lambda_statement
         assign->column_ = @1.begin.column;
         $$ = assign;
     }
+    | expression
+    {
+        auto es = std::make_shared<idyl::parser::expression_stmt>();
+        es->expression_ = $1;
+        es->line_ = @1.begin.line;
+        es->column_ = @1.begin.column;
+        $$ = es;
+    }
+    ;
+
+block_body
+    : block_body SEMICOLON block_body_statement
+    {
+        $$ = $1;
+        if ($3) $$.push_back($3);
+    }
+    | block_body_statement
+    {
+        $$ = {};
+        if ($1) $$.push_back($1);
+    }
+    | /* empty */ { $$ = {}; }
+    ;
+
+block_body_statement
+    : IDENTIFIER ASSIGN expression
+    {
+        auto assign = std::make_shared<idyl::parser::assignment>();
+        assign->name_ = $1;
+        assign->value_ = $3;
+        assign->is_emit_ = false;
+        assign->line_ = @1.begin.line;
+        assign->column_ = @1.begin.column;
+        $$ = assign;
+    }
+    | EMIT IDENTIFIER ASSIGN expression
+    {
+        auto assign = std::make_shared<idyl::parser::assignment>();
+        assign->name_ = $2;
+        assign->value_ = $4;
+        assign->is_emit_ = true;
+        assign->line_ = @1.begin.line;
+        assign->column_ = @1.begin.column;
+        $$ = assign;
+    }
+    | stop_statement  { $$ = $1; }
+    | start_statement { $$ = $1; }
     | expression
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
@@ -1479,6 +1510,14 @@ primary_expression
         stop_expr->line_ = @1.begin.line;
         stop_expr->column_ = @1.begin.column;
         $$ = stop_expr;
+    }
+    | LBRACE block_body RBRACE
+    {
+        auto block = std::make_shared<idyl::parser::block_expr>();
+        block->statements_ = $2;
+        block->line_ = @1.begin.line;
+        block->column_ = @1.begin.column;
+        $$ = block;
     }
     ;
 
