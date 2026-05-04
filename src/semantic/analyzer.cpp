@@ -181,7 +181,16 @@ namespace idyl::semantic {
                     func_info->has_dt_param_ = has_dt;
                     func_info->is_temporal_ = is_temporal;
                     func_info->required_arity_ = required_arity;
-                    func_info->inferred_type_ = inferred_t::function;
+                    {
+                        auto def_ptr = std::static_pointer_cast<parser::function_definition>(it);
+                        // Constant: no parens, no params, no lambda — infer type from body.
+                        if (!def_ptr->has_parens_ && def_ptr->parameters_.empty()
+                                && !def_ptr->lambda_block_ && def_ptr->body_) {
+                            func_info->inferred_type_ = infer_expr_type(def_ptr->body_);
+                        } else {
+                            func_info->inferred_type_ = inferred_t::function;
+                        }
+                    }
                     scope_stack_.define(func_info->name_, *func_info);
                     break;
                 }
@@ -1061,7 +1070,13 @@ namespace idyl::semantic {
                         if (!p->default_value_) req++;
                     }
                     info.required_arity_ = req;
-                    info.inferred_type_ = inferred_t::function;
+                    // Constant: no parens, no params, no lambda — infer type from body.
+                    if (!func->has_parens_ && func->parameters_.empty()
+                            && !func->lambda_block_ && func->body_) {
+                        info.inferred_type_ = infer_expr_type(func->body_);
+                    } else {
+                        info.inferred_type_ = inferred_t::function;
+                    }
                     scope_stack_.define(sym_name, info);
                     break;
                 }

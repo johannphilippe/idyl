@@ -1,0 +1,16 @@
+import("stdlib")
+
+f() = x 
+|> {
+    x = flow {
+        a: [1, 2, 3, 4, 5]
+        b: [5, 4, 3, 2, 1]
+    }
+}
+
+
+process: {
+    flow_instance = f()
+    m = metro(dt=100ms)
+    print(flow_instance.a[m], flow_instance.b[m])
+}

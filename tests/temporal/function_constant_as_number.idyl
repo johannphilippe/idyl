@@ -1,6 +1,6 @@
 import("stdlib")
 
 process: {
-    s = lfo(1hz, waveform = int(wav_square) )
+    s = lfo(1hz, waveform = wav_square )
     print(s)
 }

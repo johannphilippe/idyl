@@ -1,0 +1,14 @@
+import("stdlib")
+
+f = open("/home/johann/Documents/file_write.txt", "w") 
+process: {
+    s = sine(1hz, dt=100ms)
+
+    print(f, s)
+
+    str = (s > 0) ? "positive" ; "negative"
+    write(f, s, str) 
+
+    @(10s): { close(f) }
+
+}

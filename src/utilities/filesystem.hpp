@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <dlfcn.h>
+#include <fstream>
 
 namespace idyl::utilities {
     extern std::string main_source_path;
@@ -173,4 +174,100 @@ namespace idyl::utilities {
         dlclose(handle);
         return symbols;
     }
+
+
+    struct file_descriptor 
+    {
+        enum class mode { read, write, append };
+        file_descriptor(std::string path, mode m)
+            : path_(std::move(path))
+            , mode_(m)
+        {
+            start_time_ = std::chrono::steady_clock::now();
+            switch(m) {
+                case mode::read:
+                    file_stream_.open(path_, std::ios::in);
+                    break;
+                case mode::write:
+                    file_stream_.open(path_, std::ios::out | std::ios::trunc);
+                    break;
+                case mode::append:
+                    file_stream_.open(path_, std::ios::out | std::ios::app);
+                    break;
+                default:
+                    std::cerr << "Error: Invalid file mode specified for '" << path_ << "'.\n";
+            }
+            if (!file_stream_.is_open()) {
+                std::cerr << "Error: Could not open file '" << path_ << "'.\n";
+            }
+        }
+
+        bool is_open() const {
+            return file_stream_.is_open();
+        }
+
+        bool write_timestamp() {
+                if(!file_stream_.is_open()) {
+                    std::cerr << "Error: Could not write timestamp to file '" << path_ << "' because the file stream is not open.\n";
+                    return false;
+                }
+                auto now = std::chrono::steady_clock::now();
+                file_stream_ << "[" << std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_).count() << " ms] ";
+                return true;
+        }
+
+        bool write(const std::string& data) {
+            if(mode_ == mode::read) {
+                std::cerr << "Error: File '" << path_ << "' is not open for writing.\n";
+                return false;
+            }
+            if(!file_stream_.is_open()) {
+                std::cerr << "Error: Could not open file '" << path_ << "' for writing.\n";
+                return false;
+            }
+            file_stream_ << data << " ";
+            return true;
+        }
+
+        bool endl() {
+            if(mode_ == mode::read) {
+                std::cerr << "Error: File '" << path_ << "' is not open for writing.\n";
+                return false;
+            }
+            if(!file_stream_.is_open()) {
+                std::cerr << "Error: Could not open file '" << path_ << "' for writing.\n";
+                return false;
+            }
+            file_stream_ << std::endl;
+            return true;
+        }
+
+        std::string read() {
+            if(mode_ == mode::write || mode_ == mode::append) {
+                std::cerr << "Error: File '" << path_ << "' is not open for reading.\n";
+                return "";
+            }
+            if(!file_stream_.is_open()) {
+                std::cerr << "Error: Could not open file '" << path_ << "' for reading.\n";
+                return "";
+            }
+            std::string content((std::istreambuf_iterator<char>(file_stream_)), std::istreambuf_iterator<char>());
+            return content;
+        }
+
+         void close() {
+            if(file_stream_.is_open()) {
+                file_stream_.close();
+            }
+        }
+
+         ~file_descriptor() {
+            close();
+        }
+
+        std::string path_; 
+        mode mode_;
+        std::chrono::steady_clock::time_point start_time_;
+        std::fstream file_stream_;
+    };
 }

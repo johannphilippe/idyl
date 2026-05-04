@@ -1,13 +1,16 @@
-#pragma once 
+#pragma once
 
 #include <string>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <unordered_map>
+#include <mutex>
 
 #include "utilities/math.hpp"
 #include "utilities/span.hpp"
 #include "utilities/safety.hpp"
+#include "utilities/filesystem.hpp"
 #include "core/core.hpp"
 
 namespace idyl::core {
@@ -19,6 +22,12 @@ namespace idyl::core {
         int min_arity_ = 1;
         int max_arity_ = 1;
     };
+
+    // Keeps shared_ptr<file_descriptor> alive while the handle is in use.
+    inline auto& file_registry() {
+        static std::unordered_map<intptr_t, std::shared_ptr<utilities::file_descriptor>> reg;
+        return reg;
+    }
 
     inline void recursive_print_flow(const flow_data& fd)
     {
@@ -210,7 +219,7 @@ namespace idyl::core {
                 return value::number(0.0);
             }, 1, 1
         },
-        // ── General utilities ───────────────────────────────────────────────────
+        // ── General utilities (IO) ─────────────────────────────────────────────
         {
             "print", [](span<const value> args) -> value {
                 // If there are any trigger-type args, at least one must be live.
@@ -309,6 +318,103 @@ namespace idyl::core {
                 std::cout << std::endl;
                 return value::nil();
             }, 1, -1
+        },
+        /*
+            Open file, defaults to write mode 
+            args: 
+            - Path (string)
+            - Mode (string, optional): "read"/"r", "write"/"w, "append"/"a". Default is "write".
+        */
+        { 
+            "open", [](span<const value> args) -> value {
+                if (args.size_ == 0 || args[0].type_ != value_t::string || !args[0].string_) {
+                    std::cerr << "Error: open() requires a string path argument.\n";
+                    return value::nil();
+                }
+                utilities::file_descriptor::mode mode = utilities::file_descriptor::mode::write;
+                if (args.size_ > 1 && args[1].type_ == value_t::string && args[1].string_) {
+                    std::string mode_str = *args[1].string_;
+                    if (mode_str == "read" || mode_str == "r") {
+                        mode = utilities::file_descriptor::mode::read;
+                    } else if (mode_str == "write" || mode_str == "w") {
+                        mode = utilities::file_descriptor::mode::write;
+                    } else if (mode_str == "append" || mode_str == "a") {
+                        mode = utilities::file_descriptor::mode::append;
+                    }
+                }
+                std::string path = *args[0].string_;
+                auto fd = std::make_shared<utilities::file_descriptor>(path, mode);
+                if (!fd->is_open()) {
+                    return value::nil();
+                }
+                intptr_t key = reinterpret_cast<intptr_t>(fd.get());
+                file_registry()[key] = fd;
+                return value::handle(key);
+            }, 1, 2
+        }, 
+        {
+            "close", [](span<const value> args) -> value {
+                if (args.size_ < 1 || args[0].type_ != value_t::handle) {
+                    std::cerr << "Error: close() requires a handle argument.\n";
+                    return value::nil();
+                }
+                intptr_t key = args[0].handle_;
+                auto& reg = file_registry();
+                auto it = reg.find(key);
+                if (it == reg.end()) {
+                    std::cerr << "Error: Invalid or already-closed file handle.\n";
+                    return value::nil();
+                }
+                it->second->close();
+                reg.erase(it);
+                return value::nil();
+            }, 1, 1
+        },
+        /*
+            Write string data to file
+            args:
+            - Handle (from open())
+            - Data (string)
+
+            Automatically writes a timestamp in ms since file open before the data, for easier debugging and temporal correlation of log entries.
+        */
+        {
+            "write", [](span<const value> args) -> value {
+                if (args.size_ < 2 || args[0].type_ != value_t::handle) {
+                    std::cerr << "Error: write() requires a file handle and a value.\n";
+                    return value::nil();
+                }
+                auto it = file_registry().find(args[0].handle_);
+                if (it == file_registry().end()) {
+                    std::cerr << "Error: Invalid or already-closed file handle.\n";
+                    return value::nil();
+                }
+                it->second->write_timestamp();
+                for(size_t i = 1; i < args.size_; ++i) {
+                    it->second->write(args[i].as_string());
+                }
+                it->second->endl();
+                return value::nil();
+            }, 2, -1
+        },
+        /*
+            Read file content as string
+            args:
+            - Handle (from open())
+        */
+        {
+            "read", [](span<const value> args) -> value {
+                if (args.size_ < 1 || args[0].type_ != value_t::handle) {
+                    std::cerr << "Error: read() requires a file handle.\n";
+                    return value::nil();
+                }
+                auto it = file_registry().find(args[0].handle_);
+                if (it == file_registry().end()) {
+                    std::cerr << "Error: Invalid or already-closed file handle.\n";
+                    return value::nil();
+                }
+                return value::string(it->second->read());
+            }, 1, 1
         },
         // ── Temporal utilities ───────────────────────────────────────────────────
         //  clock() and tempo() are handled as evaluator intrinsics
