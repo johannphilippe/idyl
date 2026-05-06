@@ -380,21 +380,19 @@ New `src/vm/` directory with four files:
 
 ---
 
-### Step 4 — Extend compiler to the full expression set *(1–2 weeks, Low risk)*
+### Step 4 — Extend compiler to the full expression set ✅ *(done)*
 
-**Bottleneck addressed:** remaining AST-walker overhead for non-trivial expressions.
+**Bottleneck addressed:** remaining AST-walker overhead for non-trivial pure-function expressions.
 
-With the VM infrastructure from Step 3 in place, add the remaining expression
-types one at a time, each verified by a static test:
+**What was implemented:**
 
-- Block expressions (`BLOCK_ENTER`/`BLOCK_EXIT` scope markers, or just inline
-  since slots are pre-assigned).
-- Flow access (`FLOW_INDEX` opcode backed by the existing `flow_data` machinery).
-- Memory operator (`DELAY` — can delegate to the existing delay buffer logic).
-- Lambda bodies inside temporal function definitions.
+- **Block expressions** (`{ stmt; ...; expr }`) — New `POP` and `LOAD_NIL` opcodes. Block statements are compiled by a new `compile_stmt()` method: assignments allocate a new slot and emit `STORE_LOCAL`; expression statements emit the expression and `POP` (unless last). The last expression statement is left on the stack as the block's result. Empty blocks and assignment-terminated blocks push nil (matching AST-walker semantics). Block-local variables are appended to the flat slot map and `local_count_` is updated after body compilation to include them all.
 
-At the end of this step every pure function and every static expression
-compiles. The AST-walker is only invoked for anything in a process body.
+- **N>2 ternary** — condition is stored in a temp slot; a chain of `LOAD_LOCAL` / `LOAD_CONST i` / `EQ` / `JUMP_IF_FALSY` handles each option except the last, which is a fall-through. Enables compiling `lfo`-style waveform selectors that use numeric-index ternaries.
+
+- **Default parameter support** — when compiling a CALL to a user function with fewer positional args than parameters, the compiler looks up the callee's definition and emits the missing default value expressions before the `CALL` instruction (upgrading `argc` to match). Functions with no default supplied for a missing param get `LOAD_NIL`.
+
+**Validation:** `eval_05_block_expressions.idyl` passes all 17 assertions; fib(20) still runs at 1–2ms; full test suite 99/99 pass.
 
 ---
 

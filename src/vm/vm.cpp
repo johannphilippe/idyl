@@ -71,6 +71,14 @@ core::value vm::run(uint32_t fn_id, const std::vector<core::value>& init_args) {
             stack_.pop_back();
             break;
 
+        case opcode::LOAD_NIL:
+            stack_.push_back(core::value::nil());
+            break;
+
+        case opcode::POP:
+            stack_.pop_back();
+            break;
+
         // ── Arithmetic ───────────────────────────────────────────────────
         case opcode::ADD: {
             double b = stack_.back().as_number(); stack_.pop_back();

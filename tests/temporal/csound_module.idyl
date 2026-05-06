@@ -10,7 +10,7 @@ flow melody(i) = {
 
 flow octaver = [12, 7, 0, 3, 5]
 
-note(spike!, note) = cs_note(handle, "first", 0.1s, 0.3, note) 
+note(spike!, note) = cs_note(handle, "first", 1s, 1, note) 
 
 
 process cr: {

@@ -8,6 +8,8 @@ enum class opcode : uint8_t {
     LOAD_CONST,     // a=const_idx  → push constants[a]
     LOAD_LOCAL,     // a=slot       → push stack[base+a]
     STORE_LOCAL,    // a=slot       → pop into stack[base+a]
+    LOAD_NIL,       //              → push nil
+    POP,            //              → discard top of stack
 
     // Arithmetic (pop 2, push 1)
     ADD, SUB, MUL, DIV, MOD,
@@ -50,6 +52,8 @@ inline const char* opcode_name(opcode op) {
         case opcode::LOAD_CONST:    return "LOAD_CONST";
         case opcode::LOAD_LOCAL:    return "LOAD_LOCAL";
         case opcode::STORE_LOCAL:   return "STORE_LOCAL";
+        case opcode::LOAD_NIL:      return "LOAD_NIL";
+        case opcode::POP:           return "POP";
         case opcode::ADD:           return "ADD";
         case opcode::SUB:           return "SUB";
         case opcode::MUL:           return "MUL";

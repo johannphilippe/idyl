@@ -67,6 +67,9 @@ private:
     }
 
     void compile_expr(const parser::expr_ptr& expr);
+    // Compile a statement inside a block.
+    // is_last: true when this is the final statement (its value becomes the block result).
+    void compile_stmt(const parser::stmt_ptr& stmt, bool is_last);
 };
 
 } // namespace idyl::vm

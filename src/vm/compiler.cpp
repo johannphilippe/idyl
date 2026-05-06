@@ -129,31 +129,55 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
         break;
     }
 
-    // ── Ternary (cond ? A ; B) ─────────────────────────────────────────────
+    // ── Ternary (cond ? A ; B ; ...) ──────────────────────────────────────
     // Idyl ternary: condition.as_number() is an index into options_[].
-    // For a trigger condition: false→0→options_[0], true→1→options_[1].
-    // Only the binary (N=2) case is compiled; N≠2 falls back to AST-walker.
+    // N=2: use JUMP_IF_FALSY for efficient boolean branching.
+    // N>2: store cond in a temp slot, chain EQ comparisons for each option.
     case parser::node_t::ternary_op_expr: {
         auto& toe = static_cast<const parser::ternary_op_expr&>(*expr);
-        if (!toe.op_ || toe.op_->options_.size() != 2) { fail(); return; }
+        if (!toe.op_ || toe.op_->options_.empty()) { fail(); return; }
+        const size_t N = toe.op_->options_.size();
 
-        compile_expr(toe.op_->condition_);
-        if (failed_) return;
+        if (N == 2) {
+            compile_expr(toe.op_->condition_);
+            if (failed_) return;
 
-        // JUMP_IF_FALSY: condition false (idx=0) → jump to options_[0]
-        // Fall-through:  condition true  (idx=1) → execute options_[1]
-        size_t jf = emit_jump(opcode::JUMP_IF_FALSY);
+            // JUMP_IF_FALSY: false(idx=0) → options_[0], true(idx=1) → options_[1]
+            size_t jf = emit_jump(opcode::JUMP_IF_FALSY);
+            compile_expr(toe.op_->options_[1]);
+            if (failed_) return;
+            size_t jmp = emit_jump(opcode::JUMP);
+            patch_jump(jf);
+            compile_expr(toe.op_->options_[0]);
+            if (failed_) return;
+            patch_jump(jmp);
+        } else {
+            // N>2: allocate a temp slot for the condition value.
+            uint16_t cond_slot = next_slot_++;
+            compile_expr(toe.op_->condition_);
+            if (failed_) return;
+            emit({opcode::STORE_LOCAL, cond_slot});
 
-        compile_expr(toe.op_->options_[1]); // truthy / idx=1
-        if (failed_) return;
+            std::vector<size_t> end_jumps;
+            end_jumps.reserve(N - 1);
 
-        size_t jmp = emit_jump(opcode::JUMP);
-        patch_jump(jf);
-
-        compile_expr(toe.op_->options_[0]); // falsy / idx=0
-        if (failed_) return;
-
-        patch_jump(jmp);
+            for (size_t i = 0; i < N - 1; ++i) {
+                // if cond_slot != i → skip to next branch
+                emit({opcode::LOAD_LOCAL, cond_slot});
+                uint16_t ci = chunk_->add_constant(core::value::number(static_cast<double>(i)));
+                emit({opcode::LOAD_CONST, ci});
+                emit({opcode::EQ});
+                size_t skip = emit_jump(opcode::JUMP_IF_FALSY);
+                compile_expr(toe.op_->options_[i]);
+                if (failed_) return;
+                end_jumps.push_back(emit_jump(opcode::JUMP));
+                patch_jump(skip);
+            }
+            // Last option: fall-through (no comparison needed)
+            compile_expr(toe.op_->options_[N - 1]);
+            if (failed_) return;
+            for (size_t j : end_jumps) patch_jump(j);
+        }
         break;
     }
 
@@ -161,6 +185,21 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
     case parser::node_t::parenthesized_expr: {
         auto& pe = static_cast<const parser::parenthesized_expr&>(*expr);
         compile_expr(pe.expr_);
+        break;
+    }
+
+    // ── Block expression { stmt; ...; expr } ──────────────────────────────
+    case parser::node_t::block_expr: {
+        auto& be = static_cast<const parser::block_expr&>(*expr);
+        if (be.statements_.empty()) {
+            emit({opcode::LOAD_NIL});
+            break;
+        }
+        for (size_t i = 0; i < be.statements_.size(); ++i) {
+            bool is_last = (i + 1 == be.statements_.size());
+            compile_stmt(be.statements_[i], is_last);
+            if (failed_) return;
+        }
         break;
     }
 
@@ -177,7 +216,7 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
         if (!id.identifier_) { fail(); return; }
         const std::string& fn_name = id.identifier_->name_;
 
-        // No named arguments in Step 3
+        // No named arguments
         for (const auto& arg : fce.call_->arguments_) {
             if (arg && !arg->name_.empty()) { fail(); return; }
         }
@@ -193,15 +232,28 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
 
         // Is it a compiled user function?
         uint32_t fn_id = env_->intern(fn_name);
-        if (fn_defs_->count(fn_id)) {
+        auto def_it = fn_defs_->find(fn_id);
+        if (def_it != fn_defs_->end() && def_it->second) {
+            const auto& callee_def = *def_it->second;
+            // Emit defaults for any missing positional args
+            for (size_t i = argc; i < callee_def.parameters_.size(); ++i) {
+                const auto& p = callee_def.parameters_[i];
+                if (!p) { fail(); return; }
+                if (p->default_value_) {
+                    compile_expr(p->default_value_);
+                } else {
+                    emit({opcode::LOAD_NIL});
+                }
+                if (failed_) return;
+                ++argc;
+            }
             emit({opcode::CALL, argc, 0, static_cast<int32_t>(fn_id)});
             return;
         }
 
         // Is it a builtin?
         if (uint32_t bid = env_->intern_.find(fn_name)) {
-            if (const core::builtin* bi = env_->lookup_builtin(bid)) {
-                // Find the builtin index
+            if (env_->lookup_builtin(bid)) {
                 for (size_t i = 0; i < core::num_builtins; ++i) {
                     if (core::builtins[i].name_ == fn_name) {
                         emit({opcode::CALL_NATIVE, argc,
@@ -217,7 +269,51 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
         break;
     }
 
-    // ── Everything else: not supported in Step 3 ───────────────────────────
+    // ── Everything else: not supported ─────────────────────────────────────
+    default:
+        fail();
+        break;
+    }
+}
+
+// ── compile_stmt ─────────────────────────────────────────────────────────────
+// Compile a statement inside a block expression.
+// is_last: when true this statement's value is the block result (left on stack).
+//          when false the value is discarded.
+
+void compiler::compile_stmt(const parser::stmt_ptr& stmt, bool is_last) {
+    if (!stmt || failed_) return;
+
+    switch (stmt->type_) {
+
+    case parser::node_t::expression_stmt: {
+        auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+        compile_expr(es.expression_);
+        if (failed_) return;
+        if (!is_last) emit({opcode::POP});
+        break;
+    }
+
+    case parser::node_t::assignment: {
+        auto& a = static_cast<const parser::assignment&>(*stmt);
+        if (!a.value_) { fail(); return; }
+        compile_expr(a.value_);
+        if (failed_) return;
+        // Allocate a new slot for a new local variable, or reuse existing.
+        auto it = slots_.find(a.name_);
+        uint16_t slot;
+        if (it != slots_.end()) {
+            slot = it->second;
+        } else {
+            slot = next_slot_++;
+            slots_[a.name_] = slot;
+        }
+        emit({opcode::STORE_LOCAL, slot});
+        // Assignments in block position return nil (matching AST-walker semantics).
+        if (is_last) emit({opcode::LOAD_NIL});
+        break;
+    }
+
     default:
         fail();
         break;
@@ -254,12 +350,16 @@ std::unique_ptr<bytecode_fn> compiler::compile(
         if (!p) { chunk_ = nullptr; return nullptr; }
         slots_[p->name_] = next_slot_++;
     }
-    fn->local_count_ = next_slot_; // Step 3: locals == params
+    fn->local_count_ = next_slot_; // will be updated after body compilation
 
     // Compile body
     compile_expr(def.body_);
 
     if (failed_) { chunk_ = nullptr; return nullptr; }
+
+    // Update local_count to include any slots allocated during body compilation
+    // (block-local variables, N>2 ternary temp slots, etc.)
+    fn->local_count_ = next_slot_;
 
     emit({opcode::RETURN});
     chunk_ = nullptr;
