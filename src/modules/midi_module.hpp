@@ -306,10 +306,7 @@ private:
         fm.elements_.push_back(core::value::number(data2));
         fd->members_.push_back(std::move(fm));
 
-        core::value v;
-        v.type_ = core::value_t::flow;
-        v.flow_ = std::move(fd);
-        return v;
+        return core::value::from_flow(std::move(fd));
     }
 
     // ── Port listing ───────────────────────────────────────────────────────
@@ -340,10 +337,7 @@ private:
             }
             fd->members_.push_back(std::move(fm));
 
-            core::value v;
-            v.type_ = core::value_t::flow;
-            v.flow_ = std::move(fd);
-            return v;
+            return core::value::from_flow(std::move(fd));
         } catch (const RtMidiError& e) {
             std::cerr << "[midi] midi_ports: " << e.getMessage() << "\n";
             return core::value::nil();

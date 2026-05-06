@@ -105,6 +105,8 @@ set(SOURCES
     src/parser/parse.cpp
     src/semantic/analyzer.cpp
     src/core/evaluator.cpp
+    src/vm/compiler.cpp
+    src/vm/vm.cpp
 )
 
 add_executable(idyl ${SOURCES})

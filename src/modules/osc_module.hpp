@@ -195,9 +195,7 @@ namespace idyl::modules {
                     }
                     fd->members_.push_back(std::move(fm));
 
-                    core::value flow_val;
-                    flow_val.type_ = core::value_t::flow;
-                    flow_val.flow_ = std::move(fd);
+                    core::value flow_val = core::value::from_flow(std::move(fd));
 
                     state["last_msg"] = flow_val;
                     emitted["received"] = core::value::trigger(true);

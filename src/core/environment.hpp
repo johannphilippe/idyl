@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <cstdint>
 
 #include "core/core.hpp"
 #include "core/builtins.hpp"
@@ -11,11 +12,38 @@
 
 namespace idyl::core {
 
+    // ── String intern table ────────────────────────────────────────────────────
+    // Maps each distinct string to a uint32_t ID starting from 1.
+    // ID 0 is reserved as "not yet interned" (sentinel for lazy caching in AST).
+    // Lives inside environment so it is created/destroyed with the evaluator.
+    struct string_intern {
+        std::unordered_map<std::string, uint32_t> map_;
+        std::vector<std::string> strings_; // strings_[id-1] == the string
+
+        // Return the existing ID for s, or allocate a new one.
+        uint32_t intern(const std::string& s) {
+            auto it = map_.find(s);
+            if (it != map_.end()) return it->second;
+            uint32_t id = static_cast<uint32_t>(strings_.size()) + 1;
+            strings_.push_back(s);
+            map_.emplace(s, id);
+            return id;
+        }
+
+        // Try to find the ID for s without allocating. Returns 0 if not found.
+        uint32_t find(const std::string& s) const {
+            auto it = map_.find(s);
+            return it != map_.end() ? it->second : 0;
+        }
+
+        const std::string& str(uint32_t id) const { return strings_[id - 1]; }
+    };
+
     // ── Runtime scope frame ────────────────────────────────────────────────────
-    // Each scope holds variable bindings. The scope chain is walked outward
-    // to resolve names (like Scheme's lexical scoping).
+    // Keys are interned string IDs — integer hashing is ~10× faster than
+    // std::string hashing, and the key size drops from 16–32 bytes to 4 bytes.
     struct scope_frame {
-        std::unordered_map<std::string, value> bindings_;
+        std::unordered_map<uint32_t, value> bindings_;
     };
 
     // ── Runtime environment ────────────────────────────────────────────────────
@@ -25,29 +53,36 @@ namespace idyl::core {
         // Scope chain: back() is innermost (current) scope
         std::vector<scope_frame> scopes_;
 
-        // Built-in function lookup (name → index into core::builtins[])
-        std::unordered_map<std::string, size_t> builtin_index_;
+        // Intern table — shared across the entire evaluator lifetime.
+        string_intern intern_;
+
+        // Built-in function lookup (interned name ID → index into core::builtins[])
+        std::unordered_map<uint32_t, size_t> builtin_index_;
 
         // Module registry (owned externally — populated before init)
         module::registry* module_registry_ = nullptr;
+
+        // ── Intern helper ──────────────────────────────────────────────────────
+        uint32_t intern(const std::string& s) { return intern_.intern(s); }
 
         // ── Initialization ─────────────────────────────────────────────────────
         void init() {
             // Push global scope
             scopes_.emplace_back();
 
-            // Build builtin lookup table
+            // Build builtin lookup table with interned keys
             for (size_t i = 0; i < num_builtins; ++i) {
-                builtin_index_[builtins[i].name_] = i;
+                uint32_t id = intern_.intern(builtins[i].name_);
+                builtin_index_[id] = i;
             }
 
             // Predefined constants
-            define("pi", value::number(3.14159265358979323846));
-            define("tau", value::number(6.28318530717958647692));
-            define("euler", value::number(2.71828182845904523536));
+            define("pi",      value::number(3.14159265358979323846));
+            define("tau",     value::number(6.28318530717958647692));
+            define("euler",   value::number(2.71828182845904523536));
             define("catalan", value::number(0.91596559417721901505));
-            define("apery", value::number(1.20205690315959428540));
-            define("phi", value::number(1.61803398874989484820)); // alias for golden_ratio
+            define("apery",   value::number(1.20205690315959428540));
+            define("phi",     value::number(1.61803398874989484820));
         }
 
         // ── Scope management ───────────────────────────────────────────────────
@@ -61,29 +96,44 @@ namespace idyl::core {
             }
         }
 
-        // ── Variable binding ───────────────────────────────────────────────────
+        // ── Variable binding (string key — interns on first call) ──────────────
         void define(const std::string& name, value val) {
-            scopes_.back().bindings_[name] = std::move(val);
+            uint32_t id = intern_.intern(name);
+            scopes_.back().bindings_[id] = std::move(val);
         }
 
-        // ── Lookup: walk scope chain outward ───────────────────────────────────
-        value* lookup(const std::string& name) {
+        // ── Variable binding (pre-interned key — zero extra hashing) ──────────
+        void define(uint32_t id, value val) {
+            scopes_.back().bindings_[id] = std::move(val);
+        }
+
+        // ── Lookup by pre-interned ID (fast path) ─────────────────────────────
+        value* lookup(uint32_t id) {
             for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
-                auto found = it->bindings_.find(name);
-                if (found != it->bindings_.end()) {
-                    return &found->second;
-                }
+                auto found = it->bindings_.find(id);
+                if (found != it->bindings_.end()) return &found->second;
             }
             return nullptr;
         }
 
-        // ── Built-in lookup ────────────────────────────────────────────────────
+        // ── Lookup by string (interns internally; use sparingly on hot path) ───
+        value* lookup(const std::string& name) {
+            uint32_t id = intern_.find(name);
+            if (id == 0) return nullptr; // never defined → not in any scope
+            return lookup(id);
+        }
+
+        // ── Built-in lookup by pre-interned ID ────────────────────────────────
+        const builtin* lookup_builtin(uint32_t id) const {
+            auto it = builtin_index_.find(id);
+            return it != builtin_index_.end() ? &builtins[it->second] : nullptr;
+        }
+
+        // ── Built-in lookup by string ─────────────────────────────────────────
         const builtin* lookup_builtin(const std::string& name) const {
-            auto it = builtin_index_.find(name);
-            if (it != builtin_index_.end()) {
-                return &builtins[it->second];
-            }
-            return nullptr;
+            uint32_t id = intern_.find(name);
+            if (id == 0) return nullptr;
+            return lookup_builtin(id);
         }
 
         // ── Module function lookup ─────────────────────────────────────────────

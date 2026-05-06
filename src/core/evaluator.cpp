@@ -4,6 +4,7 @@
 #include "utilities/filesystem.hpp"
 #include "parser/parse.hpp"
 #include "debug.hpp"
+#include "vm/compiler.hpp"
 
 #include <cmath>
 #include <algorithm>
@@ -166,9 +167,19 @@ static void collect_stmt_ids(const parser::stmt_ptr& stmt,
 // Top-level entry: walk program statements
 // ════════════════════════════════════════════════════════════════════════════════
 
+// ── try_compile ───────────────────────────────────────────────────────────────
+// Attempt to compile a pure function definition to bytecode.
+// Silently skips on any compilation failure (lambda blocks, unsupported AST).
+void evaluator::try_compile(const parser::function_definition& def, uint32_t fn_id) {
+    vm::compiler c;
+    auto chunk = c.compile(def, env_, function_defs_);
+    if (chunk) vm_.store(fn_id, std::move(chunk));
+}
+
 void evaluator::run(const parser::program& program) {
     env_.init();
     clocks_.init(120.0);  // main clock at 120 BPM
+    vm_.eval_ = this;     // give the VM a back-pointer for fallback calls
 
     for (const auto& stmt : program.statements_) {
         if (!stmt) continue;
@@ -209,8 +220,11 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             env_.define(def.name_, value::local_function(def.name_, ast_ptr));
         } else {
             // Global scope: register in function_defs_ as usual.
+            uint32_t fn_id = env_.intern(def.name_);
             env_.define(def.name_, value::function_ref(def.name_));
-            function_defs_[def.name_] = ast_ptr;
+            function_defs_[fn_id] = ast_ptr;
+            // Eagerly compile to bytecode (fails silently for non-pure functions).
+            try_compile(def, fn_id);
         }
         break;
     }
@@ -223,19 +237,14 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             // Parametric flow: store the definition for call-time evaluation.
             // A function_ref is placed in the environment so the name resolves
             // through the normal indirect-call path in eval_call.
-            flow_defs_[def.name_] = std::static_pointer_cast<parser::flow_definition>(
+            flow_defs_[env_.intern(def.name_)] = std::static_pointer_cast<parser::flow_definition>(
                 std::const_pointer_cast<parser::statement>(stmt));
             env_.define(def.name_, value::function_ref(def.name_));
             break;
         }
 
         // Zero-parameter flow: evaluate eagerly (original behaviour).
-        {
-            value flow_val;
-            flow_val.type_ = value_t::flow;
-            flow_val.flow_ = eval_flow_members(def.members_);
-            env_.define(def.name_, std::move(flow_val));
-        }
+        env_.define(def.name_, value::from_flow(eval_flow_members(def.members_)));
         break;
     }
 
@@ -407,7 +416,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         def_ptr = anon_inst->local_def_;
                         if (!def_ptr) {
                             std::shared_lock lock(defs_mutex_);
-                            auto dit = function_defs_.find(anon_inst->def_name_);
+                            auto dit = function_defs_.find(env_.intern(anon_inst->def_name_));
                             if (dit != function_defs_.end()) def_ptr = dit->second;
                         }
                     }
@@ -478,7 +487,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 if (!inst->native_update_) {
                     def_ptr = inst->local_def_;
                     if (!def_ptr) {
-                        auto def_it = function_defs_.find(inst->def_name_);
+                        auto def_it = function_defs_.find(env_.intern(inst->def_name_));
                         if (def_it == function_defs_.end()) continue;
                         def_ptr = def_it->second;
                     }
@@ -549,7 +558,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                                 pool_def = pool_inst->local_def_;
                             } else {
                                 std::shared_lock<std::shared_mutex> rl(defs_mutex_);
-                                auto def_it = function_defs_.find(pool_inst->def_name_);
+                                auto def_it = function_defs_.find(env_.intern(pool_inst->def_name_));
                                 if (def_it != function_defs_.end()) pool_def = def_it->second;
                             }
                             tick_instance(pool_inst, pool_def.get());
@@ -900,19 +909,24 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
     case parser::node_t::identifier_expr: {
         auto& id_expr = static_cast<const parser::identifier_expr&>(*expr);
         if (!id_expr.identifier_) return value::nil();
-        const std::string& name = id_expr.identifier_->name_;
+        auto& id_node = *id_expr.identifier_;
+        // Lazily intern the name on first evaluation; all subsequent hits use the ID.
+        if (id_node.name_id_ == 0)
+            id_node.name_id_ = env_.intern(id_node.name_);
+        const uint32_t nid = id_node.name_id_;
+        const std::string& name = id_node.name_;
 
         // Check scope chain first (variables, parameters, etc.)
-        if (auto* val = env_.lookup(name)) {
+        if (auto* val = env_.lookup(nid)) {
             return *val;
         }
 
         // If the identifier names a known function, return a first-class
         // function reference value.  This allows functions to be passed
         // around, stored in flows, and called indirectly.
-        if (env_.lookup_builtin(name))      return value::function_ref(name);
-        if (env_.lookup_module_fn(name))    return value::function_ref(name);
-        if (function_defs_.count(name))     return value::function_ref(name);
+        if (env_.lookup_builtin(nid))      return value::function_ref(name);
+        if (env_.lookup_module_fn(name))   return value::function_ref(name);
+        if (function_defs_.count(nid))     return value::function_ref(name);
 
         warn(expr->line_, expr->column_, "undefined identifier '" + name + "'");
         return value::number(0.0); // safe default
@@ -1002,10 +1016,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
     case parser::node_t::flow_literal_expr: {
         auto& fle = static_cast<const parser::flow_literal_expr&>(*expr);
         if (fle.is_named()) {
-            value result;
-            result.type_ = value_t::flow;
-            result.flow_ = eval_flow_members(fle.named_members_);
-            return result;
+            return value::from_flow(eval_flow_members(fle.named_members_));
         }
         if (!fle.flow_) return value::nil();
         return eval_flow_literal(*fle.flow_);
@@ -1023,13 +1034,13 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
         auto& fae = static_cast<const parser::flow_access_expr&>(*expr);
         if (!fae.access_) return value::nil();
         value flow = eval_expr(fae.access_->flow_);
-        if (flow.type_ != value_t::flow || !flow.flow_) {
+        if (flow.type_ != value_t::flow || !flow.payload_) {
             warn(expr->line_, expr->column_, "flow access on non-flow value");
             return value::number(0.0);
         }
         // Member access by name
         if (!fae.access_->member_.empty()) {
-            for (const auto& m : flow.flow_->members_) {
+            for (const auto& m : flow.flow().members_) {
                 if (m.name_ == fae.access_->member_) {
                     // Single element → unwrap to scalar value directly
                     if (m.elements_.size() == 1) {
@@ -1038,11 +1049,8 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     // Multiple elements → return as a flow sharing the parent cursors
                     auto fd = std::make_shared<flow_data>();
                     fd->members_.push_back(m);
-                    fd->cursors_ = flow.flow_->cursors_; // share cursors
-                    value result;
-                    result.type_ = value_t::flow;
-                    result.flow_ = std::move(fd);
-                    return result;
+                    fd->cursors_ = flow.flow().cursors_; // share cursors
+                    return value::from_flow(std::move(fd));
                 }
             }
             warn(expr->line_, expr->column_,
@@ -1053,8 +1061,8 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
         if (fae.access_->index_) {
             value idx = eval_expr(fae.access_->index_);
 
-            if (flow.flow_->members_.empty() ||
-                flow.flow_->members_[0].elements_.empty()) {
+            if (flow.flow().members_.empty() ||
+                flow.flow().members_[0].elements_.empty()) {
                 return value::number(0.0);
             }
 
@@ -1080,12 +1088,12 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
             auto& cursors = *site_cursor_ptr;
 
             // ── Single-member flow: return element directly ────────────────
-            if (flow.flow_->members_.size() == 1) {
-                auto& elems = flow.flow_->members_[0].elements_;
+            if (flow.flow().members_.size() == 1) {
+                auto& elems = flow.flow().members_[0].elements_;
                 int n = static_cast<int>(elems.size());
-                const std::string& key = flow.flow_->members_[0].name_;
+                const std::string& key = flow.flow().members_[0].name_;
 
-                const auto& member0 = flow.flow_->members_[0];
+                const auto& member0 = flow.flow().members_[0];
                 if (is_trigger) {
                     int& cur = cursors[key];
                     if (idx.trigger_) {
@@ -1112,7 +1120,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
             // Track resolved elements by name so gated members can read the
             // gate member's output for this tick (members are processed in order).
             std::unordered_map<std::string, value> resolved_this_tick;
-            for (const auto& m : flow.flow_->members_) {
+            for (const auto& m : flow.flow().members_) {
                 flow_member row_m;
                 row_m.name_ = m.name_;
                 if (m.elements_.empty()) {
@@ -1178,10 +1186,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                 row_m.live_deps_.push_back(nullptr);
                 fd->members_.push_back(std::move(row_m));
             }
-            value result;
-            result.type_ = value_t::flow;
-            result.flow_ = std::move(fd);
-            return result;
+            return value::from_flow(std::move(fd));
         }
         return flow;
     }
@@ -1246,7 +1251,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     if (speculative_exec_) return value::number(0.0);
                     return eval_module_fn(*mf, args, expr->line_, expr->column_);
                 }
-                auto it = function_defs_.find(qualified);
+                auto it = function_defs_.find(env_.intern(qualified));
                 if (it != function_defs_.end() && it->second)
                     return eval_user_function(*it->second, args, named, qualified, pos_exprs, named_exprs);
             } else {
@@ -1257,7 +1262,7 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     return value::function_ref(qualified);
                 if (env_.lookup_module_fn(qualified))
                     return value::function_ref(qualified);
-                if (function_defs_.count(qualified))
+                if (function_defs_.count(env_.intern(qualified)))
                     return value::function_ref(qualified);
             }
         }
@@ -1365,7 +1370,7 @@ value evaluator::apply_binop(const std::string& op, const value& lhs, const valu
     if (op == "+" && (lhs.type_ == value_t::string || rhs.type_ == value_t::string)) {
         auto to_str = [](const value& v) -> std::string {
             switch (v.type_) {
-                case value_t::string:  return v.string_ ? *v.string_ : "";
+                case value_t::string:  return v.payload_ ? v.str() : "";
                 case value_t::number:  { auto s = std::to_string(v.number_); 
                                          // strip trailing zeros: 3.000000 → 3
                                          auto dot = s.find('.');
@@ -1387,8 +1392,8 @@ value evaluator::apply_binop(const std::string& op, const value& lhs, const valu
 
     // ── String comparison ──────────────────────────────────────────────────
     if (lhs.type_ == value_t::string && rhs.type_ == value_t::string) {
-        std::string a_s = lhs.string_ ? *lhs.string_ : "";
-        std::string b_s = rhs.string_ ? *rhs.string_ : "";
+        std::string a_s = lhs.payload_ ? lhs.str() : "";
+        std::string b_s = rhs.payload_ ? rhs.str() : "";
         if (op == "==") return value::number(a_s == b_s ? 1.0 : 0.0);
         if (op == "!=") return value::number(a_s != b_s ? 1.0 : 0.0);
         if (op == "<")  return value::number(a_s <  b_s ? 1.0 : 0.0);
@@ -1490,11 +1495,17 @@ value evaluator::apply_unop(const std::string& op, const value& operand) {
 value evaluator::eval_call(const parser::function_call& call) {
     if (!call.function_) return value::nil();
 
-    // Resolve function name
+    // Resolve function name — intern ID lazily on the AST node and cache it.
     std::string fn_name;
+    uint32_t fn_id = 0;
     if (call.function_->type_ == parser::node_t::identifier_expr) {
         auto& id = static_cast<const parser::identifier_expr&>(*call.function_);
-        if (id.identifier_) fn_name = id.identifier_->name_;
+        if (id.identifier_) {
+            fn_name = id.identifier_->name_;
+            if (id.identifier_->name_id_ == 0)
+                id.identifier_->name_id_ = env_.intern(fn_name);
+            fn_id = id.identifier_->name_id_;
+        }
     }
 
     if (fn_name.empty()) {
@@ -1508,11 +1519,12 @@ value evaluator::eval_call(const parser::function_call& call) {
     //    For closures, it also carries a reference to the owning instance.
     std::shared_ptr<parser::function_definition> local_fn_def;
     std::shared_ptr<function_instance> closure_inst;
-    if (auto* var = env_.lookup(fn_name)) {
-        if (var->type_ == value_t::function && var->string_) {
-            fn_name = *var->string_;
-            if (var->fn_def_) local_fn_def = var->fn_def_;
-            if (var->closure_inst_) closure_inst = var->closure_inst_;
+    if (auto* var = env_.lookup(fn_id)) {
+        if (var->type_ == value_t::function && var->payload_) {
+            fn_name = var->fn().name_;
+            fn_id   = env_.intern(fn_name); // re-intern the resolved name
+            local_fn_def = var->fn().fn_def_;
+            closure_inst = var->fn().closure_inst_;
         }
     }
 
@@ -1542,7 +1554,7 @@ value evaluator::eval_call(const parser::function_call& call) {
     //   first_clock(2b)   → 2 * (60000 / clock_bpm) ms
     //   first_clock(500ms)→ 500 ms  (pass-through of evaluated ms value)
     //   first_clock()     → 1 beat duration at clock_bpm
-    if (auto* var_val = env_.lookup(fn_name)) {
+    if (auto* var_val = env_.lookup(fn_id)) {
         if (var_val->type_ == value_t::handle) {
             uint64_t clock_id = static_cast<uint64_t>(var_val->as_handle());
             double clock_bpm = clocks_.bpm(clock_id);
@@ -1630,7 +1642,7 @@ value evaluator::eval_call(const parser::function_call& call) {
     }
 
     // ── Check builtins first ───────────────────────────────────────────────
-    if (auto* bi = env_.lookup_builtin(fn_name)) {
+    if (auto* bi = env_.lookup_builtin(fn_id)) {
         return eval_builtin(*bi, args);
     }
 
@@ -1650,7 +1662,7 @@ value evaluator::eval_call(const parser::function_call& call) {
     if (local_fn_def) {
         return eval_user_function(*local_fn_def, args, named, fn_name, pos_exprs, named_exprs, &call, local_fn_def, closure_inst);
     }
-    auto it = function_defs_.find(fn_name);
+    auto it = function_defs_.find(fn_id);
     if (it != function_defs_.end() && it->second) {
         // Pass fn_name as the qualified_key so temporal instances get the right
         // def_name_ (the key that function_defs_ and fn_library_scope_ use).
@@ -1658,7 +1670,7 @@ value evaluator::eval_call(const parser::function_call& call) {
     }
 
     // ── Check parametric flow definitions ──────────────────────────────────
-    auto fit = flow_defs_.find(fn_name);
+    auto fit = flow_defs_.find(fn_id);
     if (fit != flow_defs_.end() && fit->second) {
         return eval_flow_call(*fit->second, args, named, pos_exprs, named_exprs);
     }
@@ -1932,6 +1944,22 @@ value evaluator::eval_user_function(const parser::function_definition& def,
     }
 
     if (!def.body_) return value::nil();
+
+    // ── VM fast-path ────────────────────────────────────────────────────────
+    // Use the bytecode VM for pure functions that have been compiled:
+    //  • no named args (VM only handles positional)
+    //  • no closure (VM has no access to the owning instance's scope)
+    //  • no local function definition (carries its own AST — not in vm_.chunks_)
+    //  • VM not already active (re-entrancy guard)
+    if (named.empty() && !closure_inst && !local_def && !vm_.active_) {
+        const std::string& key = qualified_key.empty() ? def.name_ : qualified_key;
+        uint32_t fn_id = env_.intern(key);
+        if (vm_.has_compiled(fn_id)) {
+            return vm_.run(fn_id, args);
+        } else {
+            std::cout << "No compiled chunk for function '" << key << "'; falling back to AST evaluation\n" << std::endl;
+        }
+    }
 
     // ── Pure function evaluation ────────────────────────────────────────────
     // For closures: push the owning instance's params and state so the body
@@ -2340,8 +2368,8 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                         auto cit = inst.current_.find(upd.name_);
                         if (cit != inst.current_.end() &&
                                 cit->second.type_ == value_t::instance_ref &&
-                                cit->second.instance_)
-                            retick_instance_ = cit->second.instance_.get();
+                                cit->second.payload_)
+                            retick_instance_ = &cit->second.inst();
                     }
                     last_instantiated_ = nullptr;
                     value v = eval_expr(upd.body_);
@@ -2375,8 +2403,8 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                     auto cit = inst.current_.find(assign.name_);
                     if (cit != inst.current_.end() &&
                             cit->second.type_ == value_t::instance_ref &&
-                            cit->second.instance_)
-                        retick_instance_ = cit->second.instance_.get();
+                            cit->second.payload_)
+                        retick_instance_ = &cit->second.inst();
                 }
                 last_instantiated_ = nullptr;
                 value v = eval_expr(assign.value_);
@@ -2471,10 +2499,7 @@ value evaluator::eval_flow_literal(const parser::flow_literal& fl) {
     fd->members_.push_back(std::move(fm));
     auto_schedule_flow(*fd);
 
-    value result;
-    result.type_ = value_t::flow;
-    result.flow_ = std::move(fd);
-    return result;
+    return value::from_flow(std::move(fd));
 }
 
 value evaluator::eval_generator(const parser::generator_expr& gen) {
@@ -2494,10 +2519,7 @@ value evaluator::eval_generator(const parser::generator_expr& gen) {
     env_.pop_scope();
 
     fd->members_.push_back(std::move(fm));
-    value result;
-    result.type_ = value_t::flow;
-    result.flow_ = std::move(fd);
-    return result;
+    return value::from_flow(std::move(fd));
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2585,9 +2607,9 @@ static bool values_equal(const value& a, const value& b) {
         case value_t::trigger: return a.trigger_ == b.trigger_;
         case value_t::handle:  return a.handle_  == b.handle_;
         case value_t::string:
-            if (!a.string_ && !b.string_) return true;
-            if (!a.string_ || !b.string_) return false;
-            return *a.string_ == *b.string_;
+            if (!a.payload_ && !b.payload_) return true;
+            if (!a.payload_ || !b.payload_) return false;
+            return a.str() == b.str();
         default:               return true;  // nil == nil, function refs not used as args
     }
 }
@@ -2651,9 +2673,7 @@ value evaluator::eval_flow_call(const parser::flow_definition& def,
             env_.define(param->name_, eval_expr(param->default_value_));
     }
 
-    value result;
-    result.type_ = value_t::flow;
-    result.flow_ = eval_flow_members(def.members_);
+    value result = value::from_flow(eval_flow_members(def.members_));
 
     env_.pop_scope();
 
@@ -2675,8 +2695,8 @@ value evaluator::resolve_flow_element(const flow_member& m, int i) {
     const value& v = m.elements_[i];
 
     // Direct temporal slot: return current instance output (thread-safe via mutex)
-    if (v.type_ == value_t::instance_ref && v.instance_) {
-        return v.instance_->read_output();
+    if (v.type_ == value_t::instance_ref && v.payload_) {
+        return v.inst().read_output();
     }
 
     // Compound temporal slot: re-evaluate the stored expression with a retick
@@ -2709,7 +2729,7 @@ void evaluator::schedule_instance(std::shared_ptr<function_instance> inst) {
             if (!si || !si->active_) return false;
             const parser::function_definition* def_ptr = si->local_def_.get();
             if (!def_ptr) {
-                auto def_it = function_defs_.find(si->def_name_);
+                auto def_it = function_defs_.find(env_.intern(si->def_name_));
                 if (def_it != function_defs_.end()) def_ptr = def_it->second.get();
             }
             tick_instance(si, def_ptr);
@@ -2722,7 +2742,7 @@ void evaluator::auto_schedule_flow(flow_data& fd) {
         for (size_t i = 0; i < m.elements_.size(); ++i) {
             std::shared_ptr<function_instance> inst;
             if (m.elements_[i].type_ == value_t::instance_ref)
-                inst = m.elements_[i].instance_;
+                inst = m.elements_[i].inst_ptr();
             else if (i < m.live_deps_.size() && m.live_deps_[i])
                 inst = m.live_deps_[i];
 
@@ -3405,7 +3425,7 @@ void evaluator::diff_and_apply(live_process& lp,
                 def_ptr = inst->local_def_;
                 if (!def_ptr) {
                     std::shared_lock lock(defs_mutex_);
-                    auto dit = function_defs_.find(inst->def_name_);
+                    auto dit = function_defs_.find(env_.intern(inst->def_name_));
                     if (dit != function_defs_.end()) def_ptr = dit->second;
                 }
             }
@@ -3551,11 +3571,13 @@ void evaluator::hot_reload(const std::string& source) {
                 auto def_ptr = std::static_pointer_cast<parser::function_definition>(
                     std::const_pointer_cast<parser::node>(
                         std::shared_ptr<const parser::node>(stmt, &def)));
+                uint32_t fn_id = env_.intern(def.name_);
                 {
                     std::unique_lock lock(defs_mutex_);
-                    function_defs_[def.name_] = def_ptr;
+                    function_defs_[fn_id] = def_ptr;
                 }
                 env_.define(def.name_, value::function_ref(def.name_));
+                try_compile(def, fn_id); // recompile updated function
             }
             std::cerr << "[hot_reload] updated function '" << def.name_ << "'\n";
             break;
@@ -3581,15 +3603,12 @@ void evaluator::hot_reload(const std::string& source) {
                 }  else {
                     auto fp = std::static_pointer_cast<parser::flow_definition>(
                         std::const_pointer_cast<parser::statement>(stmt));
-                    flow_defs_[def.name_] = fp;
+                    flow_defs_[env_.intern(def.name_)] = fp;
                 }
             }
 
             if (def.parameters_.empty()) {
-                value fv;
-                fv.type_  = value_t::flow;
-                fv.flow_  = eval_flow_members(def.members_);
-                env_.define(def.name_, std::move(fv));
+                env_.define(def.name_, value::from_flow(eval_flow_members(def.members_)));
             } else {
                 env_.define(def.name_, value::function_ref(def.name_));
             }

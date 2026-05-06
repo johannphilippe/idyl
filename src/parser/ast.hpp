@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <iomanip>
+#include <cstdint>
 
 namespace idyl::parser {
 
@@ -160,8 +161,9 @@ struct string_literal : node {
 
 struct identifier : node {
     std::string name_;
+    mutable uint32_t name_id_ = 0; // cached intern ID; 0 = not yet interned
     bool is_trigger_param_ = false; // true if "name!", false if "name"
-    
+
     identifier() : node(node_t::identifier) {}
     
     void print(int indent = 0) const override {

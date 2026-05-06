@@ -16,6 +16,7 @@
 #include "core/environment.hpp"
 #include "time/scheduler.hpp"
 #include "include/module.hpp"
+#include "vm/vm.hpp"
 
 namespace idyl::core {
 
@@ -30,8 +31,19 @@ namespace idyl::core {
     struct evaluator {
         environment env_;
 
-        // AST definitions kept for call-time evaluation of user functions
-        std::unordered_map<std::string,
+        // Bytecode VM — compiles and executes pure user functions.
+        // Owned here; eval_ back-pointer is set in run() before first use.
+        vm::vm vm_;
+
+        // ── VM integration helpers ─────────────────────────────────────────────
+        // Attempt to compile def and store the chunk in vm_.  Called whenever a
+        // global function definition is registered.  Silently skips if the
+        // function cannot be compiled (lambda blocks, unsupported expressions).
+        void try_compile(const parser::function_definition& def, uint32_t fn_id);
+
+        // AST definitions kept for call-time evaluation of user functions.
+        // Keyed by interned name ID for O(1) integer-hash lookup.
+        std::unordered_map<uint32_t,
             std::shared_ptr<parser::function_definition>> function_defs_;
 
         // AST definitions for parametric flow definitions (flow with parameters).
@@ -39,7 +51,7 @@ namespace idyl::core {
         // directly in the environment as flow values.  Parametric flows are stored
         // here and evaluated on each call — once per unique argument set (static),
         // or on each tick of the driving temporal source (dynamic, phase 2).
-        std::unordered_map<std::string,
+        std::unordered_map<uint32_t,
             std::shared_ptr<parser::flow_definition>> flow_defs_;
 
         // Cache for parametric flow call results.

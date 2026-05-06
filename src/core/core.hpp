@@ -35,78 +35,103 @@ namespace idyl::core {
     struct flow_data;
     struct function_instance;
 
+    // ── Function payload (heap box for function values) ────────────────────────
+    // Holds the data that a function-type value needs beyond the scalar fields.
+    // All three fields are null for a plain global function_ref (only name_ is set);
+    // fn_def_ is set for local functions; closure_inst_ additionally for closures.
+    struct function_payload {
+        std::string name_;
+        std::shared_ptr<parser::function_definition> fn_def_;
+        std::shared_ptr<function_instance>           closure_inst_;
+    };
+
     // ── Runtime value ──────────────────────────────────────────────────────────
-    struct value 
+    // Scalar types (number/time/trigger/handle/nil) carry no heap allocation.
+    // Complex types box their payload into a single shared_ptr<void>:
+    //   string       → std::string
+    //   flow         → flow_data
+    //   function     → function_payload
+    //   instance_ref → function_instance
+    //
+    // sizeof(value) == 48 bytes (down from 112 with five separate shared_ptrs).
+    struct value
     {
-        value_t type_ = value_t::nil;
-        double number_ = 0.0;  // used for number and time (ms)
-        bool trigger_   = false; // used for trigger
-        intptr_t handle_ = 0;    // used for handle (opaque C pointer)
+        value_t  type_    = value_t::nil;
+        double   number_  = 0.0;   // number, time (ms)
+        bool     trigger_ = false; // trigger
+        intptr_t handle_  = 0;     // handle (opaque)
 
-        // Complex types (heap-allocated, ref-counted)
-        std::shared_ptr<std::string> string_;
-        std::shared_ptr<flow_data> flow_;
-        // Live reference to a temporal function_instance.
-        // Non-null only when type_ == instance_ref.
-        // Accessing this value always reads the instance's current output.
-        std::shared_ptr<function_instance> instance_ = nullptr;
+        std::shared_ptr<void> payload_; // null for scalar types
 
-        // Non-null for local function definitions (defined inside process/lambda
-        // scope). Carries the AST directly so the function bypasses function_defs_.
-        std::shared_ptr<parser::function_definition> fn_def_ = nullptr;
+        // ── Typed payload accessors ────────────────────────────────────────────
+        // Caller must have already verified type_ matches before calling these.
+        std::string&      str() const { return *static_cast<std::string*>(payload_.get()); }
+        function_payload& fn()  const { return *static_cast<function_payload*>(payload_.get()); }
 
-        // Non-null for closures: the temporal instance whose params/state the
-        // function captures.  At call time, the instance's current params_ and
-        // current_ are pushed into a scope frame so the body can read them by
-        // reference — i.e. it always sees the instance's latest values, not a
-        // snapshot taken at definition time.
-        std::shared_ptr<function_instance> closure_inst_ = nullptr;
+        std::shared_ptr<std::string>      string_ptr() const { return std::static_pointer_cast<std::string>(payload_); }
+        std::shared_ptr<function_payload> fn_ptr()     const { return std::static_pointer_cast<function_payload>(payload_); }
 
-        // ── Constructors ───────────────────────────────────────────────────────
-        // Aggregate constructors for the plain types — instance_ defaults to nullptr.
-        static value number(double v)       { return {value_t::number, v, false, 0, nullptr, nullptr}; }
-        static value time_ms(double ms)     { return {value_t::time, ms, false, 0, nullptr, nullptr}; }
-        static value trigger(bool fired)    { return {value_t::trigger, fired ? 1.0 : 0.0, fired, 0, nullptr, nullptr}; }
-        static value rest()                 { return {value_t::trigger, 0.0, false, 0, nullptr, nullptr}; } // rest is trigger(false)
-        static value nil()                  { return {value_t::nil, 0.0, false, 0, nullptr, nullptr}; }
-        static value string(std::string s)  { return {value_t::string, 0.0, false, 0, std::make_shared<std::string>(std::move(s)), nullptr}; }
-        static value handle(intptr_t h)     { return {value_t::handle, 0.0, false, h, nullptr, nullptr}; }
-        static value function_ref(std::string name) { return {value_t::function, 0.0, false, 0, std::make_shared<std::string>(std::move(name)), nullptr}; }
-        // Local function — carries AST directly; does not live in function_defs_.
-        static value local_function(std::string name, std::shared_ptr<parser::function_definition> def) {
-            value v;
-            v.type_ = value_t::function;
-            v.string_ = std::make_shared<std::string>(std::move(name));
-            v.fn_def_ = std::move(def);
-            return v;
+        // fn_def and closure_inst live inside the function_payload box:
+        std::shared_ptr<parser::function_definition> fn_def() const {
+            return (type_ == value_t::function && payload_) ? fn().fn_def_ : nullptr;
         }
-        // Closure — local function that also captures a temporal instance for
-        // by-reference access to its params and state at call time.
+        std::shared_ptr<function_instance> closure_inst() const {
+            return (type_ == value_t::function && payload_) ? fn().closure_inst_ : nullptr;
+        }
+
+        // flow() and inst() are defined after flow_data / function_instance are complete
+        flow_data&         flow() const;
+        function_instance& inst() const;
+        std::shared_ptr<flow_data>         flow_ptr() const;
+        std::shared_ptr<function_instance> inst_ptr() const;
+
+        // Accessor for function-ref values
+        const std::string& fn_name() const {
+            static const std::string empty;
+            return (type_ == value_t::function && payload_) ? fn().name_ : empty;
+        }
+
+        // ── Static constructors ────────────────────────────────────────────────
+        static value number(double v)    { return {value_t::number,  v,             false, 0, nullptr}; }
+        static value time_ms(double ms)  { return {value_t::time,    ms,            false, 0, nullptr}; }
+        static value trigger(bool fired) { return {value_t::trigger, fired?1.0:0.0, fired, 0, nullptr}; }
+        static value rest()              { return {value_t::trigger, 0.0,           false, 0, nullptr}; }
+        static value nil()               { return {value_t::nil,     0.0,           false, 0, nullptr}; }
+        static value handle(intptr_t h)  { return {value_t::handle,  0.0,           false, h, nullptr}; }
+
+        static value string(std::string s) {
+            return {value_t::string, 0.0, false, 0,
+                    std::make_shared<std::string>(std::move(s))};
+        }
+        static value from_flow(std::shared_ptr<flow_data> fd) {
+            return {value_t::flow, 0.0, false, 0, std::move(fd)};
+        }
+        static value function_ref(std::string name) {
+            auto fp = std::make_shared<function_payload>();
+            fp->name_ = std::move(name);
+            return {value_t::function, 0.0, false, 0, std::move(fp)};
+        }
+        static value local_function(std::string name,
+                                    std::shared_ptr<parser::function_definition> def) {
+            auto fp = std::make_shared<function_payload>();
+            fp->name_ = std::move(name);
+            fp->fn_def_ = std::move(def);
+            return {value_t::function, 0.0, false, 0, std::move(fp)};
+        }
         static value closure(std::string name,
                              std::shared_ptr<parser::function_definition> def,
                              std::shared_ptr<function_instance> inst) {
-            value v = local_function(std::move(name), std::move(def));
-            v.closure_inst_ = std::move(inst);
-            return v;
+            auto fp = std::make_shared<function_payload>();
+            fp->name_ = std::move(name);
+            fp->fn_def_ = std::move(def);
+            fp->closure_inst_ = std::move(inst);
+            return {value_t::function, 0.0, false, 0, std::move(fp)};
         }
-
-        // Wraps a live temporal instance.  Reading this value always returns
-        // the instance's current output via read_output().
         static value instance_ref(std::shared_ptr<function_instance> inst) {
-            value v;
-            v.type_ = value_t::instance_ref;
-            v.instance_ = std::move(inst);
-            return v;
+            return {value_t::instance_ref, 0.0, false, 0, std::move(inst)};
         }
-
-        // Accessor for function-ref values
-        const std::string& fn_name() const { static const std::string empty; return string_ ? *string_ : empty; }
 
         // ── Numeric coercion (for operators) ───────────────────────────────────
-        // trigger → 1.0 if fired, 0.0 otherwise
-        // time → its ms value
-        // instance_ref → delegates to instance's current output
-        // nil → 0.0
         // Defined out-of-line (after function_instance) because instance_ref
         // cases call read_output() which requires the complete type.
         double as_number() const;
@@ -116,8 +141,9 @@ namespace idyl::core {
         intptr_t as_handle() const {
             return (type_ == value_t::handle) ? handle_ : static_cast<intptr_t>(number_);
         }
-
     };
+
+    static_assert(sizeof(value) == 48, "value struct size changed unexpectedly");
 
     // ── Flow data ──────────────────────────────────────────────────────────────
     struct flow_member {
@@ -253,9 +279,16 @@ namespace idyl::core {
         }
     };
 
+    // ── value payload accessors — defined here so flow_data/function_instance are complete ──
+
+    inline flow_data&         value::flow()     const { return *static_cast<flow_data*>(payload_.get()); }
+    inline function_instance& value::inst()     const { return *static_cast<function_instance*>(payload_.get()); }
+    inline std::shared_ptr<flow_data>
+                              value::flow_ptr() const { return std::static_pointer_cast<flow_data>(payload_); }
+    inline std::shared_ptr<function_instance>
+                              value::inst_ptr() const { return std::static_pointer_cast<function_instance>(payload_); }
+
     // ── value coercion methods — defined here so function_instance is complete ──
-    // (as_number / is_truthy / as_string are declared in value but bodies moved
-    //  here because the instance_ref cases call read_output() on function_instance.)
 
     inline double value::as_number() const {
         switch (type_) {
@@ -263,7 +296,7 @@ namespace idyl::core {
             case value_t::time:         return number_;
             case value_t::trigger:      return trigger_ ? 1.0 : 0.0;
             case value_t::handle:       return static_cast<double>(handle_);
-            case value_t::instance_ref: return instance_ ? instance_->read_output().as_number() : 0.0;
+            case value_t::instance_ref: return payload_ ? inst().read_output().as_number() : 0.0;
             default:                    return 0.0;
         }
     }
@@ -273,10 +306,10 @@ namespace idyl::core {
             case value_t::number:       return number_ != 0.0;
             case value_t::time:         return number_ != 0.0;
             case value_t::trigger:      return trigger_;
-            case value_t::string:       return string_ && !string_->empty();
+            case value_t::string:       return payload_ && !str().empty();
             case value_t::handle:       return handle_ != 0;
-            case value_t::function:     return string_ && !string_->empty();
-            case value_t::instance_ref: return instance_ ? instance_->read_output().is_truthy() : false;
+            case value_t::function:     return payload_ && !fn().name_.empty();
+            case value_t::instance_ref: return payload_ && inst().read_output().is_truthy();
             case value_t::nil:          return false;
             default:                    return true;
         }
@@ -284,7 +317,7 @@ namespace idyl::core {
 
     inline std::string value::as_string() const {
         switch (type_) {
-            case value_t::string:  return string_ ? *string_ : "";
+            case value_t::string:  return payload_ ? str() : "";
             case value_t::number: {
                 auto s = std::to_string(number_);
                 auto dot = s.find('.');
@@ -297,7 +330,7 @@ namespace idyl::core {
             }
             case value_t::time:         return std::to_string(number_) + "ms";
             case value_t::trigger:      return trigger_ ? "trigger" : "rest";
-            case value_t::instance_ref: return instance_ ? instance_->read_output().as_string() : "";
+            case value_t::instance_ref: return payload_ ? inst().read_output().as_string() : "";
             case value_t::handle: {
                 char buf[32];
                 std::snprintf(buf, sizeof(buf), "handle@0x%lx",
@@ -305,7 +338,7 @@ namespace idyl::core {
                 return std::string(buf);
             }
             case value_t::function:
-                return string_ ? ("<fn:" + *string_ + ">") : "<fn>";
+                return payload_ ? ("<fn:" + fn().name_ + ">") : "<fn>";
             default: return "";
         }
     }

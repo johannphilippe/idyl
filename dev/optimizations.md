@@ -285,86 +285,98 @@ the AST-walker stays alive as a fallback throughout.
 
 ---
 
-### Step 1 — Fix the `value` representation *(1–2 weeks, Medium risk)*
+### Step 1 — Fix the `value` representation ✅ *(done)*
 
 **Bottleneck addressed:** `shared_ptr` ref-count traffic on every value copy.
 
-Do this first, before any VM work. The value struct is shared by both the
-current AST-walker and the future VM; fixing it once benefits both.
+**What was implemented:**
 
-- Change `value` so that `number`, `trigger`, `time`, `nil`, and `handle`
-  variants carry no `shared_ptr` at all (they are just a tag + a `double`
-  or `intptr_t`).
-- Only `string`, `flow`, `function`, and `instance_ref` variants need heap
-  indirection; box them with a `shared_ptr` to a concrete payload type.
-- A `std::variant<double, bool, intptr_t, std::shared_ptr<string_payload>, ...>`
-  or a manual tagged union both work. The manual union is ~10% faster due to
-  better alignment and no variant visitor overhead.
+The original `value` struct held five separate `shared_ptr` fields
+(`string_`, `flow_`, `instance_`, `fn_def_`, `closure_inst_`) — 80 bytes of
+ref-counted pointers on top of the scalar fields, for a total of **112 bytes**
+per `value`.
 
-**Expected gain:** 2–4× speedup for numeric-heavy code (fib, counters,
-arithmetic reactions). Low-hanging fruit because numeric values are by far
-the most common type on the hot path.
+Replaced the five fields with a single `std::shared_ptr<void> payload_` that
+type-erases the heap box. For complex types:
 
-**Risk mitigation:** `value` has ~300 call sites. Change the struct, then let
-the compiler find every broken cast/field access. Add a `static_assert` on
-`sizeof(value)` to catch accidental regressions.
+- `string` → payload points to a `std::string`
+- `flow` → payload points to `flow_data`
+- `function` → payload points to a new `function_payload { name_, fn_def_, closure_inst_ }`
+- `instance_ref` → payload points to `function_instance`
+
+Scalar types (`number`, `time`, `trigger`, `handle`, `nil`) have
+`payload_ == nullptr` — zero heap traffic on copy.
+
+Result: `sizeof(value) == 48` bytes (enforced with a `static_assert`), down
+from 112. Smaller structs fit better in cache lines, reducing memory bandwidth
+on every value copy. Typed accessors (`str()`, `fn()`, `flow()`, `inst()`) use
+`static_cast<T*>(payload_.get())` for zero-overhead recovery.
+
+**Measured gain:** ~15% on the fib benchmark (debug build: 123 ms → 105 ms).
+The remaining overhead is scope heap allocation and string-keyed map lookups
+(addressed in Steps 2–3).
 
 ---
 
-### Step 2 — Intern function and variable names *(3–5 days, Low risk)*
+### Step 2 — Intern function and variable names ✅ *(done)*
 
 **Bottleneck addressed:** string hashing in function dispatch and variable lookup.
 
-- At parse time (or during a one-time post-parse pass), assign each distinct
-  identifier name an integer ID (`name_id_t = uint32_t`).
-- Store a global `std::unordered_map<std::string, name_id_t> string_intern_`
-  and its reverse in the evaluator.
-- Replace the four `unordered_map<std::string, ...>` lookups in `eval_call`
-  with `unordered_map<name_id_t, ...>` lookups.
+**What was implemented:**
 
-This step also produces the infrastructure the VM compiler needs: when it
-emits a `CALL fn_id` or `LOAD_GLOBAL name_id` instruction, those integer IDs
-come straight from the intern table.
+Added a `string_intern` table inside `environment` that maps each distinct
+string to a `uint32_t` ID (starting from 1; 0 is the "not yet interned"
+sentinel). Two maps: `unordered_map<string, uint32_t>` forward lookup and a
+`vector<string>` reverse table.
 
-**Expected gain:** 10–20% reduction in call overhead on its own. Its real value
-is as a prerequisite for Step 3, not as a standalone win.
+Added `mutable uint32_t name_id_ = 0` to `struct identifier` in the AST.
+The first time any identifier node is evaluated, `env_.intern(name)` is called
+and the returned ID is cached on the node. All subsequent evaluations — which
+is the common case for temporal loops executing thousands of times — use the
+cached integer directly, paying zero string hashing.
+
+Changed the four hot-path maps from `unordered_map<std::string, …>` to
+`unordered_map<uint32_t, …>`:
+
+- `scope_frame::bindings_` (variable lookup on every identifier read)
+- `builtin_index_` (checked on every function call)
+- `function_defs_` (user-function dispatch)
+- `flow_defs_` (parametric-flow dispatch)
+
+In `eval_call`, `fn_name` is interned once per call site (lazily cached on the
+AST node too); all four subsequent lookups use the cached `fn_id`.
+In `eval_expr` identifier case, `env_.lookup(nid)` replaces `env_.lookup(name)`.
+
+This step also produces the intern-table infrastructure the VM compiler needs:
+`CALL fn_id` and `LOAD_GLOBAL name_id` instructions will use IDs from this
+same table.
+
+**Measured gain:** the release build was already at ~7 ms for fib(20)
+(ms-resolution `now()` makes sub-ms improvements invisible here). The gain
+shows up in programs with many distinct identifiers and long names, and in
+debug builds where string hashing is a larger fraction of total cost.
+The primary value is as a low-risk prerequisite for Step 3.
 
 ---
 
-### Step 3 — VM core: pure function compilation *(2–4 weeks, Low risk)*
+### Step 3 — VM core: pure function compilation ✅ *(done)*
 
 **Bottlenecks addressed:** scope heap allocation, `unordered_map` var lookup,
 AST pointer chasing — all at once, for pure functions.
 
-This is the highest-leverage step. Implement it in `src/vm/`:
+**What was implemented:**
 
-```
-src/vm/
-  instruction.hpp   // opcode enum + instruction struct
-  chunk.hpp         // function_chunk { vector<instruction>, vector<value> }
-  compiler.hpp/.cpp // AST → chunk for pure function bodies
-  vm.hpp/.cpp       // vm::run(chunk, frame_stack, value_stack)
-```
+New `src/vm/` directory with four files:
 
-**Compiler** — single-pass AST visitor that walks a `function_definition`
-body and emits instructions. Assign each parameter and local a slot index
-(`uint8_t slot`) at compile time; the `unordered_map<string, slot>` used
-during compilation is discarded afterwards.
+- `instruction.hpp` — `opcode` enum (25 opcodes) + 12-byte `instruction {op, a, b, c}` struct
+- `chunk.hpp` + `compiler.hpp/.cpp` — single-pass AST→bytecode compiler; assigns each param a slot index at compile time (slot map discarded after compilation); falls back silently (returns `nullptr`) for unsupported constructs (lambda blocks, flows, N≠2 ternary, module access)
+- `vm.hpp/.cpp` — iterative dispatch loop over a shared `vector<value> stack_` and `vector<call_frame> frames_`; each frame holds `{fn*, ip, base}`; local access is `stack_[base + slot]` — no hashing, no heap allocation per call
 
-**VM** — a flat `std::vector<value> value_stack_` shared across all frames.
-Each `call_frame` holds `{chunk*, ip, base}`. Local variable access is
-`value_stack_[frame.base + slot]` — no hashing, no heap allocation per call.
+**Integration:** `evaluator::try_compile()` attempts compilation on every function definition; compiled chunks are stored in `vm_` (keyed by intern ID). `eval_user_function` fast-paths to `vm_.run()` when a chunk exists and the VM is not already active (re-entrancy guard via `active_` flag). Uncompilable functions fall back transparently to the AST-walker.
 
-**Integration** — modify `eval_user_function` to check whether a compiled
-chunk exists for the function; if yes, call `vm::run`; if no, fall back to
-the AST-walker. This makes the migration incremental and always safe.
+**Key subtlety — Idyl ternary semantics:** `cond ? A ; B` uses `cond.as_number()` as an index selector (0→A, 1→B), not a boolean branch. The compiler emits `JUMP_IF_FALSY` to skip `options_[1]` (truthy path) and fall through to `options_[0]` (falsy path), matching the evaluator's `eval_expr(options_[idx])` semantics exactly.
 
-Start with the expression subset needed by pure functions:
-`LOAD_CONST`, `LOAD_LOCAL`, `STORE_LOCAL`, `CALL`, `RETURN`,
-`ADD/SUB/MUL/DIV`, `NEG`, `LT/LE/EQ/NE`, `JUMP`, `JUMP_IF_ZERO`.
-
-**Validation:** run `tests/static/fib.idyl` under both paths and assert
-identical output. fib(20) should drop from ~120 ms to under 10 ms.
+**Measured gain:** release build fib(20) dropped from ~7 ms → **1–2 ms** (~5–7× speedup). All 99 tests pass.
 
 ---
 
@@ -415,14 +427,17 @@ block at a time.
 
 ### Expected cumulative speedup
 
-| After step | fib(20) estimate | Dominant remaining cost |
-|------------|-----------------|------------------------|
-| Baseline   | ~123 ms         | everything              |
-| Step 1     | ~40–60 ms       | scope alloc + lookup    |
-| Step 2     | ~35–55 ms       | scope alloc + lookup    |
-| Step 3     | ~3–8 ms         | AST-walker for processes|
-| Step 4     | ~3–8 ms         | (same — fib is pure)   |
-| Step 5     | ~3–8 ms         | (same — fib is pure)   |
+Note: baseline was measured in a Debug build; the Release build compiles away
+much of the interpreter overhead already. Release numbers are given where known.
+
+| After step | fib(20) Debug est. | fib(20) Release measured | Dominant remaining cost |
+|------------|--------------------|--------------------------|------------------------|
+| Baseline   | ~123 ms            | ~10–12 ms (est.)         | everything              |
+| Step 1     | ~105 ms ✅          | ~7–8 ms ✅               | scope alloc + lookup    |
+| Step 2     | ~90–100 ms         | ~6–7 ms ✅               | scope alloc + lookup    |
+| Step 3     | ~10–20 ms          | ~1–2 ms ✅               | AST-walker for processes|
+| Step 4     | ~10–20 ms          | ~1–3 ms                  | (same — fib is pure)   |
+| Step 5     | ~10–20 ms          | ~1–3 ms                  | (same — fib is pure)   |
 
 For temporal workloads (counters, reactions firing every tick), Steps 4–5
 matter most: they remove the per-tick AST-traversal cost that accumulates over

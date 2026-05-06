@@ -320,7 +320,7 @@ namespace idyl::module {
                                 cv.type = IDYL_TRIGGER; break;
                             case core::value_t::string:
                                 cv.type = IDYL_STRING;
-                                cv.string = v.string_ ? v.string_->c_str() : "";
+                                cv.string = v.payload_ ? v.str().c_str() : "";
                                 break;
                             case core::value_t::handle:
                                 cv.type = IDYL_HANDLE; break;

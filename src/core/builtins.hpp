@@ -49,18 +49,18 @@ namespace idyl::core {
                             std::cout << val.number_ << " ms ";
                             break;
                         case value_t::string:
-                            std::cout << (val.string_ ? *val.string_ : "") << " ";
+                            std::cout << (val.payload_ ? val.str() : "") << " ";
                             break;
                         case value_t::flow:
-                            if (val.flow_) {
-                                recursive_print_flow(*val.flow_);
+                            if (val.payload_) {
+                                recursive_print_flow(val.flow());
                             } else {
                                 std::cout << "null flow ";
                             }
                             break;
                         case value_t::instance_ref:
-                            if (val.instance_) {
-                                value cur = val.instance_->read_output();
+                            if (val.payload_) {
+                                value cur = val.inst().read_output();
                                 std::cout << cur.as_string() << " ";
                             } else {
                                 std::cout << "<null ref> ";
@@ -213,8 +213,8 @@ namespace idyl::core {
         // ── Flow utilities ─────────────────────────────────────────────────────
         {
             "len", [](span<const value> args) -> value {
-                if (args[0].type_ == value_t::flow && args[0].flow_) {
-                    return value::number(static_cast<double>(args[0].flow_->length()));
+                if (args[0].type_ == value_t::flow && args[0].payload_) {
+                    return value::number(static_cast<double>(args[0].flow().length()));
                 }
                 return value::number(0.0);
             }, 1, 1
@@ -252,11 +252,11 @@ namespace idyl::core {
                             else(std::cout << "rest _");
                             break;
                         case value_t::string:
-                            std::cout << (v.string_ ? *v.string_ : "");
+                            std::cout << (v.payload_ ? v.str() : "");
                             break;
                         case value_t::flow:
-                            if (v.flow_) {
-                                recursive_print_flow(*v.flow_);
+                            if (v.payload_) {
+                                recursive_print_flow(v.flow());
                             } else {
                                 std::cout << "<null flow>";
                             }
@@ -268,8 +268,8 @@ namespace idyl::core {
                             std::cout << v.as_string();
                             break;
                         case value_t::instance_ref:
-                            if (v.instance_)
-                                std::cout << v.instance_->read_output().as_string();
+                            if (v.payload_)
+                                std::cout << v.inst().read_output().as_string();
                             else
                                 std::cout << "<null ref>";
                             break;
@@ -284,7 +284,7 @@ namespace idyl::core {
         {
             "printf", [](span<const value> args) -> value {
                 if (args.size_ == 0) return value::nil();
-                std::string format = args[0].type_ == value_t::string && args[0].string_ ? *args[0].string_ : "";
+                std::string format = args[0].type_ == value_t::string && args[0].payload_ ? args[0].str() : "";
                 size_t arg_index = 1;
                 for (size_t i = 0; i < format.size(); ++i) {
                     if (format[i] == '%' && i + 1 < format.size()) {
@@ -327,13 +327,13 @@ namespace idyl::core {
         */
         { 
             "open", [](span<const value> args) -> value {
-                if (args.size_ == 0 || args[0].type_ != value_t::string || !args[0].string_) {
+                if (args.size_ == 0 || args[0].type_ != value_t::string || !args[0].payload_) {
                     std::cerr << "Error: open() requires a string path argument.\n";
                     return value::nil();
                 }
                 utilities::file_descriptor::mode mode = utilities::file_descriptor::mode::write;
-                if (args.size_ > 1 && args[1].type_ == value_t::string && args[1].string_) {
-                    std::string mode_str = *args[1].string_;
+                if (args.size_ > 1 && args[1].type_ == value_t::string && args[1].payload_) {
+                    std::string mode_str = args[1].str();
                     if (mode_str == "read" || mode_str == "r") {
                         mode = utilities::file_descriptor::mode::read;
                     } else if (mode_str == "write" || mode_str == "w") {
@@ -342,7 +342,7 @@ namespace idyl::core {
                         mode = utilities::file_descriptor::mode::append;
                     }
                 }
-                std::string path = *args[0].string_;
+                std::string path = args[0].str();
                 auto fd = std::make_shared<utilities::file_descriptor>(path, mode);
                 if (!fd->is_open()) {
                     return value::nil();
@@ -425,11 +425,11 @@ namespace idyl::core {
                 if(args.size_ == 1) {
                     if(args[0].type_ == value_t::string)
                     {
-                        if(args[0].string_ && *args[0].string_ == "ms") {
+                        if(args[0].payload_ && args[0].str() == "ms") {
                             auto now = std::chrono::steady_clock::now();
                             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
                             return value::time_ms(static_cast<double>(ms)); 
-                        } else if(args[0].string_ && *args[0].string_ == "s") {
+                        } else if(args[0].payload_ && args[0].str() == "s") {
                             auto now = std::chrono::steady_clock::now();
                             auto s = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
                             return value::time_ms(static_cast<double>(s * 1000)); 
