@@ -1,0 +1,36 @@
+import("stdlib")
+import("music")
+module("csound")
+
+cs = cs_open("main.csd")
+
+flow melody = {
+	rhythm: [ ! , ! , _ ]
+	chn: [1, 2]
+	note on rhythm: [0, 1, 2, 3, 4, 5, 6, 7]
+}
+
+process test: {
+	mel = melody[metro(dt=0.5b)]
+	scale = major
+	on mel.rhythm: {
+		print("hello")
+		cs_note(cs, "sine", 5s, 0.1, tune(c4, scale, mel.note, meantone), mel.chn)
+	}
+}
+
+process test2: {
+	mel = melody[metro(2b)]
+	scale = major
+	on mel.rhythm: {
+		print("hello")
+		index = floor(rnd(0, 7))
+		cs_note(cs, "sine", 10s, 0.3, tune(d2, scale, index, just), mel.chn)
+		index = floor(rnd(0, 7))
+		cs_note(cs, "sine", 10s, 0.3, tune(d4, scale, index, just), mel.chn)
+		index = floor(rnd(0, 7))
+		@(100ms) : {
+			cs_note(cs, "sine", 10s, 0.3, tune(d5, scale, index, just), mel.chn)
+		}
+	}
+}

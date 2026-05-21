@@ -1,0 +1,16 @@
+import("stdlib")
+
+process cr: {
+   m1 = counter(dt=1s)
+   cnt = counter(dt=0.3s)
+
+   rhythm = [!, !, _, !, !, !, _, _, _, !, _, !, !, !]
+   r = rhythm[cnt]
+   print(r)
+
+   @(1.5s): {
+       print("--- restarting ---")
+       stop cr
+       start cr
+   }
+}

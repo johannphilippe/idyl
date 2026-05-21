@@ -1,0 +1,24 @@
+module("csound")
+import("stdlib")
+
+handle = cs_open("csound_module.csd")
+flow melody = {
+    rhythm: [!, !] 
+    notes on rhythm : [60, 63] 
+}
+
+
+note(spike!, note) = cs_note(handle, "first", 1s, 1, note) 
+
+process cr: {
+    m = metro(dt=0.5s)
+    mel = melody[m]
+    print(mel)
+    note(mel.rhythm, mtof(mel.notes))
+    @(60s): {
+        print("End of instance")
+        stop
+    }
+}
+
+

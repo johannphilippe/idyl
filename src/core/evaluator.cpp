@@ -176,6 +176,12 @@ void evaluator::try_compile(const parser::function_definition& def, uint32_t fn_
     if (chunk) vm_.store(fn_id, std::move(chunk));
 }
 
+void evaluator::try_compile_reactions(reaction_set& rxn) {
+    vm::compiler c;
+    rxn.compiled_reactions = c.compile_reaction_list(rxn.reactions, env_, function_defs_);
+    // shared_reactions are deferred/dedup'd by AST ptr — not compiled for now
+}
+
 void evaluator::run(const parser::program& program) {
     env_.init();
     clocks_.init(120.0);  // main clock at 120 BPM
@@ -424,6 +430,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                     anon_inst->subscription_id_ = scheduler_->subscribe(anon_inst->dt_ms_,
                         [this, def_ptr, weak_anon, rxn]
                         (double, double) -> bool {
+                            std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                             auto si = weak_anon.lock();
                             if (!si || !si->active_) return false;
 
@@ -451,6 +458,10 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
         // ── Redistribute reactions to the fastest segment they depend on ──────
         redistribute_reactions(segments);
+
+        // ── Compile reactions to bytecode ─────────────────────────────────────
+        for (auto& seg : segments)
+            if (seg.rxn) try_compile_reactions(*seg.rxn);
 
         // ── Reset stale trigger bindings after setup ──────────────────────────
         // The setup loop above calls exec_stmt() for every statement, including
@@ -516,6 +527,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                     [this, def_ptr, weak_inst, var, rxn, all_ids,
                      dur_ms, start_t = scheduler_->now_ms()]
                     (double t, double /*dt*/) -> bool {
+                        std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                         // ── Duration check ─────────────────────────────────
                         if (dur_ms > 0.0 && (t - start_t) >= dur_ms) {
                             auto si = weak_inst.lock();
@@ -536,11 +548,13 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         parser::stmt_ptr binding_snap;
                         std::vector<parser::stmt_ptr> reactions_snap;
                         std::vector<parser::stmt_ptr> shared_snap;
+                        const vm::bytecode_fn* compiled_rxn = nullptr;
                         {
                             std::lock_guard<std::mutex> lk(rxn->mutex);
                             binding_snap   = rxn->binding_stmt;
                             reactions_snap = rxn->reactions;
                             shared_snap    = rxn->shared_reactions;
+                            compiled_rxn   = rxn->compiled_reactions.get();
                         }
 
                         // Tick all other instances created by the same binding
@@ -574,15 +588,19 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         retick_instance_ = nullptr;
                         retick_pool_.clear();
 
-                        // Run segment-local reactions immediately.
-                        for (const auto& r : reactions_snap) exec_stmt(r);
+                        // Run segment-local reactions — compiled path if available.
+                        if (compiled_rxn && !reactions_snap.empty()) {
+                            vm_.run_reactions(compiled_rxn);
+                        } else {
+                            for (const auto& r : reactions_snap) exec_stmt(r);
+                        }
 
                         // Queue shared reactions for the end of this epoch.
                         // Dedup by AST pointer so they fire exactly once even
                         // when multiple segments fire at the same scheduler time.
                         for (const auto& r : shared_snap) {
                             if (r && epoch_deferred_dedup_.insert(r.get()).second)
-                                epoch_deferred_.push_back(r);
+                                epoch_deferred_.push_back({r, rxn});
                         }
 
                         // Catches: lock to guard against concurrent clear()
@@ -631,8 +649,13 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         if (!epoch_flush_pending_) {
                             epoch_flush_pending_ = true;
                             scheduler_->subscribe(0.1, [this](double, double) -> bool {
-                                for (const auto& r : epoch_deferred_)
+                                std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
+                                for (const auto& [r, weak_rxn] : epoch_deferred_) {
+                                    auto rxn = weak_rxn.lock();
+                                    if (!rxn || rxn->cancelled.load(std::memory_order_acquire))
+                                        continue;
                                     exec_stmt(r);
+                                }
                                 epoch_deferred_.clear();
                                 epoch_deferred_dedup_.clear();
                                 for (const auto& vname : epoch_reset_vars_) {
@@ -706,6 +729,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         auto handler = atb.handler_;
         scheduler_->subscribe(delay_ms,
             [this, handler](double /*t*/, double /*dt*/) -> bool {
+                std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                 for (const auto& h : handler)
                     exec_stmt(h);
                 return false;  // one-shot: do not reschedule
@@ -1927,6 +1951,7 @@ value evaluator::eval_user_function(const parser::function_definition& def,
         }
 
         // Evaluate body
+        std::cerr << "[TRIGGER_FN] " << def.name_ << " firing\n";
         value result = def.body_ ? eval_expr(def.body_) : value::rest();
         env_.pop_scope();
         return result;
@@ -2725,6 +2750,7 @@ void evaluator::schedule_instance(std::shared_ptr<function_instance> inst) {
     inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
         [this, weak = std::weak_ptr<function_instance>(inst)]
         (double /*t*/, double /*dt*/) -> bool {
+            std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
             auto si = weak.lock();
             if (!si || !si->active_) return false;
             const parser::function_definition* def_ptr = si->local_def_.get();
@@ -2772,15 +2798,22 @@ void evaluator::print_warnings() const {
 // ════════════════════════════════════════════════════════════════════════════════
 
 bool evaluator::start_process(const std::string& name) {
+    std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
     auto it = stored_processes_.find(name);
     if (it == stored_processes_.end()) {
         std::cout << "Process '" << name << "' not found.\n";
         return false;
     }
 
-    // If already running, stop first
-    if (active_process_instances_.count(name))
-    {
+    // If already running, stop first.
+    // Track whether this is a restart so we can suppress module side-effects
+    // (cs_note etc.) during the setup exec_stmt below.  Without suppression,
+    // the old process's last scheduler tick fires a note right before we take
+    // eval_mutex_, then the setup fires another note milliseconds later →
+    // audible double note.  On restart we let the first real scheduler tick
+    // (e.g. 300 ms after setup for a 300 ms counter) fire the first new note.
+    bool is_restart = active_process_instances_.count(name) > 0;
+    if (is_restart) {
         std::cout << "Process '" << name << "' is already running, restarting it.\n";
         stop_process(name);
     }
@@ -2788,19 +2821,25 @@ bool evaluator::start_process(const std::string& name) {
     // Temporarily disable listen mode so exec_stmt actually runs the block
     auto saved_filter = process_filter_;
     auto saved_listen = listen_mode_;
+    auto saved_spec   = speculative_exec_;
     process_filter_ = name;
-    listen_mode_ = false;
+    listen_mode_    = false;
+    // On restart: suppress module side-effects so cs_note doesn't fire during
+    // the setup pass.  Native temporals (counter, metro, etc.) are instantiated
+    // normally — only module functions without is_native_temporal_ are gated.
+    if (is_restart) speculative_exec_ = true;
 
-    // Execute the process block statements to start the process.  
     std::cout << "Starting process '" << name << "'.\n";
     exec_stmt(std::static_pointer_cast<parser::statement>(it->second));
 
-    process_filter_ = saved_filter;
-    listen_mode_ = saved_listen;
+    process_filter_  = saved_filter;
+    listen_mode_     = saved_listen;
+    speculative_exec_ = saved_spec;
     return true;
 }
 
 bool evaluator::stop_process(const std::string& name) {
+    std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
     auto it = active_process_instances_.find(name);
     if (it == active_process_instances_.end()) return false;
 
@@ -2811,11 +2850,25 @@ bool evaluator::stop_process(const std::string& name) {
         auto& inst = inst_it->second;
         inst->active_ = false;
 
-        if (scheduler_ && inst->subscription_id_ != 0)
+        if (scheduler_ && inst->subscription_id_ != 0) {
             scheduler_->unsubscribe(inst->subscription_id_);
+        }
     }
 
     active_process_instances_.erase(it);
+
+    // Cancel pending epoch-flush reactions that belong to this process.
+    // The 0.1ms epoch flush may fire after start_process() has already run
+    // the setup, causing a double note/event.  Marking the rxn cancelled
+    // makes the flush skip those stale deferred reactions.
+    auto lp_it = live_processes_.find(name);
+    if (lp_it != live_processes_.end()) {
+        for (const auto& seg : lp_it->second.segments) {
+            if (seg.rxn)
+                seg.rxn->cancelled.store(true, std::memory_order_release);
+        }
+    }
+
     return true;
 }
 
@@ -3059,7 +3112,8 @@ void evaluator::diff_and_apply(live_process& lp,
     struct new_seg_info {
         std::string              def_name;
         double                   dt_ms   = 0.0;
-        parser::stmt_ptr         binding_stmt;
+        parser::stmt_ptr         binding_stmt; // old stmt preserved for cursor stability
+        parser::stmt_ptr         fresh_stmt;   // always the new AST (for dt_expr in pass 1)
         std::vector<parser::stmt_ptr> reactions;
     };
     std::unordered_map<std::string, new_seg_info> new_segs;
@@ -3180,14 +3234,24 @@ void evaluator::diff_and_apply(live_process& lp,
                             auto& boe = static_cast<const parser::binary_op_expr&>(*call_expr);
                             if (boe.op_) call_expr = boe.op_->left_;
                         }
+                        // flow[temporal(dt=X)] — the temporal call is inside the index
+                        if (call_expr->type_ == parser::node_t::flow_access_expr) {
+                            auto& fae = static_cast<const parser::flow_access_expr&>(*call_expr);
+                            if (fae.access_ && fae.access_->index_)
+                                call_expr = fae.access_->index_;
+                        }
                         if (!call_expr || call_expr->type_ != parser::node_t::function_call_expr)
                             return nullptr;
                         const auto& fce =
                             static_cast<const parser::function_call_expr&>(*call_expr);
                         if (!fce.call_) return nullptr;
-                        for (const auto& arg : fce.call_->arguments_)
-                            if (arg && arg->name_ == "dt") return arg->value_;
-                        return nullptr;
+                        parser::expr_ptr first_pos;
+                        for (const auto& arg : fce.call_->arguments_) {
+                            if (!arg) continue;
+                            if (arg->name_ == "dt") return arg->value_;
+                            if (arg->name_.empty() && !first_pos) first_pos = arg->value_;
+                        }
+                        return first_pos; // positional dt (first param of any temporal fn)
                     };
 
                     double new_dt = oldseg.dt_ms;
@@ -3196,10 +3260,22 @@ void evaluator::diff_and_apply(live_process& lp,
                         if (dt_val.number_ > 0.0) new_dt = dt_val.number_;
                     }
 
+                    // Preserve the old binding_stmt so that flow_site_cursors_
+                    // (keyed by AST node pointer) survives hot-reload.
+                    // The old pointer stays valid — only reactions change.
+                    // If the user changes the bound flow expression itself,
+                    // they should stop/restart the process to reset cursors.
+                    parser::stmt_ptr old_binding;
+                    {
+                        std::lock_guard<std::mutex> lk(oldseg.rxn->mutex);
+                        old_binding = oldseg.rxn->binding_stmt;
+                    }
+
                     new_seg_info nsi;
                     nsi.def_name     = oldseg.def_name;
                     nsi.dt_ms        = new_dt;
-                    nsi.binding_stmt = s;
+                    nsi.binding_stmt = old_binding ? old_binding : s;
+                    nsi.fresh_stmt   = s;   // new AST kept for dt_expr update in pass 1
                     new_segs[bname]  = std::move(nsi);
                     new_order.push_back(bname);
                     cur = &new_segs[bname];
@@ -3340,22 +3416,36 @@ void evaluator::diff_and_apply(live_process& lp,
                 // Also update instance_param_exprs_ so that tick_instance
                 // doesn't re-evaluate the OLD dt AST expression and revert
                 // the scheduler interval back on the very next tick.
+                // Use fresh_stmt (the new AST) — binding_stmt may be the old
+                // preserved node when the segment function is unchanged.
                 auto extract_dt_expr = [](const parser::stmt_ptr& s) -> parser::expr_ptr {
                     if (!s || s->type_ != parser::node_t::assignment) return nullptr;
                     const auto& assign = static_cast<const parser::assignment&>(*s);
-                    if (!assign.value_ ||
-                        assign.value_->type_ != parser::node_t::function_call_expr)
+                    parser::expr_ptr call_expr = assign.value_;
+                    if (!call_expr) return nullptr;
+                    // flow[temporal(dt=X)] — temporal call is inside the index
+                    if (call_expr->type_ == parser::node_t::flow_access_expr) {
+                        auto& fae = static_cast<const parser::flow_access_expr&>(*call_expr);
+                        if (fae.access_ && fae.access_->index_)
+                            call_expr = fae.access_->index_;
+                    }
+                    if (!call_expr || call_expr->type_ != parser::node_t::function_call_expr)
                         return nullptr;
                     const auto& fce =
-                        static_cast<const parser::function_call_expr&>(*assign.value_);
+                        static_cast<const parser::function_call_expr&>(*call_expr);
                     if (!fce.call_) return nullptr;
-                    for (const auto& arg : fce.call_->arguments_)
-                        if (arg && arg->name_ == "dt") return arg->value_;
-                    return nullptr;
+                    parser::expr_ptr first_pos;
+                    for (const auto& arg : fce.call_->arguments_) {
+                        if (!arg) continue;
+                        if (arg->name_ == "dt") return arg->value_;
+                        if (arg->name_.empty() && !first_pos) first_pos = arg->value_;
+                    }
+                    return first_pos;
                 };
 
+                const auto& src = ns.fresh_stmt ? ns.fresh_stmt : ns.binding_stmt;
                 auto& pexprs = instance_param_exprs_[old_seg.instance_id];
-                if (auto new_dt_expr = extract_dt_expr(ns.binding_stmt))
+                if (auto new_dt_expr = extract_dt_expr(src))
                     pexprs["dt"] = new_dt_expr;
                 else
                     pexprs.erase("dt");
@@ -3437,6 +3527,7 @@ void evaluator::diff_and_apply(live_process& lp,
                 [this, def_ptr, weak_inst, var, rxn,
                  start_t = scheduler_->now_ms()]
                 (double t, double) -> bool {
+                    std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                     auto si = weak_inst.lock();
                     if (!si || !si->active_) return false;
 
@@ -3462,7 +3553,7 @@ void evaluator::diff_and_apply(live_process& lp,
 
                     for (const auto& r : shared_snap) {
                         if (r && epoch_deferred_dedup_.insert(r.get()).second)
-                            epoch_deferred_.push_back(r);
+                            epoch_deferred_.push_back({r, rxn});
                     }
 
                     {
@@ -3486,8 +3577,13 @@ void evaluator::diff_and_apply(live_process& lp,
                     if (!epoch_flush_pending_) {
                         epoch_flush_pending_ = true;
                         scheduler_->subscribe(0.1, [this](double, double) -> bool {
-                            for (const auto& r : epoch_deferred_)
+                            std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
+                            for (const auto& [r, weak_rxn] : epoch_deferred_) {
+                                auto rxn = weak_rxn.lock();
+                                if (!rxn || rxn->cancelled.load(std::memory_order_acquire))
+                                    continue;
                                 exec_stmt(r);
+                            }
                             epoch_deferred_.clear();
                             epoch_deferred_dedup_.clear();
                             for (const auto& vname : epoch_reset_vars_) {
@@ -3538,6 +3634,15 @@ void evaluator::diff_and_apply(live_process& lp,
 
     // ── Pass 3: redistribute reactions and update metadata ─────────────────
     redistribute_reactions(lp.segments);
+
+    // Recompile reaction bytecode after redistribution
+    for (auto& seg : lp.segments) {
+        if (seg.rxn) {
+            std::lock_guard<std::mutex> lk(seg.rxn->mutex);
+            try_compile_reactions(*seg.rxn);
+        }
+    }
+
     lp.ast = new_ast;
 }
 

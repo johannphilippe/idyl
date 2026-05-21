@@ -396,7 +396,7 @@ New `src/vm/` directory with four files:
 
 ---
 
-### Step 5 — Compile process body reactions *(2–3 weeks, Medium risk)*
+### Step 5 — Compile process body reactions ✅ *(done)*
 
 **Bottleneck addressed:** AST-walker overhead in the temporal hot path (per-tick
 reaction evaluation).

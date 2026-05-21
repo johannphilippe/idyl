@@ -13,6 +13,10 @@ This must be done in a smart way :
 - Serial read/write module 
 - MIDI module 
 
+## Known bugs (unsolved)
+
+- [unsolved] **Double note on process restart** (`csound_module.idyl`): when a running process is stopped and restarted via OSC `start cr`, two Csound notes fire nearly simultaneously. Only audible after ~1s of Csound warmup. Does not reproduce in `csound_simple.idyl` (likely masked by the dense all-trigger rhythm). Attempted fixes: (1) `std::recursive_mutex eval_mutex_` to serialise scheduler callbacks vs main thread — notes are now sequential rather than concurrent, but both still fire; (2) `speculative_exec_ = true` during restart setup to suppress `cs_note` calls — did not resolve. Root cause not fully identified: the old process's last scheduler tick fires a note, and the setup of the new process also fires a note; serialising them makes the pair audible rather than fixing it. Further investigation needed.
+
 ## Next 
 
 - [fixed] functional flow seems broken (see tests/temporal/functional_flow.idyl) — was treating `func2() = expr` as a constant; fixed with `has_parens_` flag

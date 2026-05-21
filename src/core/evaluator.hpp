@@ -167,7 +167,16 @@ namespace idyl::core {
             std::vector<parser::stmt_ptr>  reactions;        // local to this segment
             std::vector<parser::stmt_ptr>  shared_reactions; // fire once per epoch, after all local
             std::vector<catch_info>        catches;
+            // Compiled bytecode for the reaction lists (nullptr = use AST walker fallback)
+            std::unique_ptr<vm::bytecode_fn> compiled_reactions;
+            std::unique_ptr<vm::bytecode_fn> compiled_shared_reactions;
+            // Set by stop_process() so the epoch flush skips stale deferred reactions
+            // from the last tick of a stopped process (prevents double-firing on restart).
+            std::atomic<bool>              cancelled{false};
         };
+
+        // Compile the reaction lists in a reaction_set to bytecode (silent no-op on failure).
+        void try_compile_reactions(reaction_set& rxn);
 
         // live_segment: everything known about one temporal binding in a
         // running named process.
@@ -196,6 +205,14 @@ namespace idyl::core {
         // Scheduler thread takes a shared (read) lock on every tick lookup;
         // hot_reload() takes an exclusive (write) lock when updating definitions.
         mutable std::shared_mutex defs_mutex_;
+
+        // Recursive mutex serialising all evaluator state access between the
+        // scheduler thread (tick callbacks, epoch flush, at-block callbacks) and
+        // the main thread (start_process / stop_process / hot_reload).
+        // Recursive because exec_stmt — called inside a scheduler callback that
+        // already holds the lock — may itself call start_process / stop_process
+        // (e.g. a bare `start cr` / `stop cr` inside a catch handler).
+        mutable std::recursive_mutex eval_mutex_;
 
         // Set to true during speculative exec in the hot-reload scan pass.
         // Module functions that have side effects (is_native_temporal_ == false)
@@ -330,7 +347,10 @@ namespace idyl::core {
         // epoch flush callback that fires 0.1 ms after the LAST same-epoch
         // segment callback.  By that time all local bindings are up to date
         // and shared reactions see a fully consistent snapshot.
-        std::vector<parser::stmt_ptr>                    epoch_deferred_;
+        // Each entry pairs the reaction statement with a weak reference to the
+        // reaction_set it came from so the epoch flush can skip cancelled ones.
+        std::vector<std::pair<parser::stmt_ptr,
+                              std::weak_ptr<reaction_set>>> epoch_deferred_;
         std::unordered_set<const parser::statement*>     epoch_deferred_dedup_;
 
         // True while a flush is already scheduled for the current epoch.

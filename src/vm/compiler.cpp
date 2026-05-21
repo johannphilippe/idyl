@@ -67,14 +67,23 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
         if (!ie.identifier_) { fail(); return; }
         const std::string& name = ie.identifier_->name_;
 
-        // Local parameter / block variable → LOAD_LOCAL
+        // Local parameter / block variable → LOAD_LOCAL (takes priority always)
         auto sit = slots_.find(name);
         if (sit != slots_.end()) {
             emit({opcode::LOAD_LOCAL, sit->second});
             return;
         }
 
-        // Global numeric constant (pi, tau, etc.) → inline as LOAD_CONST
+        // Reaction mode: always do a runtime env lookup so that process variables
+        // (e.g. `m`) are read fresh each tick even if they happen to hold a numeric
+        // value at compile time.  Must come before the LOAD_CONST check below.
+        if (reaction_mode_) {
+            uint32_t name_id = env_->intern(name);
+            emit({opcode::LOAD_GLOBAL, 0, 0, static_cast<int32_t>(name_id)});
+            return;
+        }
+
+        // Global numeric constant (pi, tau, etc.) → inline as LOAD_CONST (pure mode)
         if (auto* v = env_->lookup(name)) {
             if (v->type_ == core::value_t::number || v->type_ == core::value_t::time) {
                 uint16_t ci = chunk_->add_constant(*v);
@@ -83,7 +92,7 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
             }
         }
 
-        // Anything else (function refs, flows, etc.) — not supported yet
+        // Pure-function mode: anything other than local/constant not supported
         fail();
         break;
     }
@@ -269,6 +278,23 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
         break;
     }
 
+    // ── Flow index (flow[numeric_expr]) ───────────────────────────────────
+    // Only numeric indexing of single-member flows is supported here.
+    // Trigger-based advance and multi-member slice require evaluator context.
+    case parser::node_t::flow_access_expr: {
+        auto& fae = static_cast<const parser::flow_access_expr&>(*expr);
+        if (!fae.access_) { fail(); return; }
+        // Member-access (flow.name) not supported in pure compiled functions.
+        if (!fae.access_->member_.empty()) { fail(); return; }
+        if (!fae.access_->index_) { fail(); return; }
+        compile_expr(fae.access_->flow_);
+        if (failed_) return;
+        compile_expr(fae.access_->index_);
+        if (failed_) return;
+        emit({opcode::FLOW_INDEX});
+        break;
+    }
+
     // ── Everything else: not supported ─────────────────────────────────────
     default:
         fail();
@@ -366,6 +392,73 @@ std::unique_ptr<bytecode_fn> compiler::compile(
     return fn;
 }
 
+// ── compile_reaction_list ─────────────────────────────────────────────────────
+// Compile a list of process-body reaction statements.
+// All variable reads/writes go through LOAD_GLOBAL/STORE_GLOBAL (env lookup).
+// Block-local variables allocated inside block expressions still use slots.
+
+std::unique_ptr<bytecode_fn> compiler::compile_reaction_list(
+    const std::vector<parser::stmt_ptr>& stmts,
+    core::environment& env,
+    const std::unordered_map<uint32_t,
+        std::shared_ptr<parser::function_definition>>& fn_defs)
+{
+    if (stmts.empty()) return nullptr;
+
+    // Reset compiler state
+    failed_        = false;
+    reaction_mode_ = true;
+    slots_.clear();
+    next_slot_ = 0;
+    fn_defs_   = &fn_defs;
+    env_       = &env;
+
+    auto fn = std::make_unique<bytecode_fn>();
+    fn->name_        = "<reactions>";
+    fn->name_id_     = 0;
+    fn->param_count_ = 0;
+    fn->local_count_ = 0;
+
+    chunk_ = fn.get();
+
+    // Compile each reaction statement for side effects
+    for (const auto& stmt : stmts) {
+        if (!stmt || failed_) break;
+
+        switch (stmt->type_) {
+        case parser::node_t::expression_stmt: {
+            auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+            compile_expr(es.expression_);
+            if (!failed_) emit({opcode::POP});
+            break;
+        }
+        case parser::node_t::assignment: {
+            auto& a = static_cast<const parser::assignment&>(*stmt);
+            if (!a.value_) { fail(); break; }
+            compile_expr(a.value_);
+            if (!failed_) {
+                uint32_t name_id = env_->intern(a.name_);
+                emit({opcode::STORE_GLOBAL, 0, 0, static_cast<int32_t>(name_id)});
+            }
+            break;
+        }
+        default:
+            fail();
+            break;
+        }
+    }
+
+    reaction_mode_ = false;
+
+    if (failed_) { chunk_ = nullptr; return nullptr; }
+
+    fn->local_count_ = next_slot_; // block-local slots, if any
+    emit({opcode::LOAD_NIL});
+    emit({opcode::RETURN});
+    chunk_ = nullptr;
+    return fn;
+}
+
 // ── disassemble ───────────────────────────────────────────────────────────────
 
 void bytecode_fn::disassemble() const {
@@ -392,6 +485,10 @@ void bytecode_fn::disassemble() const {
                 break;
             case opcode::CALL_NATIVE:
                 std::fprintf(stderr, " builtin[%u] argc=%u", ins.b, ins.a);
+                break;
+            case opcode::LOAD_GLOBAL:
+            case opcode::STORE_GLOBAL:
+                std::fprintf(stderr, " name_id=%d", ins.c);
                 break;
             default:
                 break;

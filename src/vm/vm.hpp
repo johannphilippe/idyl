@@ -53,6 +53,11 @@ struct vm {
     // Assumes has_compiled(fn_id) is true and active_ is false.
     core::value run(uint32_t fn_id, const std::vector<core::value>& args);
 
+    // Execute a reaction chunk (no params, all variable access via env).
+    // Uses a local stack (independent of the main VM stack) so it does not
+    // interfere with concurrent pure-function calls on the main stack.
+    void run_reactions(const bytecode_fn* fn);
+
 private:
     // Dispatch a CALL_NATIVE instruction: call builtins[b_idx] with `argc`
     // values from the top of the stack (left-most is deepest).

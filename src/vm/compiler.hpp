@@ -25,18 +25,27 @@ namespace idyl::vm {
 //   function calls to builtins (CALL_NATIVE)
 //
 struct compiler {
-    // Compile def and return its chunk, or nullptr on failure.
-    // env       — used to intern names and look up global numeric constants.
-    // fn_defs   — the evaluator's function_defs_ table (uint32_t → ast ptr).
+    // Compile a pure user-function definition to a bytecode chunk.
+    // Returns nullptr on failure (unsupported AST node, named args, etc.).
     std::unique_ptr<bytecode_fn> compile(
         const parser::function_definition& def,
         core::environment& env,
         const std::unordered_map<uint32_t,
             std::shared_ptr<parser::function_definition>>& fn_defs);
 
+    // Compile a list of process-body reaction statements into a bytecode chunk.
+    // All non-slot identifiers are accessed via LOAD_GLOBAL/STORE_GLOBAL (env lookup).
+    // Returns nullptr if any statement is unsupported.
+    std::unique_ptr<bytecode_fn> compile_reaction_list(
+        const std::vector<parser::stmt_ptr>& stmts,
+        core::environment& env,
+        const std::unordered_map<uint32_t,
+            std::shared_ptr<parser::function_definition>>& fn_defs);
+
 private:
-    bytecode_fn*  chunk_    = nullptr;
-    bool          failed_   = false;
+    bytecode_fn*  chunk_         = nullptr;
+    bool          failed_        = false;
+    bool          reaction_mode_ = false;  // true → identifiers use LOAD/STORE_GLOBAL
 
     // Parameter / local slot map (name → slot index).
     std::unordered_map<std::string, uint16_t> slots_;

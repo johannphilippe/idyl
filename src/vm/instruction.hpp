@@ -10,6 +10,8 @@ enum class opcode : uint8_t {
     STORE_LOCAL,    // a=slot       → pop into stack[base+a]
     LOAD_NIL,       //              → push nil
     POP,            //              → discard top of stack
+    LOAD_GLOBAL,    // c=name_id   → push env.lookup(name_id) or nil
+    STORE_GLOBAL,   // c=name_id   → pop and env.define(name_id, val)
 
     // Arithmetic (pop 2, push 1)
     ADD, SUB, MUL, DIV, MOD,
@@ -25,6 +27,9 @@ enum class opcode : uint8_t {
 
     // String concat (pop 2, push string)
     CONCAT,
+
+    // Flow indexing: pop index (number), pop flow → push element at wrapped index
+    FLOW_INDEX,
 
     // Control flow
     JUMP,           // c=offset (signed, relative to instruction after this one)
@@ -54,6 +59,8 @@ inline const char* opcode_name(opcode op) {
         case opcode::STORE_LOCAL:   return "STORE_LOCAL";
         case opcode::LOAD_NIL:      return "LOAD_NIL";
         case opcode::POP:           return "POP";
+        case opcode::LOAD_GLOBAL:   return "LOAD_GLOBAL";
+        case opcode::STORE_GLOBAL:  return "STORE_GLOBAL";
         case opcode::ADD:           return "ADD";
         case opcode::SUB:           return "SUB";
         case opcode::MUL:           return "MUL";
@@ -70,6 +77,7 @@ inline const char* opcode_name(opcode op) {
         case opcode::AND:           return "AND";
         case opcode::OR:            return "OR";
         case opcode::CONCAT:        return "CONCAT";
+        case opcode::FLOW_INDEX:    return "FLOW_INDEX";
         case opcode::JUMP:          return "JUMP";
         case opcode::JUMP_IF_FALSY: return "JUMP_IF_FALSY";
         case opcode::CALL:          return "CALL";

@@ -1,0 +1,123 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// music.idyl — musical constants, scales, and temperaments for idyl
+//
+// Usage:
+//   import("music")
+//
+//   n = deg(c4, minor, 2)           // MIDI note: degree 2 of C minor from C4
+//   n = deg(c4, minor, 9)           // wraps into next octave automatically
+//   f = tune(c4, major, 3, just)    // decimal MIDI with just intonation offset
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Note constants (MIDI numbers) ────────────────────────────────────────────
+// Octave 0
+c0=12   cs0=13  db0=13  d0=14   ds0=15  eb0=15  e0=16   f0=17
+fs0=18  gb0=18  g0=19   gs0=20  ab0=20  a0=21   as0=22  bb0=22  b0=23
+
+// Octave 1
+c1=24   cs1=25  db1=25  d1=26   ds1=27  eb1=27  e1=28   f1=29
+fs1=30  gb1=30  g1=31   gs1=32  ab1=32  a1=33   as1=34  bb1=34  b1=35
+
+// Octave 2
+c2=36   cs2=37  db2=37  d2=38   ds2=39  eb2=39  e2=40   f2=41
+fs2=42  gb2=42  g2=43   gs2=44  ab2=44  a2=45   as2=46  bb2=46  b2=47
+
+// Octave 3
+c3=48   cs3=49  db3=49  d3=50   ds3=51  eb3=51  e3=52   f3=53
+fs3=54  gb3=54  g3=55   gs3=56  ab3=56  a3=57   as3=58  bb3=58  b3=59
+
+// Octave 4 (middle C = 60)
+c4=60   cs4=61  db4=61  d4=62   ds4=63  eb4=63  e4=64   f4=65
+fs4=66  gb4=66  g4=67   gs4=68  ab4=68  a4=69   as4=70  bb4=70  b4=71
+
+// Octave 5
+c5=72   cs5=73  db5=73  d5=74   ds5=75  eb5=75  e5=76   f5=77
+fs5=78  gb5=78  g5=79   gs5=80  ab5=80  a5=81   as5=82  bb5=82  b5=83
+
+// Octave 6
+c6=84   cs6=85  db6=85  d6=86   ds6=87  eb6=87  e6=88   f6=89
+fs6=90  gb6=90  g6=91   gs6=92  ab6=92  a6=93   as6=94  bb6=94  b6=95
+
+// Octave 7
+c7=96   cs7=97  db7=97  d7=98   ds7=99  eb7=99  e7=100  f7=101
+fs7=102 gb7=102 g7=103  gs7=104 ab7=104 a7=105  as7=106 bb7=106 b7=107
+
+// Octave 8
+c8=108  cs8=109 db8=109 d8=110  ds8=111 eb8=111 e8=112  f8=113
+fs8=114 gb8=114 g8=115  gs8=116 ab8=116 a8=117  as8=118 bb8=118 b8=119
+
+
+// ── Scales (interval arrays from root, 7-note unless noted) ──────────────────
+flow major          = [0, 2, 4, 5, 7, 9, 11]
+flow minor          = [0, 2, 3, 5, 7, 8, 10]
+flow dorian         = [0, 2, 3, 5, 7, 9, 10]
+flow phrygian       = [0, 1, 3, 5, 7, 8, 10]
+flow lydian         = [0, 2, 4, 6, 7, 9, 11]
+flow mixolydian     = [0, 2, 4, 5, 7, 9, 10]
+flow locrian        = [0, 1, 3, 5, 6, 8, 10]
+flow harmonic_minor = [0, 2, 3, 5, 7, 8, 11]
+flow melodic_minor  = [0, 2, 3, 5, 7, 9, 11]
+
+// Pentatonics (5-note)
+flow major_pent = [0, 2, 4, 7, 9]
+flow minor_pent = [0, 3, 5, 7, 10]
+flow egyptian   = [0, 2, 5, 7, 10]
+
+// Blues / chromatic
+flow blues      = [0, 3, 5, 6, 7, 10]
+flow chromatic  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+// Symmetric
+flow whole_tone = [0, 2, 4, 6, 8, 10]
+flow diminished = [0, 2, 3, 5, 6, 8, 9, 11]
+flow dim_half   = [0, 1, 3, 4, 6, 7, 9, 10]
+
+// Jazz / world
+flow bebop      = [0, 2, 4, 5, 7, 9, 10, 11]
+flow algerian   = [0, 2, 3, 5, 6, 7, 8, 11]
+flow hungarian  = [0, 2, 3, 6, 7, 8, 11]
+flow spanish    = [0, 1, 3, 4, 5, 7, 8, 10]
+
+
+// ── Degree → MIDI ─────────────────────────────────────────────────────────────
+// deg(root, scale, d, len)
+//   root  — root MIDI note (e.g. c4)
+//   scale — interval flow (e.g. minor)
+//   d     — degree index (0-based; negative or > len wraps across octaves)
+//   len   — number of notes in the scale (default 7 for heptatonic scales)
+//
+// Examples:
+//   deg(c4, major, 0)     → 60  (C4)
+//   deg(c4, major, 7)     → 72  (C5, wraps up one octave)
+//   deg(c4, major_pent, 3)  → works automatically for any scale length
+
+deg(root, scale, d) = root + scale[d] + 12 * floor(d / len(scale))
+
+
+// ── Temperament tables (cent offsets per scale degree, 7-note scales) ─────────
+// Apply with tune() below. Values are cents added to equal temperament.
+
+// Equal temperament (no offset)
+flow equal       = [0, 0, 0, 0, 0, 0, 0]
+
+// 5-limit just intonation deviations from 12-TET
+flow just        = [0, 3.91, -13.69, -1.96, 1.96, -15.64, -11.73]
+
+// Pythagorean tuning deviations from 12-TET
+flow pythagorean = [0, 3.91, 7.82, -1.96, 1.96, 5.87, 9.78]
+
+// Quarter-comma meantone deviations from 12-TET
+flow meantone    = [0, -6.84, -13.69, 3.42, -3.42, -10.27, -17.11]
+
+
+// ── Degree → decimal MIDI with temperament ────────────────────────────────────
+// tune(root, scale, d, temp, len)
+//   Returns a decimal MIDI note where the fractional part encodes cent deviation.
+//   Use with a synth that accepts decimal MIDI (e.g. Csound's cpsmidinn).
+//
+// Examples:
+//   tune(c4, major, 2, just)        → degree 2 of C major in just intonation
+//   tune(a3, minor, 5, pythagorean) → degree 5 of A minor, Pythagorean tuning
+//   tune(c4, major_pent, 3, equal)  → works automatically for any scale length
+
+tune(root, scale, d, temp) = deg(root, scale, d) + temp[d] / 100

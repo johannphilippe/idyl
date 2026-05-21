@@ -1,8 +1,6 @@
 add(a, b) = internal_add(a, b) |>
 {
-    init: { 
-        internal_add(x, y) = x + y
-     }
+    internal_add(x, y) = x + y
 }
 
 process: {
