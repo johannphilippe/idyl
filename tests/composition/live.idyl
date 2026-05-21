@@ -10,9 +10,18 @@ flow melody = {
 	note on rhythm: [0, 1, 2, 3, 4, 5, 6, 7]
 }
 
+flow stuff = {
+	rhythm: [ ! , ! , _ ,_ , _, ! ,  _ , ! ,  ! , _ , ! , !]
+	degree: [0, 1,5, 3, 6, 0,  3, 7 , 0,  2, 5, 3, 0]
+	chn: [1, 2]
+}
+
+rndt(rangemin, rangemax, dt = 500ms) = rnd(rangemin, rangemax)
+
+
 process test: {
-	mel = melody[metro(dt=0.5b)]
-	scale = major
+	mel = melody[metro(0.25b)]
+	scale = minor
 	on mel.rhythm: {
 		print("hello")
 		cs_note(cs, "sine", 5s, 0.1, tune(c4, scale, mel.note, meantone), mel.chn)
@@ -20,17 +29,34 @@ process test: {
 }
 
 process test2: {
-	mel = melody[metro(2b)]
-	scale = major
+	mel = melody[metro(4b)]
+	base = c3
+	scale = mixolydian
 	on mel.rhythm: {
 		print("hello")
 		index = floor(rnd(0, 7))
-		cs_note(cs, "sine", 10s, 0.3, tune(d2, scale, index, just), mel.chn)
+		cs_note(cs, "sine", 10s, 0.3, tune(base, scale, index, just), mel.chn)
 		index = floor(rnd(0, 7))
-		cs_note(cs, "sine", 10s, 0.3, tune(d4, scale, index, just), mel.chn)
+		cs_note(cs, "sine", 10s, 0.3, tune(base + 12, scale, index, just), mel.chn)
 		index = floor(rnd(0, 7))
-		@(100ms) : {
-			cs_note(cs, "sine", 10s, 0.3, tune(d5, scale, index, just), mel.chn)
+		@(0.25b) : {
+			cs_note(cs, "sine", 10s, 0.3, tune(base + 24, scale, index, just), mel.chn)
 		}
 	}
+}
+
+process test3: {
+	mel = stuff[metro(2b)]
+	deg2 = stuff.degree[metro(2b)]
+	cond = rnd(0, 1)
+	base = ( cond > 0.25) ? d3; d5
+	scale = mixolydian
+	on mel.rhythm: {
+		print("hello")
+		cs_note(cs, "sine", 10s, 0.3, tune(base, scale, mel.degree, just), mel.chn)
+		@(0.25b) : {
+			cs_note(cs, "sine", 10s, 0.3, tune(base, scale, deg2, just), mel.chn)
+		}
+	}
+
 }

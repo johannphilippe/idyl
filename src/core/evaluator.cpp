@@ -3337,8 +3337,14 @@ void evaluator::diff_and_apply(live_process& lp,
                     new_segs[bname]  = std::move(nsi);
                     new_order.push_back(bname);
                     cur = &new_segs[bname];
-                } else if (cur) {
-                    cur->reactions.push_back(s);
+                } else {
+                    // Non-temporal assignment (e.g. scale = major, amp = 0.5).
+                    // Execute it for real so env_ is updated immediately — the
+                    // speculative pass above ran in a discarded scope and had no effect.
+                    exec_stmt(s);
+                    // Also add to reactions so per-tick expressions that depend on
+                    // process-local state stay fresh on every tick.
+                    if (cur) cur->reactions.push_back(s);
                 }
             }
         }
