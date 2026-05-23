@@ -372,6 +372,7 @@ namespace yy {
       // NUMBER
       // TIME_LITERAL
       // STRING_LITERAL
+      // REPEAT_MARKER
       char dummy17[sizeof (std::string)];
 
       // flow_elements
@@ -457,11 +458,11 @@ namespace yy {
     AGE = 274,                     // AGE
     LAMBDA_BLOCK = 275,            // LAMBDA_BLOCK
     NAMESPACE_DOT = 276,           // NAMESPACE_DOT
-    RESTART_MARKER = 277,          // RESTART_MARKER
-    MEMORY_OP = 278,               // MEMORY_OP
-    RANGE = 279,                   // RANGE
-    REST = 280,                    // REST
-    AT_OP = 281,                   // AT_OP
+    MEMORY_OP = 277,               // MEMORY_OP
+    RANGE = 278,                   // RANGE
+    REST = 279,                    // REST
+    AT_OP = 280,                   // AT_OP
+    REPEAT_MARKER = 281,           // REPEAT_MARKER
     PLUS = 282,                    // PLUS
     MINUS = 283,                   // MINUS
     MUL = 284,                     // MUL
@@ -530,11 +531,11 @@ namespace yy {
         S_AGE = 19,                              // AGE
         S_LAMBDA_BLOCK = 20,                     // LAMBDA_BLOCK
         S_NAMESPACE_DOT = 21,                    // NAMESPACE_DOT
-        S_RESTART_MARKER = 22,                   // RESTART_MARKER
-        S_MEMORY_OP = 23,                        // MEMORY_OP
-        S_RANGE = 24,                            // RANGE
-        S_REST = 25,                             // REST
-        S_AT_OP = 26,                            // AT_OP
+        S_MEMORY_OP = 22,                        // MEMORY_OP
+        S_RANGE = 23,                            // RANGE
+        S_REST = 24,                             // REST
+        S_AT_OP = 25,                            // AT_OP
+        S_REPEAT_MARKER = 26,                    // REPEAT_MARKER
         S_PLUS = 27,                             // PLUS
         S_MINUS = 28,                            // MINUS
         S_MUL = 29,                              // MUL
@@ -743,6 +744,7 @@ namespace yy {
       case symbol_kind::S_NUMBER: // NUMBER
       case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
       case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+      case symbol_kind::S_REPEAT_MARKER: // REPEAT_MARKER
         value.move< std::string > (std::move (that.value));
         break;
 
@@ -1205,6 +1207,7 @@ namespace yy {
       case symbol_kind::S_NUMBER: // NUMBER
       case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
       case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+      case symbol_kind::S_REPEAT_MARKER: // REPEAT_MARKER
         value.copy< std::string > (that.value);
         break;
 
@@ -1337,6 +1340,7 @@ namespace yy {
       case symbol_kind::S_NUMBER: // NUMBER
       case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
       case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+      case symbol_kind::S_REPEAT_MARKER: // REPEAT_MARKER
         value.move< std::string > (std::move (that.value));
         break;
 
@@ -1480,6 +1484,7 @@ switch (yykind)
       case symbol_kind::S_NUMBER: // NUMBER
       case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
       case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+      case symbol_kind::S_REPEAT_MARKER: // REPEAT_MARKER
         value.template destroy< std::string > ();
         break;
 
@@ -1985,21 +1990,6 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
-      make_RESTART_MARKER (location_type l)
-      {
-        return symbol_type (token::RESTART_MARKER, std::move (l));
-      }
-#else
-      static
-      symbol_type
-      make_RESTART_MARKER (const location_type& l)
-      {
-        return symbol_type (token::RESTART_MARKER, l);
-      }
-#endif
-#if 201103L <= YY_CPLUSPLUS
-      static
-      symbol_type
       make_MEMORY_OP (location_type l)
       {
         return symbol_type (token::MEMORY_OP, std::move (l));
@@ -2055,6 +2045,21 @@ switch (yykind)
       make_AT_OP (const location_type& l)
       {
         return symbol_type (token::AT_OP, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_REPEAT_MARKER (std::string v, location_type l)
+      {
+        return symbol_type (token::REPEAT_MARKER, std::move (v), std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_REPEAT_MARKER (const std::string& v, const location_type& l)
+      {
+        return symbol_type (token::REPEAT_MARKER, v, l);
       }
 #endif
 #if 201103L <= YY_CPLUSPLUS
@@ -2783,6 +2788,7 @@ switch (yykind)
       case symbol_kind::S_NUMBER: // NUMBER
       case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
       case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+      case symbol_kind::S_REPEAT_MARKER: // REPEAT_MARKER
         value.copy< std::string > (YY_MOVE (that.value));
         break;
 
@@ -2925,6 +2931,7 @@ switch (yykind)
       case symbol_kind::S_NUMBER: // NUMBER
       case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
       case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+      case symbol_kind::S_REPEAT_MARKER: // REPEAT_MARKER
         value.move< std::string > (YY_MOVE (s.value));
         break;
 
@@ -3029,7 +3036,7 @@ switch (yykind)
 
 
 } // yy
-#line 3033 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
+#line 3040 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
 
 
 

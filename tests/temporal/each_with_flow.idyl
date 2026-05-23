@@ -18,12 +18,12 @@ process: {
     // Static chord: every other degree of C major, runs once at process start
     each n in 0..4..2: {
         note = deg(c4, major, n)
-        print("[chord] degree=" ++ n ++ " midi=" ++ note)
+        print("[chord] degree=", n, " midi=", note)
     }
 
     // Arpeggio: all 4 degrees one after the other, temporal
     each n in 4, dt=150ms: {
-        print("[arp] t=" ++ n ++ " midi=" ++ deg(c4, major, n))
+        print("[arp] t=", n, " midi=", deg(c4, major, n))
     }
 
     @(1s): { print("done") stop }

@@ -1,0 +1,62 @@
+/*
+  Flow repeat bar — integer indexing
+  Tests that |N| repeat syntax is correctly reflected in the physical table
+  when accessing a flow with an explicit integer index.
+
+  The physical table is the expanded representation:
+    [1, 2, 3 |3|, 13, 8]  →  [1, 2, 3, 3, 3, 13, 8]  (7 physical slots)
+    [[1,2,3] |3|, 13, 8]  →  [1,2,3, 1,2,3, 1,2,3, 13, 8]  (11 physical slots)
+
+  Integer n addresses physical slot n directly, same semantics as the trigger cursor.
+  Use each n in len(flow) to visit every slot — including repeated ones.
+
+  Expected output:
+    === single-element repeat (physical len=7) ===
+    1
+    2
+    3
+    3
+    3
+    13
+    8
+    === group repeat (physical len=11) ===
+    1
+    2
+    3
+    1
+    2
+    3
+    1
+    2
+    3
+    13
+    8
+    done
+*/
+
+import("stdlib")
+
+flow seq = {
+    degree: [1, 2, 3 |3|, 13, 8]
+    chn: [1, 2]
+}
+
+flow seq2 = {
+    degree: [[1, 2, 3] |3|, 13, 8]
+    chn: [1, 2]
+}
+
+process: {
+    print("=== single-element repeat (physical len=7) ===")
+    each n in len(seq): {
+        print(seq[n].degree)
+    }
+
+    print("=== group repeat (physical len=11) ===")
+    each n in len(seq2): {
+        print(seq2[n].degree)
+    }
+
+    print("done")
+    @(200ms): { stop }
+}

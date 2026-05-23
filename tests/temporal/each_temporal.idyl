@@ -16,17 +16,17 @@ import("stdlib")
 process: {
     // Named dt — fires n=0,1,2,3,0,1,... every 100ms
     each n in 4, dt=100ms: {
-        print("[named] n=" ++ n)
+        print("[named] n=", n)
     }
 
     // Positional dt — same behaviour, no named parameter
     each n in 4, 150ms: {
-        print("[pos] n=" ++ n)
+        print("[pos] n=", n)
     }
 
     // Range form with dt — n cycles through 2,3,4 every 120ms
     each n in 2..4, dt=120ms: {
-        print("[range] n=" ++ n)
+        print("[range] n=", n)
     }
 
     @(600ms): { print("done") stop }

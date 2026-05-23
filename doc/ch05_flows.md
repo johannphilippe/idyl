@@ -278,23 +278,72 @@ flow seq = [10, 20, 30]
 
 ### Access modes
 
+All three modes address the **physical table** — the expanded representation including any repeat-bar copies.
+
 | Index type | Behavior |
 |------------|----------|
-| Integer | Direct element at that index (wraps) |
-| Float | Nearest element of index, proportionally, between 0 and 1 (wraps if exceeds 1) |
-| Trigger | Advance to next element on trigger |
+| Integer | Direct physical slot at that index (wraps at physical length) |
+| Float | Selects proportionally across physical length, between 0 and 1 (wraps if exceeds 1) |
+| Trigger | Advance the cursor one physical slot per tick |
+
+---
+
+## Repeat bars
+
+The `|N|` bar attached to an element — or a bracketed group — repeats that element N times in the **physical table**: the expanded representation that all indexing modes operate against.
+
+**Single-element repeat** — `|N|` follows a single value and repeats it:
+
+```idyl
+flow seq = {
+    degree: [1, 2, 3 |3|, 13, 8]
+    //  physical: [1, 2, 3, 3, 3, 13, 8]   len = 7
+}
+```
+
+**Group repeat** — `|N|` follows a bracketed sub-list and repeats the whole group:
+
+```idyl
+flow seq2 = {
+    degree: [[1, 2, 3] |3|, 13, 8]
+    //  physical: [1, 2, 3, 1, 2, 3, 1, 2, 3, 13, 8]   len = 11
+}
+```
+
+All three index modes address the same physical table:
+
+| Index type | Physical table behaviour |
+|------------|--------------------------|
+| Integer n | Accesses physical slot n directly (wraps at physical length) |
+| Float [0, 1) | Selects proportionally across physical length |
+| Trigger | Advances the cursor one physical slot per tick |
+
+Use `each n in len(flow)` to iterate every physical slot, including repeated ones:
+
+```idyl
+process: {
+    each n in len(seq): {
+        print(seq[n].degree)   // 1 2 3 3 3 13 8
+    }
+    each n in len(seq2): {
+        print(seq2[n].degree)  // 1 2 3 1 2 3 1 2 3 13 8
+    }
+}
+```
 
 ---
 
 ## Flow length
 
-Use `len()` to get the number of elements:
+Use `len()` to get the number of elements. For flows with repeat bars, `len()` returns the **physical length** — total slots including all repeated copies:
 
 ```idyl
 flow notes = [60, 62, 64, 67, 69]
+flow seq   = { degree: [1, 2, 3 |3|, 13, 8] }
 
 process: {
     print("length:", len(notes))   // 5
+    print("length:", len(seq))     // 7  (physical: 1,2,3,3,3,13,8)
 }
 ```
 

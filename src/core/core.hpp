@@ -149,7 +149,8 @@ namespace idyl::core {
     struct flow_member {
         std::string name_;      // empty for single-member flows
         std::string gate_name_; // non-empty → only advance when this member's trigger is live
-        std::vector<value> elements_;
+        std::vector<value> elements_;      // unique elements (logical)
+        std::vector<int>   repeat_counts_; // parallel to elements_; 1 = no repeat
 
         // Compound-temporal slots (same size as elements_; entries may be null).
         // live_exprs_[i] != null  → slot i must be re-evaluated at access time
@@ -161,6 +162,26 @@ namespace idyl::core {
         //                           of creating a new instance.
         std::vector<std::shared_ptr<parser::expression>> live_exprs_;
         std::vector<std::shared_ptr<function_instance>>  live_deps_;
+
+        // Physical length = sum of repeat_counts_ (equals elements_.size() when no repeats).
+        int physical_length() const {
+            int total = 0;
+            for (int rc : repeat_counts_) total += rc;
+            return total > 0 ? total : static_cast<int>(elements_.size());
+        }
+
+        // Map a physical cursor position to a logical (unique) element index.
+        int physical_to_logical(int phys) const {
+            if (repeat_counts_.empty())
+                return elements_.empty() ? 0 : phys % static_cast<int>(elements_.size());
+            int remaining = phys;
+            for (int L = 0; L < static_cast<int>(elements_.size()); ++L) {
+                int rc = (L < static_cast<int>(repeat_counts_.size())) ? repeat_counts_[L] : 1;
+                if (remaining < rc) return L;
+                remaining -= rc;
+            }
+            return static_cast<int>(elements_.size()) - 1;
+        }
     };
 
     struct flow_data {
@@ -173,9 +194,11 @@ namespace idyl::core {
         std::shared_ptr<std::unordered_map<std::string, int>> cursors_ =
             std::make_shared<std::unordered_map<std::string, int>>();
 
+        // Physical length: total number of time-steps in the first member,
+        // counting repeat_count for each unique element.
         size_t length() const {
             if (members_.empty()) return 0;
-            return members_[0].elements_.size();
+            return static_cast<size_t>(members_[0].physical_length());
         }
     };
 

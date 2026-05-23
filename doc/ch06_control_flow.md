@@ -4,7 +4,7 @@
 
 ---
 
-Idƴl has no `if/else`, no `while`, no `for`. Control flow is expression-based: ternary selection replaces conditionals, generator expressions replace loops.
+Idƴl has no `if/else`, no `while`. Control flow is expression-based: ternary selection replaces conditionals, generator expressions produce flows declaratively, and `each` loops iterate imperatively over a counted range.
 
 ---
 
@@ -214,6 +214,74 @@ chromatic(root) = [s = 0..11 : root * pow(2.0, s / 12.0)]
 ```
 
 Generators are declarative, composable, and produce flows directly.
+
+---
+
+## `each` — counted loop
+
+The `each` statement runs its body for a range of integer indices. Unlike generator expressions (which produce flows), `each` is an imperative loop — its body can contain side effects, flow accesses, and nested temporal blocks.
+
+**Syntax:**
+
+```
+each var in count [, dt=time_expr] : {
+    statement
+    ...
+}
+```
+
+`var` takes values `0, 1, …, count − 1`.
+
+```idyl
+import("stdlib")
+
+flow notes = [60, 62, 64, 67, 69]
+
+process: {
+    each n in len(notes): {
+        print(notes[n])   // 60  62  64  67  69
+    }
+}
+```
+
+### Iterating over physical slots (repeat bars)
+
+`len(flow)` returns the **physical length** — all slots including repeated copies. `each n in len(flow)` naturally visits every physical position:
+
+```idyl
+import("stdlib")
+
+flow seq = {
+    degree: [1, 2, 3 |3|, 13, 8]   // physical len = 7
+}
+
+process: {
+    each n in len(seq): {
+        print(seq[n].degree)   // 1  2  3  3  3  13  8
+    }
+}
+```
+
+### Timed steps (`dt`)
+
+The optional `dt` parameter spaces each iteration by a duration, turning the loop into a scheduled sequence. This is typically used inside an `on` block where a temporal context is already running:
+
+```idyl
+import("stdlib")
+
+flow arp = { degree: [0, 3, 5, 7] }
+
+process: {
+    clk = clock(120bpm)
+    on metro(clk(4b)): {
+        each n in len(arp), dt=clk(0.5b): {
+            print(arp[n].degree)   // steps through one slot every half-beat
+        }
+    }
+}
+```
+
+Without `dt`, all iterations execute synchronously on the same tick.
 
 ---
 

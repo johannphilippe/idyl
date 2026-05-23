@@ -103,7 +103,7 @@ MULTI_COMMENT   \/\*([^*]|\*[^/])*\*\/
 
 "|>"             { TRACK_LOCATION(); return yy::parser::token::LAMBDA_BLOCK; }
 "::"             { TRACK_LOCATION(); return yy::parser::token::NAMESPACE_DOT; }
-"||"             { TRACK_LOCATION(); return yy::parser::token::RESTART_MARKER; }
+"|"{DIGITS}"|"  { yylval_string = std::string(yytext + 1, yyleng - 2); TRACK_LOCATION(); return yy::parser::token::REPEAT_MARKER; }
 ".."             { TRACK_LOCATION(); return yy::parser::token::RANGE; }
 "=="             { TRACK_LOCATION(); return yy::parser::token::EQ; }
 "!="             { TRACK_LOCATION(); return yy::parser::token::NEQ; }
@@ -198,8 +198,8 @@ yy::parser::symbol_type yylex_impl(yy::lexer& driver) {
             return yy::parser::make_RANGE(yylloc);
         case yy::parser::token::REST: 
             return yy::parser::make_REST(yylloc);
-        case yy::parser::token::RESTART_MARKER: 
-            return yy::parser::make_RESTART_MARKER(yylloc);
+        case yy::parser::token::REPEAT_MARKER:
+            return yy::parser::make_REPEAT_MARKER(yylval_string, yylloc);
         case yy::parser::token::EQ: 
             return yy::parser::make_EQ(yylloc);
         case yy::parser::token::NEQ: 

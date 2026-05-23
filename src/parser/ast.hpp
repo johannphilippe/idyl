@@ -28,7 +28,7 @@ enum class node_t {
     // Expressions (wrappers)
     literal_expr, identifier_expr, binary_op_expr, unary_op_expr, ternary_op_expr,
     memory_op_expr, generator_expr_node, flow_literal_expr, function_call_expr,
-    flow_access_expr, module_access_expr, parenthesized_expr,
+    flow_access_expr, module_access_expr, parenthesized_expr, repeat_expr,
     // Anonymous block expression { stmt; stmt; expr }
     block_expr,
     // Statements
@@ -269,9 +269,10 @@ struct generator_expr : node {
 
 struct flow_literal : node {
     std::vector<expr_ptr> elements_;
-    
+    std::vector<int> repeat_counts_; // parallel to elements_; 1 = no repeat
+
     flow_literal() : node(node_t::flow_literal) {}
-    
+
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "FlowLiteral([" << elements_.size() << " elements])\n";
@@ -280,6 +281,7 @@ struct flow_literal : node {
         }
     }
 };
+
 
 struct repetition_marker : node {
     expr_ptr repetition_count_; // nullptr for restart marker (||)
@@ -619,6 +621,25 @@ struct parenthesized_expr : expression {
     
     expr_ptr clone() const override {
         return std::make_shared<parenthesized_expr>(*this);
+    }
+};
+
+// repeat_expr: wraps a single flow element with a repeat count.
+// Used inside flow_literal::elements_ to mark elements that should occupy
+// multiple physical time-steps while remaining one logical position.
+struct repeat_expr : expression {
+    expr_ptr inner_;
+    int count_ = 1;
+
+    repeat_expr() : expression(node_t::repeat_expr) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "RepeatExpr(x" << count_ << ")\n";
+        if (inner_) inner_->print(indent + 1);
+    }
+    expr_ptr clone() const override {
+        return std::make_shared<repeat_expr>(*this);
     }
 };
 

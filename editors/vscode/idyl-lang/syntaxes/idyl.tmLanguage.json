@@ -89,7 +89,7 @@
       "patterns": [
         {
           "name": "keyword.control.idyl",
-          "match": "\\b(process|catch|emit|init|start|stop|on)\\b"
+          "match": "\\b(process|catch|emit|init|start|stop|on|each|in)\\b"
         },
         {
           "name": "keyword.other.idyl",

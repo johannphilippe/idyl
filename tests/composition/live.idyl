@@ -61,34 +61,64 @@ process test3: {
 
 
 flow arps = {
-	degree: [0, 3,  7, 10, 12]
+	degree: [ 1, 2, 3 |3| , 13, 8]
 	chn: [1, 2]
 }
 
+flow arps2 = {
+	degree: [ [1, 2, 3] |3| , 13, 8]
+	chn: [1, 2]
+}
+
+
+flow bases = [c3, g3, d3, f4] 
+
 process test4: {
 	clk = clock(120bpm)
-	on metro(clk(2.5b) ): {
+	base = c3 //bases[metro(8b)] 
+	on metro(clk(7*0.5b) ): {
 		print("metro >> ") 
-		each n in 5, dt= clk(0.5b): {
+		each n in len(arps), dt= clk(0.5b): {
 			arp = arps[n] 
+			print(arp.degree)
 			arp2 = arps[-n] 
-			print("arp", n)
-			cs_note(cs, "sine", 10s, 0.3, tune(g3, melodic_minor, arp.degree, just), arp.chn)
-			cs_note(cs, "sine", 10s, 0.3, tune(d2, melodic_minor, arp2.degree, just), arp2.chn)
+			//print("arp", n)
+			cs_note(cs, "sine", 1s, 0.3, tune(base, melodic_minor, arp.degree, just), arp.chn)
+			//cs_note(cs, "sine", 10s, 0.3, tune(base, melodic_minor, arp2.degree, just), arp2.chn)
 
 		}
 	}
 }
 
 process test5: {
+	clk = clock(120bpm)
+	base = c3 //bases[metro(8b)] 
+	on metro(clk(11*0.5b) ): {
+		print("metro >> ") 
+		each n in len(arps2), dt= clk(0.5b): {
+			arp = arps2[n] 
+			print(arp.degree)
+			//arp2 = arps[-n] 
+			//print("arp", n)
+			cs_note(cs, "sine", 1s, 0.3, tune(base, melodic_minor, arp.degree, just), arp.chn)
+			//cs_note(cs, "sine", 10s, 0.3, tune(base, melodic_minor, arp2.degree, just), arp2.chn)
+
+		}
+	}
+}
+
+process test6: {
+	osc = pos(lfo(0.1hz, dt=50ms)) * 200 + 300 
+	tempo(as_bpm(osc / 5) )
 	on metro( 2.5b ): {
 		print("metro >> ") 
 		each n in 5, dt= 0.5b: {
 			arp = arps[n] 
-			arp2 = arps[-n] 
 			print("arp", n)
-			cs_note(cs, "sine", 10s, 0.3, tune(g3, melodic_minor, arp.degree, just), arp.chn)
-			cs_note(cs, "sine", 10s, 0.3, tune(d2, melodic_minor, arp2.degree, just), arp2.chn)
+			print(ppp)
+			cs_note(cs, "sine", 10s, f, tune(c4, melodic_minor, arp.degree, just), arp.chn)
+			arp2 = arps[-n] 
+			cs_note(cs, "sine", 10s, f, tune(c1, melodic_minor, arp2.degree, just), arp2.chn)
 
 		}
 	}

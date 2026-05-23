@@ -21,7 +21,7 @@ Same for engine implementation.
 ## Philosophy
 
 - **Stateless by default.** Definitions are immutable. State exists only where you ask for it, inside temporal lambda blocks, and every mutation is explicit.
-- **Functional at the core.** No `if/else`, no `while`, no assignment mutation outside lambda blocks. Control flow is ternary selection. Iteration is generator expressions. Composition replaces inheritance.
+- **Functional at the core.** No `if/else`, no `while`, no assignment mutation outside lambda blocks. Control flow is ternary selection. Declarative iteration is generator expressions; imperative iteration is `each`. Composition replaces inheritance.
 
 ## Features
 
@@ -30,7 +30,8 @@ Same for engine implementation.
 | **Temporal functions** | Clock-driven (`dt=10ms`), trigger-driven (`spike!`), or hybrid. State via `init` + `\|>` lambda blocks. Self-terminate with `stop` inside the update body; the bound variable freezes at the final output and `catch v::end` fires. |
 | **Delay operator** | `'(expr)` — one-sample delay. `'(expr, N)` — N-sample delay. Circular buffer, per-expression, independent across call sites. |
 | **Deferred blocks** | `@(500ms): { ... }` — schedules a block to run once after a delay. Time expression can be any value. |
-| **Flows** | Ordered sequence literals: `[...]` for simple lists, `flow { name: [...] }` for named-member records. Both forms appear anywhere an expression is valid — in assignments, function returns, ternary branches, temporal bodies. Supports generator expressions, live temporal elements per-slot, and dynamic rebuilding when arguments change. |
+| **Flows** | Ordered sequence literals: `[...]` for simple lists, `flow { name: [...] }` for named-member records. Both forms appear anywhere an expression is valid — in assignments, function returns, ternary branches, temporal bodies. Supports generator expressions, live temporal elements per-slot, and dynamic rebuilding when arguments change. Repeat bars `\|N\|` expand a single element or group N times into the physical table; all three index modes (trigger, integer, float) and `len()` operate on the physical table. |
+| **`each` loops** | `each n in count [, dt=time]: { }` — imperative counted loop. `n` ranges from 0 to count−1. The optional `dt` parameter spaces iterations by a duration (used inside `on` blocks for timed arpeggio-style sequences). Use `each n in len(flow)` to visit every physical slot including repeat-bar copies. |
 | **Emit system** | Side-channel output from temporal functions. Read emitted values with the `::` accessor. |
 | **Catch blocks** | React to events emitted by temporal instances — `catch timer::finished: { ... }`. Built-in `::end` signal fires automatically when an instance self-terminates via `stop`. |
 | **`on` blocks** | Trigger-gated reaction blocks — `on m: { ... }` fires only when `m` is a live trigger. Also gates flow members: `melody on rhythm: [60, 63, 65]` advances only on rhythm's trigger ticks. |
@@ -249,6 +250,29 @@ process: {
     print(a, b, c)
 }
 ```
+
+### `each` loops
+
+`each n in count [, dt=time_expr]: { }` is an imperative counted loop. `n` runs from 0 to count − 1. Pass `len(flow)` as the count to cover every physical slot including repeat-bar copies:
+
+```idyl
+import("stdlib")
+
+flow arp = {
+    degree: [0, 3, 5 |2|, 7]   // physical: [0, 3, 5, 5, 7]  len=5
+}
+
+process: {
+    clk = clock(120bpm)
+    on metro(clk(4b)): {
+        each n in len(arp), dt=clk(0.5b): {
+            print(arp[n].degree)   // 0  3  5  5  7, spaced by half a beat
+        }
+    }
+}
+```
+
+Without `dt` all iterations execute synchronously on the same tick.
 
 ### `on` blocks
 
@@ -542,7 +566,8 @@ What exists:
 - `start`/`stop` keywords for process-to-process control
 - Dynamic parameter re-evaluation — temporal function parameters can themselves be temporal
 - Local functions and closures — process-scope, init-scope, update-scope; by-reference capture over temporal instance state
-- Flows as literals: `[...]` simple lists and `flow { name: [...] }` named-member records — both valid anywhere an expression is valid (assignments, function returns, ternary branches, temporal function bodies). The `flow` prefix is only required on named-member forms to disambiguate from future code blocks. Dynamic parametric flows auto-rebuild when arguments change.
+- Flows as literals: `[...]` simple lists and `flow { name: [...] }` named-member records — both valid anywhere an expression is valid (assignments, function returns, ternary branches, temporal function bodies). The `flow` prefix is only required on named-member forms to disambiguate from future code blocks. Dynamic parametric flows auto-rebuild when arguments change. Repeat bars `|N|` expand a single element or bracketed group N times into the physical table; `len()` and all index modes reflect the physical table.
+- `each n in count [, dt=time]: { }` — imperative counted loop; optional `dt` spaces iterations by a duration inside `on` blocks
 - `on` blocks — trigger-gated reaction blocks (`on m: { ... }`) and flow member gates (`melody on rhythm: [...]`)
 - Built-in OSC module: send, receive, `osc_recv` native temporal poller
 - Built-in Csound module: `cs_open`, `cs_note`, `cs_chnset`, `cs_chnget` (native temporal)

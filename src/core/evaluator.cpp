@@ -1195,29 +1195,30 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
 
             // ── Single-member flow: return element directly ────────────────
             if (flow.flow().members_.size() == 1) {
-                auto& elems = flow.flow().members_[0].elements_;
-                int n = static_cast<int>(elems.size());
-                const std::string& key = flow.flow().members_[0].name_;
-
                 const auto& member0 = flow.flow().members_[0];
+                int logical_n = static_cast<int>(member0.elements_.size());
+                int phys_n    = member0.physical_length();
+                const std::string& key = member0.name_;
+
                 if (is_trigger) {
                     int& cur = cursors[key];
                     if (idx.trigger_) {
-                        int pos = cur % n;
-                        cur = (cur + 1) % n;
-                        return resolve_flow_element(member0, pos);
+                        int logical = member0.physical_to_logical(cur % phys_n);
+                        cur = (cur + 1) % phys_n;
+                        return resolve_flow_element(member0, logical);
                     }
-                    return resolve_flow_element(member0, cur % n);
+                    return resolve_flow_element(member0,
+                        member0.physical_to_logical(cur % phys_n));
                 }
                 if (is_float) {
                     double t = std::fmod(v, 1.0);
                     if (t < 0.0) t += 1.0;
-                    int i = static_cast<int>(std::floor(t * n)) % n;
-                    return resolve_flow_element(member0, i);
+                    int i = static_cast<int>(std::floor(t * phys_n)) % phys_n;
+                    return resolve_flow_element(member0, member0.physical_to_logical(i));
                 }
-                // Integer with wrapping
-                int i = ((int_idx % n) + n) % n;
-                return resolve_flow_element(member0, i);
+                // Integer: same physical-table semantics as trigger indexing.
+                int i = ((int_idx % phys_n) + phys_n) % phys_n;
+                return resolve_flow_element(member0, member0.physical_to_logical(i));
             }
 
             // ── Multi-member flow: return a row slice ──────────────────────
@@ -1233,13 +1234,13 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     fd->members_.push_back(std::move(row_m));
                     continue;
                 }
-                int mn = static_cast<int>(m.elements_.size());
+                int logical_mn = static_cast<int>(m.elements_.size());
+                int phys_mn    = m.physical_length();
                 int mi;
 
                 if (is_trigger) {
-                    // Per-member cursor: each member wraps independently.
-                    // A gated member (on <gate>) only advances when the gate
-                    // member's element for this tick is a live trigger.
+                    // Per-member cursor: each member wraps independently over
+                    // physical positions; map back to logical for element access.
                     int& cur = cursors[m.name_];
                     bool should_advance = idx.trigger_;
                     if (should_advance && !m.gate_name_.empty()) {
@@ -1249,26 +1250,21 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                                           git->second.trigger_);
                     }
                     if (should_advance) {
-                        mi = cur % mn;
-                        cur = (cur + 1) % mn;
+                        mi = m.physical_to_logical(cur % phys_mn);
+                        cur = (cur + 1) % phys_mn;
                     } else {
-                        mi = cur % mn;
+                        mi = m.physical_to_logical(cur % phys_mn);
                     }
                 } else if (is_float) {
-                    // Per-member float mapping: each member uses its own size
                     double t = std::fmod(v, 1.0);
                     if (t < 0.0) t += 1.0;
-                    mi = static_cast<int>(std::floor(t * mn)) % mn;
+                    int pi = static_cast<int>(std::floor(t * phys_mn)) % phys_mn;
+                    mi = m.physical_to_logical(pi);
                 } else if (!m.gate_name_.empty()) {
-                    // Integer index with an 'on <gate>' constraint: maintain an
-                    // independent cursor that advances only when (a) the integer
-                    // index has changed since the last evaluation at this site,
-                    // AND (b) the gate member's element for this step is a live
-                    // trigger.  This lets counter-driven flows respect 'on'.
-                    // Keys \x01/\x02 + name are unreachable by valid identifiers.
+                    // Integer index with an 'on <gate>' constraint.
                     int& cur      = cursors[m.name_];
-                    int& prev_set = cursors["\x01" + m.name_]; // 0=never seen,1=seen
-                    int& prev_val = cursors["\x02" + m.name_]; // previous int_idx
+                    int& prev_set = cursors["\x01" + m.name_];
+                    int& prev_val = cursors["\x02" + m.name_];
                     bool idx_changed = (prev_set == 0) || (prev_val != int_idx);
                     prev_set = 1;
                     prev_val = int_idx;
@@ -1276,12 +1272,14 @@ value evaluator::eval_expr(const parser::expr_ptr& expr) {
                     bool gate_fires = (git != resolved_this_tick.end() &&
                                        git->second.type_ == value_t::trigger &&
                                        git->second.trigger_);
-                    mi = cur % mn;
+                    int pi = ((int_idx % phys_mn) + phys_mn) % phys_mn;
+                    mi = m.physical_to_logical(pi);
                     if (idx_changed && gate_fires)
-                        cur = (cur + 1) % mn;
+                        cur = (cur + 1) % phys_mn;
                 } else {
-                    // Integer with per-member wrapping
-                    mi = ((int_idx % mn) + mn) % mn;
+                    // Integer: same physical-table semantics as trigger.
+                    int pi = ((int_idx % phys_mn) + phys_mn) % phys_mn;
+                    mi = m.physical_to_logical(pi);
                 }
 
                 value elem = resolve_flow_element(m, mi);
@@ -2576,21 +2574,30 @@ value evaluator::eval_flow_literal(const parser::flow_literal& fl) {
     auto fd = std::make_shared<flow_data>();
     flow_member fm;
 
-    for (const auto& elem : fl.elements_) {
+    for (const auto& raw_elem : fl.elements_) {
+        // Unwrap repeat_expr: single-element repeat stores the element once with
+        // a repeat_count > 1 so that trigger-based cursors advance slower while
+        // integer/each-based indexing still uses logical indices.
+        int rc = 1;
+        const parser::expr_ptr* elem_ptr = &raw_elem;
+        parser::expr_ptr unwrapped;
+        if (raw_elem && raw_elem->type_ == parser::node_t::repeat_expr) {
+            auto& re = static_cast<const parser::repeat_expr&>(*raw_elem);
+            rc = re.count_;
+            unwrapped = re.inner_;
+            elem_ptr = &unwrapped;
+        }
+        const parser::expr_ptr& elem = *elem_ptr;
+
         last_instantiated_ = nullptr;
         value v = eval_expr(elem);
 
         if (last_instantiated_) {
-            // Element involved a temporal function call.
             if (elem->type_ == parser::node_t::function_call_expr) {
-                // Direct call (e.g. sine(5hz, dt=200ms)) → live instance_ref slot.
                 fm.elements_.push_back(value::instance_ref(last_instantiated_));
                 fm.live_exprs_.push_back(nullptr);
                 fm.live_deps_.push_back(nullptr);
             } else {
-                // Compound expression (e.g. sine(2hz)*127+64) → live-expr slot.
-                // The snapshot value is stored as fallback; the expression is
-                // re-evaluated at access time using last_instantiated_ as dep.
                 fm.elements_.push_back(v);
                 fm.live_exprs_.push_back(
                     std::static_pointer_cast<parser::expression>(elem));
@@ -2601,6 +2608,7 @@ value evaluator::eval_flow_literal(const parser::flow_literal& fl) {
             fm.live_exprs_.push_back(nullptr);
             fm.live_deps_.push_back(nullptr);
         }
+        fm.repeat_counts_.push_back(rc);
     }
 
     fd->members_.push_back(std::move(fm));
@@ -2668,10 +2676,21 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
             if (member->value_->type_ == parser::node_t::flow_literal_expr) {
                 auto& fle = static_cast<const parser::flow_literal_expr&>(*member->value_);
                 if (fle.flow_) {
-                    for (const auto& elem : fle.flow_->elements_) {
+                    for (const auto& raw_elem : fle.flow_->elements_) {
+                        int rc = 1;
+                        const parser::expr_ptr* elem_ptr = &raw_elem;
+                        parser::expr_ptr unwrapped;
+                        if (raw_elem && raw_elem->type_ == parser::node_t::repeat_expr) {
+                            auto& re = static_cast<const parser::repeat_expr&>(*raw_elem);
+                            rc = re.count_;
+                            unwrapped = re.inner_;
+                            elem_ptr = &unwrapped;
+                        }
+                        const parser::expr_ptr& elem = *elem_ptr;
                         last_instantiated_ = nullptr;
                         value v = eval_expr(elem);
                         push_flow_element(fm, elem, std::move(v), last_instantiated_);
+                        fm.repeat_counts_.push_back(rc);
                     }
                 }
             } else if (member->value_->type_ == parser::node_t::generator_expr_node) {
@@ -2689,6 +2708,7 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
                         fm.elements_.push_back(eval_expr(gen.body_));
                         fm.live_exprs_.push_back(nullptr);
                         fm.live_deps_.push_back(nullptr);
+                        fm.repeat_counts_.push_back(1);
                     }
                     env_.pop_scope();
                 }
@@ -2696,6 +2716,7 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
                 last_instantiated_ = nullptr;
                 value v = eval_expr(member->value_);
                 push_flow_element(fm, member->value_, std::move(v), last_instantiated_);
+                fm.repeat_counts_.push_back(1);
             }
         }
         fd->members_.push_back(std::move(fm));
