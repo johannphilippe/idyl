@@ -3299,6 +3299,10 @@ void evaluator::diff_and_apply(live_process& lp,
                     new_unnamed_binding_stmts.push_back(s);
                 } else if (cur) {
                     cur->reactions.push_back(s);
+                } else {
+                    // Pre-segment side-effect statement (e.g. tempo(140bpm)).
+                    // Execute for real so global state is updated on hot-reload.
+                    exec_stmt(s);
                 }
                 continue;
             }
@@ -3889,6 +3893,16 @@ void evaluator::hot_reload(const std::string& source) {
                 stored_processes_[proc.name_] = new_ast;
                 std::cerr << "[hot_reload] updated process '" << proc.name_ << "'\n";
             }
+            break;
+        }
+
+        // ── Top-level expression / assignment (e.g. tempo(140bpm)) ───────────
+        case parser::node_t::expression_stmt:
+        case parser::node_t::assignment: {
+            uint64_t id_before = next_instance_id_;
+            exec_stmt(stmt);
+            if (next_instance_id_ > id_before)
+                std::cerr << "[hot_reload] warning: global statement created temporal instance\n";
             break;
         }
 

@@ -66,12 +66,29 @@ flow arps = {
 }
 
 process test4: {
-	on metro(2.5b): {
+	clk = clock(120bpm)
+	on metro(clk(2.5b) ): {
+		print("metro >> ") 
+		each n in 5, dt= clk(0.5b): {
+			arp = arps[n] 
+			arp2 = arps[-n] 
+			print("arp", n)
+			cs_note(cs, "sine", 10s, 0.3, tune(g3, melodic_minor, arp.degree, just), arp.chn)
+			cs_note(cs, "sine", 10s, 0.3, tune(d2, melodic_minor, arp2.degree, just), arp2.chn)
+
+		}
+	}
+}
+
+process test5: {
+	on metro( 2.5b ): {
 		print("metro >> ") 
 		each n in 5, dt= 0.5b: {
 			arp = arps[n] 
+			arp2 = arps[-n] 
 			print("arp", n)
-			cs_note(cs, "sine", 10s, 0.3, tune(c3, minor, arp.degree, just), arp.chn)
+			cs_note(cs, "sine", 10s, 0.3, tune(g3, melodic_minor, arp.degree, just), arp.chn)
+			cs_note(cs, "sine", 10s, 0.3, tune(d2, melodic_minor, arp2.degree, just), arp2.chn)
 
 		}
 	}

@@ -121,3 +121,19 @@ flow meantone    = [0, -6.84, -13.69, 3.42, -3.42, -10.27, -17.11]
 //   tune(c4, major_pent, 3, equal)  → works automatically for any scale length
 
 tune(root, scale, d, temp) = deg(root, scale, d) + temp[d] / 100
+
+
+// Amplitude conversion tools and constants 
+
+ltodb(x) = 20 * log10(x)
+dbtol(x) = pow(10 , x / 20)
+
+// Linear value constants 
+ppp = dbtol(-60)   // pianississimo
+pp = dbtol(-45)    // pianissimo
+p = dbtol(-35)     // piano
+mp = dbtol(-25)    // mezzo-piano
+mf = dbtol(-15)      // mezzo-forte
+f = dbtol(-10)      // forte
+ff = dbtol(-5)     // fortissimo
+fff = dbtol(-2)    // fortississimo
