@@ -1,0 +1,30 @@
+// each_with_flow.idyl — each combined with flow indexing and music library
+// Uses each to iterate degrees and index into scales/flows.
+// Demonstrates practical live-coding patterns.
+// Expected:
+//   [chord] degree=0 midi=60
+//   [chord] degree=2 midi=64
+//   [chord] degree=4 midi=67
+//   [arp] t=0 midi=60
+//   [arp] t=1 midi=62
+//   [arp] t=2 midi=64
+//   [arp] t=3 midi=65
+//   done
+
+import("stdlib")
+import("music")
+
+process: {
+    // Static chord: every other degree of C major, runs once at process start
+    each n in 0..4..2: {
+        note = deg(c4, major, n)
+        print("[chord] degree=" ++ n ++ " midi=" ++ note)
+    }
+
+    // Arpeggio: all 4 degrees one after the other, temporal
+    each n in 4, dt=150ms: {
+        print("[arp] t=" ++ n ++ " midi=" ++ deg(c4, major, n))
+    }
+
+    @(1s): { print("done") stop }
+}

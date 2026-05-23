@@ -1,0 +1,21 @@
+// each_step.idyl — range with explicit step: each n in S..E..ST
+// Tests: even step, odd start, step larger than range.
+// Expected:
+//   [step2] n=0  n=2  n=4  n=6
+//   [step3] n=0  n=3  n=6
+//   [step5] n=1   (only one value: 1+5=6 > 5)
+//   [process] n=0  n=3  n=6  done
+import("stdlib")
+
+// ── Temporal: step inside a process ──────────────────────────────────────────
+process: {
+    m = metro(dt=200ms)
+
+    on m: {
+        each n in 0..6..3: {
+            print("[process] n=" , n)
+        }
+    }
+
+    @(2s): { print("done") stop }
+}

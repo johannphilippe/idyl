@@ -32,7 +32,7 @@ enum class node_t {
     // Anonymous block expression { stmt; stmt; expr }
     block_expr,
     // Statements
-    expression_stmt, assignment, catch_block, at_block, on_block,
+    expression_stmt, assignment, catch_block, at_block, on_block, each_block,
     function_definition, process_block_body, process_block,
     library_import, module_import, stop_statement, start_statement, sched_statement,
     // Special expression: self-stop inside temporal lambda block
@@ -735,6 +735,32 @@ struct on_block : statement {
         if (trigger_expr_) trigger_expr_->print(indent + 1);
         for (const auto& s : handler_)
             if (s) s->print(indent + 1);
+    }
+};
+
+struct each_block : statement {
+    std::string var_name_;   // iteration variable (e.g. "n")
+    // Simple count form: each n in N  → start=0, end=N-1, step=1
+    // Range form:        each n in S..E[..ST]
+    // Exactly one of (count_expr_) or (start_expr_ + end_expr_) is set.
+    expr_ptr count_expr_;   // set for simple count form
+    expr_ptr start_expr_;   // set for range form
+    expr_ptr end_expr_;     // set for range form
+    expr_ptr step_expr_;    // optional step (nullptr → auto-infer direction)
+    expr_ptr dt_expr_;      // optional: temporal iteration (nullptr → immediate)
+    std::vector<stmt_ptr> handler_;
+
+    each_block() : statement(node_t::each_block) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "EachBlock(" << var_name_ << ")\n";
+        if (count_expr_) count_expr_->print(indent + 1);
+        if (start_expr_) start_expr_->print(indent + 1);
+        if (end_expr_)   end_expr_->print(indent + 1);
+        if (step_expr_)  step_expr_->print(indent + 1);
+        if (dt_expr_)    dt_expr_->print(indent + 1);
+        for (const auto& s : handler_) if (s) s->print(indent + 1);
     }
 };
 

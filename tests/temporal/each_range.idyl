@@ -1,0 +1,21 @@
+// each_range.idyl — range form: each n in S..E (inclusive, step inferred)
+// Tests: ascending range, single-element range, and same-value range.
+// Expected:
+//   [asc] n=2  n=3  n=4  n=5
+//   [single] n=3
+//   [process] n=1  n=2  n=3  done
+
+
+import("stdlib")
+// ── Temporal: range inside a process on-block ─────────────────────────────────
+process: {
+    m = metro(dt=200ms)
+
+    on m: {
+        each n in 1..3: {
+            print("[process] n=" , n)
+        }
+    }
+
+    @(2s): { print("done") stop }
+}

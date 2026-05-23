@@ -1,0 +1,33 @@
+// each_temporal.idyl — temporal iterator (dt form)
+// each n in N, dt=X fires the body once every X, cycling through n=0..N-1.
+// Tests: named dt, positional dt, range with dt — all inside a process.
+// Expected (approximately, timing may vary slightly):
+//   [named] n=0  (t≈0ms)
+//   [named] n=1  (t≈100ms)
+//   [named] n=2  (t≈200ms)
+//   [named] n=3  (t≈300ms)
+//   [named] n=0  (t≈400ms, cycles)
+//   [pos]   n=0  ...
+//   [range] n=2  n=3  n=4  ...
+//   done
+
+import("stdlib")
+
+process: {
+    // Named dt — fires n=0,1,2,3,0,1,... every 100ms
+    each n in 4, dt=100ms: {
+        print("[named] n=" ++ n)
+    }
+
+    // Positional dt — same behaviour, no named parameter
+    each n in 4, 150ms: {
+        print("[pos] n=" ++ n)
+    }
+
+    // Range form with dt — n cycles through 2,3,4 every 120ms
+    each n in 2..4, dt=120ms: {
+        print("[range] n=" ++ n)
+    }
+
+    @(600ms): { print("done") stop }
+}

@@ -285,6 +285,9 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         ++process_count_;
         env_.push_scope();
 
+        auto saved_proc_name = current_process_name_;
+        current_process_name_ = proc.name_;
+
         // ── Evaluate optional duration ─────────────────────────────────────────
         double dur_ms = 0.0;   // 0 = run forever
         if (proc.duration_) {
@@ -525,7 +528,8 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
                 inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
                     [this, def_ptr, weak_inst, var, rxn, all_ids,
-                     dur_ms, start_t = scheduler_->now_ms()]
+                     dur_ms, start_t = scheduler_->now_ms(),
+                     proc_name = proc.name_]
                     (double t, double /*dt*/) -> bool {
                         std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                         // ── Duration check ─────────────────────────────────
@@ -583,6 +587,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         // handlers can deactivate this instance (process-level stop).
                         proc_stop_ctx_ = si.get();
 
+                        current_process_name_ = proc_name;
                         retick_instance_ = si.get();
                         if (binding_snap) exec_stmt(binding_snap);
                         retick_instance_ = nullptr;
@@ -594,6 +599,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         } else {
                             for (const auto& r : reactions_snap) exec_stmt(r);
                         }
+                        current_process_name_ = "";
 
                         // Queue shared reactions for the end of this epoch.
                         // Dedup by AST pointer so they fire exactly once even
@@ -691,6 +697,8 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
             live_processes_[proc.name_] = std::move(lp);
         }
 
+        current_process_name_ = saved_proc_name;
+
         // Keep scope alive for tick callbacks if temporal instances exist
         if (!has_temporal)
             env_.pop_scope();
@@ -748,6 +756,80 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         if (guard.type_ == value_t::trigger && guard.trigger_) {
             for (const auto& h : ob.handler_)
                 exec_stmt(h);
+        }
+        break;
+    }
+
+    // ── each n in N[..E[..ST]] [, dt=X] : { body } ────────────────────────────
+    case parser::node_t::each_block: {
+        auto& eb = static_cast<const parser::each_block&>(*stmt);
+        if (eb.handler_.empty()) break;
+
+        // Evaluate bounds
+        double start_d, end_d, step_d;
+        if (eb.count_expr_) {
+            start_d = 0.0;
+            end_d   = eval_expr(eb.count_expr_).as_number() - 1.0;
+            step_d  = 1.0;
+        } else {
+            start_d = eb.start_expr_ ? eval_expr(eb.start_expr_).as_number() : 0.0;
+            end_d   = eb.end_expr_   ? eval_expr(eb.end_expr_).as_number()   : 0.0;
+            step_d  = eb.step_expr_  ? eval_expr(eb.step_expr_).as_number()
+                                     : (start_d <= end_d ? 1.0 : -1.0);
+        }
+        if (step_d == 0.0) break;
+
+        // Build the iteration sequence once (used for both immediate and temporal)
+        std::vector<double> seq;
+        if (step_d > 0.0) {
+            for (double n = start_d; n <= end_d + 1e-9; n += step_d) seq.push_back(n);
+        } else {
+            for (double n = start_d; n >= end_d - 1e-9; n += step_d) seq.push_back(n);
+        }
+        if (seq.empty()) break;
+
+        // ── Temporal form ─────────────────────────────────────────────────────
+        if (eb.dt_expr_) {
+            double dt_ms = eval_expr(eb.dt_expr_).as_number();
+            if (dt_ms > 0.0 && scheduler_) {
+                auto handler  = eb.handler_;
+                std::string var = eb.var_name_;
+
+                // Run the first iteration immediately (synchronously) so it
+                // fires at the same time as the triggering metro tick.
+                env_.push_scope();
+                env_.define(var, value::number(seq[0]));
+                for (const auto& h : handler) exec_stmt(h);
+                env_.pop_scope();
+
+                // Remaining iterations are scheduled with dt spacing.
+                if (seq.size() > 1) {
+                    auto counter = std::make_shared<std::atomic<size_t>>(1);
+                    uint64_t sub_id = scheduler_->subscribe(dt_ms,
+                        [this, handler, var, seq, counter]
+                        (double /*t*/, double /*dt*/) -> bool {
+                            std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
+                            size_t count = counter->fetch_add(1);
+                            env_.push_scope();
+                            env_.define(var, value::number(seq[count % seq.size()]));
+                            for (const auto& h : handler) exec_stmt(h);
+                            env_.pop_scope();
+                            return count + 1 < seq.size();  // stop after one full cycle
+                        });
+                    if (!current_process_name_.empty())
+                        process_each_subs_[current_process_name_].push_back(sub_id);
+                }
+                break;
+            }
+            // dt_ms == 0 or no scheduler → fall through to immediate
+        }
+
+        // ── Immediate form ────────────────────────────────────────────────────
+        for (double n : seq) {
+            env_.push_scope();
+            env_.define(eb.var_name_, value::number(n));
+            for (const auto& h : eb.handler_) exec_stmt(h);
+            env_.pop_scope();
         }
         break;
     }
@@ -2857,6 +2939,16 @@ bool evaluator::stop_process(const std::string& name) {
 
     active_process_instances_.erase(it);
 
+    // Cancel temporal each-block subscriptions for this process.
+    auto each_it = process_each_subs_.find(name);
+    if (each_it != process_each_subs_.end()) {
+        if (scheduler_) {
+            for (uint64_t sub_id : each_it->second)
+                scheduler_->unsubscribe(sub_id);
+        }
+        process_each_subs_.erase(each_it);
+    }
+
     // Cancel pending epoch-flush reactions that belong to this process.
     // The 0.1ms epoch flush may fire after start_process() has already run
     // the setup, causing a double note/event.  Marking the rxn cancelled
@@ -3154,6 +3246,11 @@ void evaluator::diff_and_apply(live_process& lp,
         }
     };
 
+    // Unnamed binding statements: on_block with a function-call trigger creates
+    // a temporal instance and becomes an unnamed live_segment (bound_var == "").
+    // Collect them in source order so they can be matched positionally in pass 1.
+    std::vector<parser::stmt_ptr> new_unnamed_binding_stmts;
+
     {
         new_seg_info* cur = nullptr;
         for (const auto& s : new_proc.body_->statements_) {
@@ -3166,17 +3263,19 @@ void evaluator::diff_and_apply(live_process& lp,
                 continue;
             }
 
-            // @-blocks: do NOT re-execute on hot reload.
+            // @-blocks and temporal each-blocks: do NOT re-execute on hot reload.
             // Re-executing them would call scheduler_->subscribe() while the
             // scheduler thread is running, potentially firing duplicate or
             // spurious one-shot events and disrupting clock timing.
-            // Existing @-block timers from process start continue running.
+            // Existing subscriptions from process start continue running.
             if (s->type_ == parser::node_t::at_block) {
                 continue;
             }
-
-            // on_block falls through to the bname.empty() path below,
-            // which adds it to cur->reactions without executing it now.
+            if (s->type_ == parser::node_t::each_block) {
+                const auto& eb = static_cast<const parser::each_block&>(*s);
+                if (eb.dt_expr_) continue;  // temporal each: keep existing subscription
+                // static each: falls through to reaction handling
+            }
 
             std::string bname;
             if (s->type_ == parser::node_t::function_definition)
@@ -3185,9 +3284,22 @@ void evaluator::diff_and_apply(live_process& lp,
                 bname = static_cast<const parser::assignment&>(*s).name_;
 
             // Only named bindings can create temporal instances.
-            // Pure reaction statements (bname empty) never do.
+            // Pure reaction statements (bname empty) never do — except on_block
+            // with a function-call trigger (e.g. `on metro(1b): { ... }`), which
+            // creates an unnamed temporal instance and becomes an unnamed segment.
             if (bname.empty()) {
-                if (cur) cur->reactions.push_back(s);
+                bool is_unnamed_driver = false;
+                if (s->type_ == parser::node_t::on_block) {
+                    auto& ob = static_cast<const parser::on_block&>(*s);
+                    if (ob.trigger_expr_ &&
+                        ob.trigger_expr_->type_ == parser::node_t::function_call_expr)
+                        is_unnamed_driver = true;
+                }
+                if (is_unnamed_driver) {
+                    new_unnamed_binding_stmts.push_back(s);
+                } else if (cur) {
+                    cur->reactions.push_back(s);
+                }
                 continue;
             }
 
@@ -3388,8 +3500,29 @@ void evaluator::diff_and_apply(live_process& lp,
     // Track which old segments survive, to avoid double-killing
     std::unordered_set<std::string> handled;
 
-    // ── Pass 1: update or remove existing segments ─────────────────────────
+    // ── Pass 0.5: update unnamed segments (on_block with function-call trigger) ─
+    // These have bound_var == "" and can't be looked up by name. Match positionally.
+    // Track explicitly killed instance IDs so the remove_if below can erase them.
+    std::unordered_set<uint64_t> killed_unnamed_ids;
+    {
+        int uidx = 0;
+        for (auto& old_seg : lp.segments) {
+            if (!old_seg.bound_var.empty()) continue;
+            if (uidx < (int)new_unnamed_binding_stmts.size()) {
+                std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
+                old_seg.rxn->binding_stmt = new_unnamed_binding_stmts[uidx];
+            } else {
+                kill_instance(old_seg.instance_id);
+                killed_unnamed_ids.insert(old_seg.instance_id);
+            }
+            ++uidx;
+        }
+    }
+
+    // ── Pass 1: update or remove existing named segments ───────────────────
     for (auto& old_seg : lp.segments) {
+        if (old_seg.bound_var.empty()) continue;  // handled in pass 0.5
+
         auto nit = new_segs.find(old_seg.bound_var);
 
         if (nit == new_segs.end()) {
@@ -3477,6 +3610,10 @@ void evaluator::diff_and_apply(live_process& lp,
     lp.segments.erase(
         std::remove_if(lp.segments.begin(), lp.segments.end(),
             [&](const live_segment& s) {
+                // Unnamed segments (bound_var == "") are handled in pass 0.5.
+                // Only erase those that were explicitly killed there.
+                if (s.bound_var.empty())
+                    return killed_unnamed_ids.count(s.instance_id) > 0;
                 // Dead = variable removed or function changed (and not re-added yet)
                 if (new_segs.find(s.bound_var) == new_segs.end()) return true;
                 if (!handled.count(s.bound_var)) return true;
@@ -3531,7 +3668,7 @@ void evaluator::diff_and_apply(live_process& lp,
 
             inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
                 [this, def_ptr, weak_inst, var, rxn,
-                 start_t = scheduler_->now_ms()]
+                 start_t = scheduler_->now_ms(), proc_name = lp.name]
                 (double t, double) -> bool {
                     std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                     auto si = weak_inst.lock();
@@ -3551,11 +3688,13 @@ void evaluator::diff_and_apply(live_process& lp,
                         shared_snap    = rxn->shared_reactions;
                     }
 
+                    current_process_name_ = proc_name;
                     retick_instance_ = si.get();
                     if (binding_snap) exec_stmt(binding_snap);
                     retick_instance_ = nullptr;
 
                     for (const auto& r : reactions_snap) exec_stmt(r);
+                    current_process_name_ = "";
 
                     for (const auto& r : shared_snap) {
                         if (r && epoch_deferred_dedup_.insert(r.get()).second)

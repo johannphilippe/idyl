@@ -1,0 +1,27 @@
+import("stdlib")
+// each_count.idyl — basic count form: each n in N
+// Tests static (top-level) and temporal (process) use.
+// Expected output:
+//   [static] n=0
+//   [static] n=1
+//   [static] n=2
+//   [static] n=3
+//   [process] n=0
+//   [process] n=1
+//   [process] n=2
+//   [process] n=3
+//   done
+
+
+// ── Temporal: each iteration runs once per tick of the driving metro ─────────
+process: {
+    m = metro(dt=1s)
+
+    on m: {
+        each n in 4: {
+            print("[process] n=" , n)
+        }
+    }
+
+    @(2s): { print("done") stop }
+}

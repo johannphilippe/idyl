@@ -50,6 +50,7 @@
 %token ASSIGN COLON SEMICOLON COMMA DOT TRIGGER
 %token LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE
 %token ON
+%token EACH IN
 %token YYEOF 0
 
 /* Precedence and associativity */
@@ -110,6 +111,9 @@
 %type <std::shared_ptr<idyl::parser::catch_block>> catch_block
 %type <std::shared_ptr<idyl::parser::at_block>> at_block
 %type <std::shared_ptr<idyl::parser::on_block>> on_block
+%type <std::shared_ptr<idyl::parser::each_block>> each_block
+%type <std::vector<idyl::parser::stmt_ptr>> each_body
+%type <idyl::parser::expr_ptr> each_dt_opt
 
 %%
 
@@ -561,6 +565,10 @@ process_body_statement
     {
         $$ = $1;
     }
+    | each_block
+    {
+        $$ = $1;
+    }
     | expression
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
@@ -592,6 +600,65 @@ on_block
         on_stmt->line_ = @1.begin.line;
         on_stmt->column_ = @1.begin.column;
         $$ = on_stmt;
+    }
+    ;
+
+// ── each_dt_opt: optional ", dt = expr" suffix ──────────────────────────────
+each_dt_opt
+    : %empty                         { $$ = nullptr; }
+    | COMMA DT ASSIGN expression     { $$ = $4; }
+    | COMMA expression               { $$ = $2; }  // positional dt
+    ;
+
+// ── each_body ────────────────────────────────────────────────────────────────
+each_body
+    : LBRACE process_body_statements RBRACE  { $$ = $2; }
+    ;
+
+// ── each_block ──────────────────────────────────────────────────────────────
+// Forms:
+//   each n in N [, dt=X] : body          simple count  (0 … N-1)
+//   each n in S..E [, dt=X] : body       range         (S … E, step inferred)
+//   each n in S..E..ST [, dt=X] : body   range + step
+each_block
+    // simple count: each n in N [dt] : body
+    : EACH IDENTIFIER IN expression each_dt_opt COLON each_body
+    {
+        auto eb = std::make_shared<idyl::parser::each_block>();
+        eb->var_name_   = $2;
+        eb->count_expr_ = $4;
+        eb->dt_expr_    = $5;
+        eb->handler_    = $7;
+        eb->line_       = @1.begin.line;
+        eb->column_     = @1.begin.column;
+        $$ = eb;
+    }
+    // range: each n in S..E [dt] : body
+    | EACH IDENTIFIER IN expression RANGE expression each_dt_opt COLON each_body
+    {
+        auto eb = std::make_shared<idyl::parser::each_block>();
+        eb->var_name_   = $2;
+        eb->start_expr_ = $4;
+        eb->end_expr_   = $6;
+        eb->dt_expr_    = $7;
+        eb->handler_    = $9;
+        eb->line_       = @1.begin.line;
+        eb->column_     = @1.begin.column;
+        $$ = eb;
+    }
+    // range + step: each n in S..E..ST [dt] : body
+    | EACH IDENTIFIER IN expression RANGE expression RANGE expression each_dt_opt COLON each_body
+    {
+        auto eb = std::make_shared<idyl::parser::each_block>();
+        eb->var_name_   = $2;
+        eb->start_expr_ = $4;
+        eb->end_expr_   = $6;
+        eb->step_expr_  = $8;
+        eb->dt_expr_    = $9;
+        eb->handler_    = $11;
+        eb->line_       = @1.begin.line;
+        eb->column_     = @1.begin.column;
+        $$ = eb;
     }
     ;
 

@@ -1,0 +1,20 @@
+import("stdlib")
+// each_descending.idyl — descending iteration
+// Tests: inferred negative step and explicit negative step.
+// Expected:
+//   [inferred] n=5  n=4  n=3  n=2  n=1  n=0
+//   [explicit] n=6  n=4  n=2  n=0
+//   [process] n=3  n=2  n=1  n=0  done
+
+// ── Temporal ──────────────────────────────────────────────────────────────────
+process: {
+    m = metro(dt=200ms)
+
+    on m: {
+        each n in 3..0: {
+            print("[process] n=", n)
+        }
+    }
+
+    @(2s): { print("done") stop }
+}

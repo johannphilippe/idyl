@@ -1,0 +1,36 @@
+// each_in_process.idyl — each inside a running process
+// Tests static each as reaction (fires on every metro tick)
+// and temporal each co-existing with other temporal bindings.
+// Expected (first 3 metro ticks then stop):
+//   tick 1: [react] n=0  [react] n=1  [react] n=2
+//   tick 2: [react] n=0  [react] n=1  [react] n=2
+//   tick 3: [react] n=0  [react] n=1  [react] n=2
+//   [temp] n=0  (≈0ms)
+//   [temp] n=1  (≈200ms)
+//   [temp] n=2  (≈400ms)
+//   [temp] n=0  (≈600ms, cycle)
+//   done
+
+import("stdlib")
+
+process p: {
+    m   = metro(dt=300ms)
+    cnt = counter(dt=300ms)
+
+    // Static each in reaction: fires all 3 iterations every metro tick
+    on m: {
+        each n in 3: {
+            print("[react] n=" , n)
+        }
+    }
+
+    // Temporal each runs independently at its own rate
+    each n in 3, dt=200ms: {
+        print("[temp] n=", n)
+    }
+
+    each n in 3: {
+        print("[single] n=", n)
+    }
+    @(1s): { print("done") stop }
+}

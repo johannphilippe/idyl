@@ -18,7 +18,6 @@ flow stuff = {
 
 rndt(rangemin, rangemax, dt = 500ms) = rnd(rangemin, rangemax)
 
-
 process test: {
 	mel = melody[metro(0.25b)]
 	scale = minor
@@ -48,8 +47,8 @@ process test2: {
 process test3: {
 	mel = stuff[metro(2b)]
 	deg2 = stuff.degree[metro(2b)]
-	cond = rnd(0, 1)
-	base = ( cond > 0.25) ? d3; d5
+	cond = rndt(0, 1, 0.5b)
+	base = ( cond > 0.25) ? d5; d3
 	scale = mixolydian
 	on mel.rhythm: {
 		print("hello")
@@ -58,5 +57,22 @@ process test3: {
 			cs_note(cs, "sine", 10s, 0.3, tune(base, scale, deg2, just), mel.chn)
 		}
 	}
+}
 
+
+flow arps = {
+	degree: [0, 3,  7, 10, 12]
+	chn: [1, 2]
+}
+
+process test4: {
+	on metro(2.5b): {
+		print("metro >> ") 
+		each n in 5, dt= 0.5b: {
+			arp = arps[n] 
+			print("arp", n)
+			cs_note(cs, "sine", 10s, 0.3, tune(c3, minor, arp.degree, just), arp.chn)
+
+		}
+	}
 }

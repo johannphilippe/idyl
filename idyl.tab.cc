@@ -63,7 +63,3233 @@
 #  endif
 # endif
 
-#include "idyl.tab.hh"
+// "%code requires" blocks.
+#line 15 "src/parser/idyl.y"
+
+    #include <string>
+    #include <vector>
+    #include <memory>
+    #include "ast.hpp"
+    
+    namespace yy {
+        class lexer;
+    }
+
+#line 79 "idyl.tab.cc"
+
+#include <algorithm>
+#include <cstddef> // ptrdiff_t
+#include <cstring> // memcpy
+#include <iostream>
+#include <iomanip>
+#include <limits>
+#include <stdexcept>
+#include <stdint.h>
+#include <string>
+#include <vector>
+
+#if defined __cplusplus
+# define YY_CPLUSPLUS __cplusplus
+#else
+# define YY_CPLUSPLUS 199711L
+#endif
+
+// Support move semantics when possible.
+#if 201103L <= YY_CPLUSPLUS
+# define YY_MOVE           std::move
+# define YY_MOVE_OR_COPY   move
+# define YY_MOVE_REF(Type) Type&&
+# define YY_RVREF(Type)    Type&&
+# define YY_COPY(Type)     Type
+#else
+# define YY_MOVE
+# define YY_MOVE_OR_COPY   copy
+# define YY_MOVE_REF(Type) Type&
+# define YY_RVREF(Type)    const Type&
+# define YY_COPY(Type)     const Type&
+#endif
+
+// Support noexcept when possible.
+#if 201103L <= YY_CPLUSPLUS
+# define YY_NOEXCEPT noexcept
+# define YY_NOTHROW
+#else
+# define YY_NOEXCEPT
+# define YY_NOTHROW throw ()
+#endif
+
+// Support constexpr when possible.
+#if 201703 <= YY_CPLUSPLUS
+# define YY_CONSTEXPR constexpr
+#else
+# define YY_CONSTEXPR
+#endif
+
+
+
+/* Debug traces.  */
+#ifndef YYDEBUG
+# define YYDEBUG 1
+#endif
+
+namespace yy {
+#line 137 "idyl.tab.cc"
+
+
+  /// A point in a source file.
+  class position
+  {
+  public:
+    /// Type for file name.
+    typedef const std::string filename_type;
+    /// Type for line and column numbers.
+    typedef int counter_type;
+
+    /// Construct a position.
+    explicit position (filename_type* f = YY_NULLPTR,
+                       counter_type l = 1,
+                       counter_type c = 1)
+      : filename (f)
+      , line (l)
+      , column (c)
+    {}
+
+
+    /// Initialization.
+    void initialize (filename_type* fn = YY_NULLPTR,
+                     counter_type l = 1,
+                     counter_type c = 1)
+    {
+      filename = fn;
+      line = l;
+      column = c;
+    }
+
+    /** \name Line and Column related manipulators
+     ** \{ */
+    /// (line related) Advance to the COUNT next lines.
+    void lines (counter_type count = 1)
+    {
+      if (count)
+        {
+          column = 1;
+          line = add_ (line, count, 1);
+        }
+    }
+
+    /// (column related) Advance to the COUNT next columns.
+    void columns (counter_type count = 1)
+    {
+      column = add_ (column, count, 1);
+    }
+    /** \} */
+
+    /// File name to which this position refers.
+    filename_type* filename;
+    /// Current line number.
+    counter_type line;
+    /// Current column number.
+    counter_type column;
+
+  private:
+    /// Compute max (min, lhs+rhs).
+    static counter_type add_ (counter_type lhs, counter_type rhs, counter_type min)
+    {
+      return lhs + rhs < min ? min : lhs + rhs;
+    }
+  };
+
+  /// Add \a width columns, in place.
+  inline position&
+  operator+= (position& res, position::counter_type width)
+  {
+    res.columns (width);
+    return res;
+  }
+
+  /// Add \a width columns.
+  inline position
+  operator+ (position res, position::counter_type width)
+  {
+    return res += width;
+  }
+
+  /// Subtract \a width columns, in place.
+  inline position&
+  operator-= (position& res, position::counter_type width)
+  {
+    return res += -width;
+  }
+
+  /// Subtract \a width columns.
+  inline position
+  operator- (position res, position::counter_type width)
+  {
+    return res -= width;
+  }
+
+  /** \brief Intercept output stream redirection.
+   ** \param ostr the destination output stream
+   ** \param pos a reference to the position to redirect
+   */
+  template <typename YYChar>
+  std::basic_ostream<YYChar>&
+  operator<< (std::basic_ostream<YYChar>& ostr, const position& pos)
+  {
+    if (pos.filename)
+      ostr << *pos.filename << ':';
+    return ostr << pos.line << '.' << pos.column;
+  }
+
+  /// Two points in a source file.
+  class location
+  {
+  public:
+    /// Type for file name.
+    typedef position::filename_type filename_type;
+    /// Type for line and column numbers.
+    typedef position::counter_type counter_type;
+
+    /// Construct a location from \a b to \a e.
+    location (const position& b, const position& e)
+      : begin (b)
+      , end (e)
+    {}
+
+    /// Construct a 0-width location in \a p.
+    explicit location (const position& p = position ())
+      : begin (p)
+      , end (p)
+    {}
+
+    /// Construct a 0-width location in \a f, \a l, \a c.
+    explicit location (filename_type* f,
+                       counter_type l = 1,
+                       counter_type c = 1)
+      : begin (f, l, c)
+      , end (f, l, c)
+    {}
+
+
+    /// Initialization.
+    void initialize (filename_type* f = YY_NULLPTR,
+                     counter_type l = 1,
+                     counter_type c = 1)
+    {
+      begin.initialize (f, l, c);
+      end = begin;
+    }
+
+    /** \name Line and Column related manipulators
+     ** \{ */
+  public:
+    /// Reset initial location to final location.
+    void step ()
+    {
+      begin = end;
+    }
+
+    /// Extend the current location to the COUNT next columns.
+    void columns (counter_type count = 1)
+    {
+      end += count;
+    }
+
+    /// Extend the current location to the COUNT next lines.
+    void lines (counter_type count = 1)
+    {
+      end.lines (count);
+    }
+    /** \} */
+
+
+  public:
+    /// Beginning of the located region.
+    position begin;
+    /// End of the located region.
+    position end;
+  };
+
+  /// Join two locations, in place.
+  inline location&
+  operator+= (location& res, const location& end)
+  {
+    res.end = end.end;
+    return res;
+  }
+
+  /// Join two locations.
+  inline location
+  operator+ (location res, const location& end)
+  {
+    return res += end;
+  }
+
+  /// Add \a width columns to the end position, in place.
+  inline location&
+  operator+= (location& res, location::counter_type width)
+  {
+    res.columns (width);
+    return res;
+  }
+
+  /// Add \a width columns to the end position.
+  inline location
+  operator+ (location res, location::counter_type width)
+  {
+    return res += width;
+  }
+
+  /// Subtract \a width columns to the end position, in place.
+  inline location&
+  operator-= (location& res, location::counter_type width)
+  {
+    return res += -width;
+  }
+
+  /// Subtract \a width columns to the end position.
+  inline location
+  operator- (location res, location::counter_type width)
+  {
+    return res -= width;
+  }
+
+  /** \brief Intercept output stream redirection.
+   ** \param ostr the destination output stream
+   ** \param loc a reference to the location to redirect
+   **
+   ** Avoid duplicate information.
+   */
+  template <typename YYChar>
+  std::basic_ostream<YYChar>&
+  operator<< (std::basic_ostream<YYChar>& ostr, const location& loc)
+  {
+    location::counter_type end_col
+      = 0 < loc.end.column ? loc.end.column - 1 : 0;
+    ostr << loc.begin;
+    if (loc.end.filename
+        && (!loc.begin.filename
+            || *loc.begin.filename != *loc.end.filename))
+      ostr << '-' << loc.end.filename << ':' << loc.end.line << '.' << end_col;
+    else if (loc.begin.line < loc.end.line)
+      ostr << '-' << loc.end.line << '.' << end_col;
+    else if (loc.begin.column < end_col)
+      ostr << '-' << end_col;
+    return ostr;
+  }
+
+
+  /// A Bison parser.
+  class parser
+  {
+  public:
+  /// A buffer to store and retrieve objects.
+  ///
+  /// Sort of a variant, but does not keep track of the nature
+  /// of the stored data, since that knowledge is available
+  /// via the current parser state.
+  class value_type
+  {
+  public:
+    /// Type of *this.
+    typedef value_type self_type;
+
+    /// Empty construction.
+    value_type () YY_NOEXCEPT
+      : yyraw_ ()
+    {}
+
+    /// Construct and fill.
+    template <typename T>
+    value_type (YY_RVREF (T) t)
+    {
+      new (yyas_<T> ()) T (YY_MOVE (t));
+    }
+
+#if 201103L <= YY_CPLUSPLUS
+    /// Non copyable.
+    value_type (const self_type&) = delete;
+    /// Non copyable.
+    self_type& operator= (const self_type&) = delete;
+#endif
+
+    /// Destruction, allowed only if empty.
+    ~value_type () YY_NOEXCEPT
+    {}
+
+# if 201103L <= YY_CPLUSPLUS
+    /// Instantiate a \a T in here from \a t.
+    template <typename T, typename... U>
+    T&
+    emplace (U&&... u)
+    {
+      return *new (yyas_<T> ()) T (std::forward <U>(u)...);
+    }
+# else
+    /// Instantiate an empty \a T in here.
+    template <typename T>
+    T&
+    emplace ()
+    {
+      return *new (yyas_<T> ()) T ();
+    }
+
+    /// Instantiate a \a T in here from \a t.
+    template <typename T>
+    T&
+    emplace (const T& t)
+    {
+      return *new (yyas_<T> ()) T (t);
+    }
+# endif
+
+    /// Instantiate an empty \a T in here.
+    /// Obsolete, use emplace.
+    template <typename T>
+    T&
+    build ()
+    {
+      return emplace<T> ();
+    }
+
+    /// Instantiate a \a T in here from \a t.
+    /// Obsolete, use emplace.
+    template <typename T>
+    T&
+    build (const T& t)
+    {
+      return emplace<T> (t);
+    }
+
+    /// Accessor to a built \a T.
+    template <typename T>
+    T&
+    as () YY_NOEXCEPT
+    {
+      return *yyas_<T> ();
+    }
+
+    /// Const accessor to a built \a T (for %printer).
+    template <typename T>
+    const T&
+    as () const YY_NOEXCEPT
+    {
+      return *yyas_<T> ();
+    }
+
+    /// Swap the content with \a that, of same type.
+    ///
+    /// Both variants must be built beforehand, because swapping the actual
+    /// data requires reading it (with as()), and this is not possible on
+    /// unconstructed variants: it would require some dynamic testing, which
+    /// should not be the variant's responsibility.
+    /// Swapping between built and (possibly) non-built is done with
+    /// self_type::move ().
+    template <typename T>
+    void
+    swap (self_type& that) YY_NOEXCEPT
+    {
+      std::swap (as<T> (), that.as<T> ());
+    }
+
+    /// Move the content of \a that to this.
+    ///
+    /// Destroys \a that.
+    template <typename T>
+    void
+    move (self_type& that)
+    {
+# if 201103L <= YY_CPLUSPLUS
+      emplace<T> (std::move (that.as<T> ()));
+# else
+      emplace<T> ();
+      swap<T> (that);
+# endif
+      that.destroy<T> ();
+    }
+
+# if 201103L <= YY_CPLUSPLUS
+    /// Move the content of \a that to this.
+    template <typename T>
+    void
+    move (self_type&& that)
+    {
+      emplace<T> (std::move (that.as<T> ()));
+      that.destroy<T> ();
+    }
+#endif
+
+    /// Copy the content of \a that to this.
+    template <typename T>
+    void
+    copy (const self_type& that)
+    {
+      emplace<T> (that.as<T> ());
+    }
+
+    /// Destroy the stored \a T.
+    template <typename T>
+    void
+    destroy ()
+    {
+      as<T> ().~T ();
+    }
+
+  private:
+#if YY_CPLUSPLUS < 201103L
+    /// Non copyable.
+    value_type (const self_type&);
+    /// Non copyable.
+    self_type& operator= (const self_type&);
+#endif
+
+    /// Accessor to raw memory as \a T.
+    template <typename T>
+    T*
+    yyas_ () YY_NOEXCEPT
+    {
+      void *yyp = yyraw_;
+      return static_cast<T*> (yyp);
+     }
+
+    /// Const accessor to raw memory as \a T.
+    template <typename T>
+    const T*
+    yyas_ () const YY_NOEXCEPT
+    {
+      const void *yyp = yyraw_;
+      return static_cast<const T*> (yyp);
+     }
+
+    /// An auxiliary type to compute the largest semantic type.
+    union union_type
+    {
+      // flow_literal
+      // generator_expression
+      // each_dt_opt
+      // expression
+      // assignment_expression
+      // ternary_expression
+      // logical_or_expression
+      // logical_and_expression
+      // bitwise_or_expression
+      // bitwise_xor_expression
+      // bitwise_and_expression
+      // equality_expression
+      // relational_expression
+      // shift_expression
+      // additive_expression
+      // multiplicative_expression
+      // unary_expression
+      // postfix_expression
+      // primary_expression
+      char dummy1[sizeof (idyl::parser::expr_ptr)];
+
+      // program
+      char dummy2[sizeof (idyl::parser::node_ptr)];
+
+      // parameter
+      char dummy3[sizeof (idyl::parser::param_ptr)];
+
+      // top_level_statement
+      // function_or_flow_definition
+      // process_body_statement
+      // lambda_statement
+      // block_body_statement
+      char dummy4[sizeof (idyl::parser::stmt_ptr)];
+
+      // argument
+      char dummy5[sizeof (std::shared_ptr<idyl::parser::argument>)];
+
+      // at_block
+      char dummy6[sizeof (std::shared_ptr<idyl::parser::at_block>)];
+
+      // catch_block
+      char dummy7[sizeof (std::shared_ptr<idyl::parser::catch_block>)];
+
+      // each_block
+      char dummy8[sizeof (std::shared_ptr<idyl::parser::each_block>)];
+
+      // flow_definition
+      char dummy9[sizeof (std::shared_ptr<idyl::parser::flow_definition>)];
+
+      // function_definition
+      char dummy10[sizeof (std::shared_ptr<idyl::parser::function_definition>)];
+
+      // init_block
+      char dummy11[sizeof (std::shared_ptr<idyl::parser::init_block>)];
+
+      // lambda_block
+      char dummy12[sizeof (std::shared_ptr<idyl::parser::lambda_block>)];
+
+      // on_block
+      char dummy13[sizeof (std::shared_ptr<idyl::parser::on_block>)];
+
+      // process_block
+      char dummy14[sizeof (std::shared_ptr<idyl::parser::process_block>)];
+
+      // start_statement
+      char dummy15[sizeof (std::shared_ptr<idyl::parser::start_statement>)];
+
+      // stop_statement
+      char dummy16[sizeof (std::shared_ptr<idyl::parser::stop_statement>)];
+
+      // IDENTIFIER
+      // NUMBER
+      // TIME_LITERAL
+      // STRING_LITERAL
+      char dummy17[sizeof (std::string)];
+
+      // flow_elements
+      // ternary_options
+      char dummy18[sizeof (std::vector<idyl::parser::expr_ptr>)];
+
+      // parameter_list
+      char dummy19[sizeof (std::vector<idyl::parser::param_ptr>)];
+
+      // top_level_statements
+      // process_body_statements
+      // each_body
+      // lambda_statements
+      // block_body
+      char dummy20[sizeof (std::vector<idyl::parser::stmt_ptr>)];
+
+      // argument_list
+      char dummy21[sizeof (std::vector<std::shared_ptr<idyl::parser::argument>>)];
+
+      // flow_members
+      char dummy22[sizeof (std::vector<std::shared_ptr<idyl::parser::flow_member>>)];
+    };
+
+    /// The size of the largest semantic type.
+    enum { size = sizeof (union_type) };
+
+    /// A buffer to store semantic values.
+    union
+    {
+      /// Strongest alignment constraints.
+      long double yyalign_me_;
+      /// A buffer large enough to store any of the semantic values.
+      char yyraw_[size];
+    };
+  };
+
+    /// Symbol locations.
+    typedef location location_type;
+
+    /// Syntax errors thrown from user actions.
+    struct syntax_error : std::runtime_error
+    {
+      syntax_error (const location_type& l, const std::string& m)
+        : std::runtime_error (m)
+        , location (l)
+      {}
+
+      syntax_error (const syntax_error& s)
+        : std::runtime_error (s.what ())
+        , location (s.location)
+      {}
+
+      ~syntax_error () YY_NOEXCEPT YY_NOTHROW;
+
+      location_type location;
+    };
+
+    /// Token kinds.
+    struct token
+    {
+      enum token_kind_type
+      {
+        YYEMPTY = -2,
+    YYEOF = 0,                     // YYEOF
+    YYerror = 256,                 // error
+    YYUNDEF = 257,                 // "invalid token"
+    IDENTIFIER = 258,              // IDENTIFIER
+    NUMBER = 259,                  // NUMBER
+    TIME_LITERAL = 260,            // TIME_LITERAL
+    STRING_LITERAL = 261,          // STRING_LITERAL
+    FLOW = 262,                    // FLOW
+    PROCESS = 263,                 // PROCESS
+    IMPORT = 264,                  // IMPORT
+    MODULE = 265,                  // MODULE
+    INIT = 266,                    // INIT
+    EMIT = 267,                    // EMIT
+    CATCH = 268,                   // CATCH
+    END = 269,                     // END
+    DT = 270,                      // DT
+    DUR = 271,                     // DUR
+    STOP = 272,                    // STOP
+    START = 273,                   // START
+    AGE = 274,                     // AGE
+    LAMBDA_BLOCK = 275,            // LAMBDA_BLOCK
+    NAMESPACE_DOT = 276,           // NAMESPACE_DOT
+    RESTART_MARKER = 277,          // RESTART_MARKER
+    MEMORY_OP = 278,               // MEMORY_OP
+    RANGE = 279,                   // RANGE
+    REST = 280,                    // REST
+    AT_OP = 281,                   // AT_OP
+    PLUS = 282,                    // PLUS
+    MINUS = 283,                   // MINUS
+    MUL = 284,                     // MUL
+    DIV = 285,                     // DIV
+    MOD = 286,                     // MOD
+    EQ = 287,                      // EQ
+    NEQ = 288,                     // NEQ
+    LT = 289,                      // LT
+    GT = 290,                      // GT
+    LE = 291,                      // LE
+    GE = 292,                      // GE
+    AND = 293,                     // AND
+    OR = 294,                      // OR
+    XOR = 295,                     // XOR
+    NOT = 296,                     // NOT
+    LSHIFT = 297,                  // LSHIFT
+    RSHIFT = 298,                  // RSHIFT
+    QUESTION = 299,                // QUESTION
+    ASSIGN = 300,                  // ASSIGN
+    COLON = 301,                   // COLON
+    SEMICOLON = 302,               // SEMICOLON
+    COMMA = 303,                   // COMMA
+    DOT = 304,                     // DOT
+    TRIGGER = 305,                 // TRIGGER
+    LPAREN = 306,                  // LPAREN
+    RPAREN = 307,                  // RPAREN
+    LBRACKET = 308,                // LBRACKET
+    RBRACKET = 309,                // RBRACKET
+    LBRACE = 310,                  // LBRACE
+    RBRACE = 311,                  // RBRACE
+    ON = 312,                      // ON
+    EACH = 313,                    // EACH
+    IN = 314                       // IN
+      };
+    };
+
+    /// Token kind, as returned by yylex.
+    typedef token::token_kind_type token_kind_type;
+
+    /// Symbol kinds.
+    struct symbol_kind
+    {
+      enum symbol_kind_type
+      {
+        YYNTOKENS = 60, ///< Number of tokens.
+        S_YYEMPTY = -2,
+        S_YYEOF = 0,                             // YYEOF
+        S_YYerror = 1,                           // error
+        S_YYUNDEF = 2,                           // "invalid token"
+        S_IDENTIFIER = 3,                        // IDENTIFIER
+        S_NUMBER = 4,                            // NUMBER
+        S_TIME_LITERAL = 5,                      // TIME_LITERAL
+        S_STRING_LITERAL = 6,                    // STRING_LITERAL
+        S_FLOW = 7,                              // FLOW
+        S_PROCESS = 8,                           // PROCESS
+        S_IMPORT = 9,                            // IMPORT
+        S_MODULE = 10,                           // MODULE
+        S_INIT = 11,                             // INIT
+        S_EMIT = 12,                             // EMIT
+        S_CATCH = 13,                            // CATCH
+        S_END = 14,                              // END
+        S_DT = 15,                               // DT
+        S_DUR = 16,                              // DUR
+        S_STOP = 17,                             // STOP
+        S_START = 18,                            // START
+        S_AGE = 19,                              // AGE
+        S_LAMBDA_BLOCK = 20,                     // LAMBDA_BLOCK
+        S_NAMESPACE_DOT = 21,                    // NAMESPACE_DOT
+        S_RESTART_MARKER = 22,                   // RESTART_MARKER
+        S_MEMORY_OP = 23,                        // MEMORY_OP
+        S_RANGE = 24,                            // RANGE
+        S_REST = 25,                             // REST
+        S_AT_OP = 26,                            // AT_OP
+        S_PLUS = 27,                             // PLUS
+        S_MINUS = 28,                            // MINUS
+        S_MUL = 29,                              // MUL
+        S_DIV = 30,                              // DIV
+        S_MOD = 31,                              // MOD
+        S_EQ = 32,                               // EQ
+        S_NEQ = 33,                              // NEQ
+        S_LT = 34,                               // LT
+        S_GT = 35,                               // GT
+        S_LE = 36,                               // LE
+        S_GE = 37,                               // GE
+        S_AND = 38,                              // AND
+        S_OR = 39,                               // OR
+        S_XOR = 40,                              // XOR
+        S_NOT = 41,                              // NOT
+        S_LSHIFT = 42,                           // LSHIFT
+        S_RSHIFT = 43,                           // RSHIFT
+        S_QUESTION = 44,                         // QUESTION
+        S_ASSIGN = 45,                           // ASSIGN
+        S_COLON = 46,                            // COLON
+        S_SEMICOLON = 47,                        // SEMICOLON
+        S_COMMA = 48,                            // COMMA
+        S_DOT = 49,                              // DOT
+        S_TRIGGER = 50,                          // TRIGGER
+        S_LPAREN = 51,                           // LPAREN
+        S_RPAREN = 52,                           // RPAREN
+        S_LBRACKET = 53,                         // LBRACKET
+        S_RBRACKET = 54,                         // RBRACKET
+        S_LBRACE = 55,                           // LBRACE
+        S_RBRACE = 56,                           // RBRACE
+        S_ON = 57,                               // ON
+        S_EACH = 58,                             // EACH
+        S_IN = 59,                               // IN
+        S_YYACCEPT = 60,                         // $accept
+        S_program = 61,                          // program
+        S_top_level_statements = 62,             // top_level_statements
+        S_top_level_statement = 63,              // top_level_statement
+        S_function_or_flow_definition = 64,      // function_or_flow_definition
+        S_function_definition = 65,              // function_definition
+        S_flow_definition = 66,                  // flow_definition
+        S_flow_members = 67,                     // flow_members
+        S_flow_literal = 68,                     // flow_literal
+        S_flow_elements = 69,                    // flow_elements
+        S_generator_expression = 70,             // generator_expression
+        S_process_block = 71,                    // process_block
+        S_process_body_statements = 72,          // process_body_statements
+        S_process_body_statement = 73,           // process_body_statement
+        S_at_block = 74,                         // at_block
+        S_on_block = 75,                         // on_block
+        S_each_dt_opt = 76,                      // each_dt_opt
+        S_each_body = 77,                        // each_body
+        S_each_block = 78,                       // each_block
+        S_stop_statement = 79,                   // stop_statement
+        S_start_statement = 80,                  // start_statement
+        S_catch_block = 81,                      // catch_block
+        S_lambda_block = 82,                     // lambda_block
+        S_init_block = 83,                       // init_block
+        S_lambda_statements = 84,                // lambda_statements
+        S_lambda_statement = 85,                 // lambda_statement
+        S_block_body = 86,                       // block_body
+        S_block_body_statement = 87,             // block_body_statement
+        S_parameter_list = 88,                   // parameter_list
+        S_parameter = 89,                        // parameter
+        S_expression = 90,                       // expression
+        S_assignment_expression = 91,            // assignment_expression
+        S_ternary_expression = 92,               // ternary_expression
+        S_ternary_options = 93,                  // ternary_options
+        S_logical_or_expression = 94,            // logical_or_expression
+        S_logical_and_expression = 95,           // logical_and_expression
+        S_bitwise_or_expression = 96,            // bitwise_or_expression
+        S_bitwise_xor_expression = 97,           // bitwise_xor_expression
+        S_bitwise_and_expression = 98,           // bitwise_and_expression
+        S_equality_expression = 99,              // equality_expression
+        S_relational_expression = 100,           // relational_expression
+        S_shift_expression = 101,                // shift_expression
+        S_additive_expression = 102,             // additive_expression
+        S_multiplicative_expression = 103,       // multiplicative_expression
+        S_unary_expression = 104,                // unary_expression
+        S_postfix_expression = 105,              // postfix_expression
+        S_primary_expression = 106,              // primary_expression
+        S_argument_list = 107,                   // argument_list
+        S_argument = 108                         // argument
+      };
+    };
+
+    /// (Internal) symbol kind.
+    typedef symbol_kind::symbol_kind_type symbol_kind_type;
+
+    /// The number of tokens.
+    static const symbol_kind_type YYNTOKENS = symbol_kind::YYNTOKENS;
+
+    /// A complete symbol.
+    ///
+    /// Expects its Base type to provide access to the symbol kind
+    /// via kind ().
+    ///
+    /// Provide access to semantic value and location.
+    template <typename Base>
+    struct basic_symbol : Base
+    {
+      /// Alias to Base.
+      typedef Base super_type;
+
+      /// Default constructor.
+      basic_symbol () YY_NOEXCEPT
+        : value ()
+        , location ()
+      {}
+
+#if 201103L <= YY_CPLUSPLUS
+      /// Move constructor.
+      basic_symbol (basic_symbol&& that)
+        : Base (std::move (that))
+        , value ()
+        , location (std::move (that.location))
+      {
+        switch (this->kind ())
+    {
+      case symbol_kind::S_flow_literal: // flow_literal
+      case symbol_kind::S_generator_expression: // generator_expression
+      case symbol_kind::S_each_dt_opt: // each_dt_opt
+      case symbol_kind::S_expression: // expression
+      case symbol_kind::S_assignment_expression: // assignment_expression
+      case symbol_kind::S_ternary_expression: // ternary_expression
+      case symbol_kind::S_logical_or_expression: // logical_or_expression
+      case symbol_kind::S_logical_and_expression: // logical_and_expression
+      case symbol_kind::S_bitwise_or_expression: // bitwise_or_expression
+      case symbol_kind::S_bitwise_xor_expression: // bitwise_xor_expression
+      case symbol_kind::S_bitwise_and_expression: // bitwise_and_expression
+      case symbol_kind::S_equality_expression: // equality_expression
+      case symbol_kind::S_relational_expression: // relational_expression
+      case symbol_kind::S_shift_expression: // shift_expression
+      case symbol_kind::S_additive_expression: // additive_expression
+      case symbol_kind::S_multiplicative_expression: // multiplicative_expression
+      case symbol_kind::S_unary_expression: // unary_expression
+      case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_primary_expression: // primary_expression
+        value.move< idyl::parser::expr_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_program: // program
+        value.move< idyl::parser::node_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.move< idyl::parser::param_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_top_level_statement: // top_level_statement
+      case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_lambda_statement: // lambda_statement
+      case symbol_kind::S_block_body_statement: // block_body_statement
+        value.move< idyl::parser::stmt_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_argument: // argument
+        value.move< std::shared_ptr<idyl::parser::argument> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_at_block: // at_block
+        value.move< std::shared_ptr<idyl::parser::at_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_catch_block: // catch_block
+        value.move< std::shared_ptr<idyl::parser::catch_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_each_block: // each_block
+        value.move< std::shared_ptr<idyl::parser::each_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_flow_definition: // flow_definition
+        value.move< std::shared_ptr<idyl::parser::flow_definition> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_function_definition: // function_definition
+        value.move< std::shared_ptr<idyl::parser::function_definition> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_init_block: // init_block
+        value.move< std::shared_ptr<idyl::parser::init_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_lambda_block: // lambda_block
+        value.move< std::shared_ptr<idyl::parser::lambda_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_on_block: // on_block
+        value.move< std::shared_ptr<idyl::parser::on_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_process_block: // process_block
+        value.move< std::shared_ptr<idyl::parser::process_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.move< std::shared_ptr<idyl::parser::start_statement> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.move< std::shared_ptr<idyl::parser::stop_statement> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // IDENTIFIER
+      case symbol_kind::S_NUMBER: // NUMBER
+      case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
+      case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+        value.move< std::string > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_flow_elements: // flow_elements
+      case symbol_kind::S_ternary_options: // ternary_options
+        value.move< std::vector<idyl::parser::expr_ptr> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_parameter_list: // parameter_list
+        value.move< std::vector<idyl::parser::param_ptr> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_top_level_statements: // top_level_statements
+      case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_each_body: // each_body
+      case symbol_kind::S_lambda_statements: // lambda_statements
+      case symbol_kind::S_block_body: // block_body
+        value.move< std::vector<idyl::parser::stmt_ptr> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_argument_list: // argument_list
+        value.move< std::vector<std::shared_ptr<idyl::parser::argument>> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_flow_members: // flow_members
+        value.move< std::vector<std::shared_ptr<idyl::parser::flow_member>> > (std::move (that.value));
+        break;
+
+      default:
+        break;
+    }
+
+      }
+#endif
+
+      /// Copy constructor.
+      basic_symbol (const basic_symbol& that);
+
+      /// Constructors for typed symbols.
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, location_type&& l)
+        : Base (t)
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const location_type& l)
+        : Base (t)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, idyl::parser::expr_ptr&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const idyl::parser::expr_ptr& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, idyl::parser::node_ptr&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const idyl::parser::node_ptr& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, idyl::parser::param_ptr&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const idyl::parser::param_ptr& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, idyl::parser::stmt_ptr&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const idyl::parser::stmt_ptr& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::argument>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::argument>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::at_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::at_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::catch_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::catch_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::each_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::each_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::flow_definition>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::flow_definition>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::function_definition>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::function_definition>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::init_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::init_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::lambda_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::lambda_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::on_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::on_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::process_block>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::process_block>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::start_statement>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::start_statement>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::shared_ptr<idyl::parser::stop_statement>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::shared_ptr<idyl::parser::stop_statement>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::string&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::string& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::vector<idyl::parser::expr_ptr>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::vector<idyl::parser::expr_ptr>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::vector<idyl::parser::param_ptr>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::vector<idyl::parser::param_ptr>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::vector<idyl::parser::stmt_ptr>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::vector<idyl::parser::stmt_ptr>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::vector<std::shared_ptr<idyl::parser::argument>>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::vector<std::shared_ptr<idyl::parser::argument>>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::vector<std::shared_ptr<idyl::parser::flow_member>>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::vector<std::shared_ptr<idyl::parser::flow_member>>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+      /// Destroy the symbol.
+      ~basic_symbol ()
+      {
+        clear ();
+      }
+
+
+      /// Copy assignment.
+      basic_symbol& operator= (const basic_symbol& that)
+      {
+        Base::operator= (that);
+        switch (this->kind ())
+    {
+      case symbol_kind::S_flow_literal: // flow_literal
+      case symbol_kind::S_generator_expression: // generator_expression
+      case symbol_kind::S_each_dt_opt: // each_dt_opt
+      case symbol_kind::S_expression: // expression
+      case symbol_kind::S_assignment_expression: // assignment_expression
+      case symbol_kind::S_ternary_expression: // ternary_expression
+      case symbol_kind::S_logical_or_expression: // logical_or_expression
+      case symbol_kind::S_logical_and_expression: // logical_and_expression
+      case symbol_kind::S_bitwise_or_expression: // bitwise_or_expression
+      case symbol_kind::S_bitwise_xor_expression: // bitwise_xor_expression
+      case symbol_kind::S_bitwise_and_expression: // bitwise_and_expression
+      case symbol_kind::S_equality_expression: // equality_expression
+      case symbol_kind::S_relational_expression: // relational_expression
+      case symbol_kind::S_shift_expression: // shift_expression
+      case symbol_kind::S_additive_expression: // additive_expression
+      case symbol_kind::S_multiplicative_expression: // multiplicative_expression
+      case symbol_kind::S_unary_expression: // unary_expression
+      case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_primary_expression: // primary_expression
+        value.copy< idyl::parser::expr_ptr > (that.value);
+        break;
+
+      case symbol_kind::S_program: // program
+        value.copy< idyl::parser::node_ptr > (that.value);
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.copy< idyl::parser::param_ptr > (that.value);
+        break;
+
+      case symbol_kind::S_top_level_statement: // top_level_statement
+      case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_lambda_statement: // lambda_statement
+      case symbol_kind::S_block_body_statement: // block_body_statement
+        value.copy< idyl::parser::stmt_ptr > (that.value);
+        break;
+
+      case symbol_kind::S_argument: // argument
+        value.copy< std::shared_ptr<idyl::parser::argument> > (that.value);
+        break;
+
+      case symbol_kind::S_at_block: // at_block
+        value.copy< std::shared_ptr<idyl::parser::at_block> > (that.value);
+        break;
+
+      case symbol_kind::S_catch_block: // catch_block
+        value.copy< std::shared_ptr<idyl::parser::catch_block> > (that.value);
+        break;
+
+      case symbol_kind::S_each_block: // each_block
+        value.copy< std::shared_ptr<idyl::parser::each_block> > (that.value);
+        break;
+
+      case symbol_kind::S_flow_definition: // flow_definition
+        value.copy< std::shared_ptr<idyl::parser::flow_definition> > (that.value);
+        break;
+
+      case symbol_kind::S_function_definition: // function_definition
+        value.copy< std::shared_ptr<idyl::parser::function_definition> > (that.value);
+        break;
+
+      case symbol_kind::S_init_block: // init_block
+        value.copy< std::shared_ptr<idyl::parser::init_block> > (that.value);
+        break;
+
+      case symbol_kind::S_lambda_block: // lambda_block
+        value.copy< std::shared_ptr<idyl::parser::lambda_block> > (that.value);
+        break;
+
+      case symbol_kind::S_on_block: // on_block
+        value.copy< std::shared_ptr<idyl::parser::on_block> > (that.value);
+        break;
+
+      case symbol_kind::S_process_block: // process_block
+        value.copy< std::shared_ptr<idyl::parser::process_block> > (that.value);
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.copy< std::shared_ptr<idyl::parser::start_statement> > (that.value);
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.copy< std::shared_ptr<idyl::parser::stop_statement> > (that.value);
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // IDENTIFIER
+      case symbol_kind::S_NUMBER: // NUMBER
+      case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
+      case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+        value.copy< std::string > (that.value);
+        break;
+
+      case symbol_kind::S_flow_elements: // flow_elements
+      case symbol_kind::S_ternary_options: // ternary_options
+        value.copy< std::vector<idyl::parser::expr_ptr> > (that.value);
+        break;
+
+      case symbol_kind::S_parameter_list: // parameter_list
+        value.copy< std::vector<idyl::parser::param_ptr> > (that.value);
+        break;
+
+      case symbol_kind::S_top_level_statements: // top_level_statements
+      case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_each_body: // each_body
+      case symbol_kind::S_lambda_statements: // lambda_statements
+      case symbol_kind::S_block_body: // block_body
+        value.copy< std::vector<idyl::parser::stmt_ptr> > (that.value);
+        break;
+
+      case symbol_kind::S_argument_list: // argument_list
+        value.copy< std::vector<std::shared_ptr<idyl::parser::argument>> > (that.value);
+        break;
+
+      case symbol_kind::S_flow_members: // flow_members
+        value.copy< std::vector<std::shared_ptr<idyl::parser::flow_member>> > (that.value);
+        break;
+
+      default:
+        break;
+    }
+;
+        location = that.location;
+        return *this;
+      }
+
+      /// Move assignment.
+      basic_symbol& operator= (basic_symbol&& that)
+      {
+        Base::operator= (std::move (that));
+        switch (this->kind ())
+    {
+      case symbol_kind::S_flow_literal: // flow_literal
+      case symbol_kind::S_generator_expression: // generator_expression
+      case symbol_kind::S_each_dt_opt: // each_dt_opt
+      case symbol_kind::S_expression: // expression
+      case symbol_kind::S_assignment_expression: // assignment_expression
+      case symbol_kind::S_ternary_expression: // ternary_expression
+      case symbol_kind::S_logical_or_expression: // logical_or_expression
+      case symbol_kind::S_logical_and_expression: // logical_and_expression
+      case symbol_kind::S_bitwise_or_expression: // bitwise_or_expression
+      case symbol_kind::S_bitwise_xor_expression: // bitwise_xor_expression
+      case symbol_kind::S_bitwise_and_expression: // bitwise_and_expression
+      case symbol_kind::S_equality_expression: // equality_expression
+      case symbol_kind::S_relational_expression: // relational_expression
+      case symbol_kind::S_shift_expression: // shift_expression
+      case symbol_kind::S_additive_expression: // additive_expression
+      case symbol_kind::S_multiplicative_expression: // multiplicative_expression
+      case symbol_kind::S_unary_expression: // unary_expression
+      case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_primary_expression: // primary_expression
+        value.move< idyl::parser::expr_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_program: // program
+        value.move< idyl::parser::node_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.move< idyl::parser::param_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_top_level_statement: // top_level_statement
+      case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_lambda_statement: // lambda_statement
+      case symbol_kind::S_block_body_statement: // block_body_statement
+        value.move< idyl::parser::stmt_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_argument: // argument
+        value.move< std::shared_ptr<idyl::parser::argument> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_at_block: // at_block
+        value.move< std::shared_ptr<idyl::parser::at_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_catch_block: // catch_block
+        value.move< std::shared_ptr<idyl::parser::catch_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_each_block: // each_block
+        value.move< std::shared_ptr<idyl::parser::each_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_flow_definition: // flow_definition
+        value.move< std::shared_ptr<idyl::parser::flow_definition> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_function_definition: // function_definition
+        value.move< std::shared_ptr<idyl::parser::function_definition> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_init_block: // init_block
+        value.move< std::shared_ptr<idyl::parser::init_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_lambda_block: // lambda_block
+        value.move< std::shared_ptr<idyl::parser::lambda_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_on_block: // on_block
+        value.move< std::shared_ptr<idyl::parser::on_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_process_block: // process_block
+        value.move< std::shared_ptr<idyl::parser::process_block> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.move< std::shared_ptr<idyl::parser::start_statement> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.move< std::shared_ptr<idyl::parser::stop_statement> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // IDENTIFIER
+      case symbol_kind::S_NUMBER: // NUMBER
+      case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
+      case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+        value.move< std::string > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_flow_elements: // flow_elements
+      case symbol_kind::S_ternary_options: // ternary_options
+        value.move< std::vector<idyl::parser::expr_ptr> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_parameter_list: // parameter_list
+        value.move< std::vector<idyl::parser::param_ptr> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_top_level_statements: // top_level_statements
+      case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_each_body: // each_body
+      case symbol_kind::S_lambda_statements: // lambda_statements
+      case symbol_kind::S_block_body: // block_body
+        value.move< std::vector<idyl::parser::stmt_ptr> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_argument_list: // argument_list
+        value.move< std::vector<std::shared_ptr<idyl::parser::argument>> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_flow_members: // flow_members
+        value.move< std::vector<std::shared_ptr<idyl::parser::flow_member>> > (std::move (that.value));
+        break;
+
+      default:
+        break;
+    }
+;
+        location = std::move (that.location);
+        return *this;
+      }
+
+
+      /// Destroy contents, and record that is empty.
+      void clear () YY_NOEXCEPT
+      {
+        // User destructor.
+        symbol_kind_type yykind = this->kind ();
+        basic_symbol<Base>& yysym = *this;
+        (void) yysym;
+        switch (yykind)
+        {
+       default:
+          break;
+        }
+
+        // Value type destructor.
+switch (yykind)
+    {
+      case symbol_kind::S_flow_literal: // flow_literal
+      case symbol_kind::S_generator_expression: // generator_expression
+      case symbol_kind::S_each_dt_opt: // each_dt_opt
+      case symbol_kind::S_expression: // expression
+      case symbol_kind::S_assignment_expression: // assignment_expression
+      case symbol_kind::S_ternary_expression: // ternary_expression
+      case symbol_kind::S_logical_or_expression: // logical_or_expression
+      case symbol_kind::S_logical_and_expression: // logical_and_expression
+      case symbol_kind::S_bitwise_or_expression: // bitwise_or_expression
+      case symbol_kind::S_bitwise_xor_expression: // bitwise_xor_expression
+      case symbol_kind::S_bitwise_and_expression: // bitwise_and_expression
+      case symbol_kind::S_equality_expression: // equality_expression
+      case symbol_kind::S_relational_expression: // relational_expression
+      case symbol_kind::S_shift_expression: // shift_expression
+      case symbol_kind::S_additive_expression: // additive_expression
+      case symbol_kind::S_multiplicative_expression: // multiplicative_expression
+      case symbol_kind::S_unary_expression: // unary_expression
+      case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_primary_expression: // primary_expression
+        value.template destroy< idyl::parser::expr_ptr > ();
+        break;
+
+      case symbol_kind::S_program: // program
+        value.template destroy< idyl::parser::node_ptr > ();
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.template destroy< idyl::parser::param_ptr > ();
+        break;
+
+      case symbol_kind::S_top_level_statement: // top_level_statement
+      case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_lambda_statement: // lambda_statement
+      case symbol_kind::S_block_body_statement: // block_body_statement
+        value.template destroy< idyl::parser::stmt_ptr > ();
+        break;
+
+      case symbol_kind::S_argument: // argument
+        value.template destroy< std::shared_ptr<idyl::parser::argument> > ();
+        break;
+
+      case symbol_kind::S_at_block: // at_block
+        value.template destroy< std::shared_ptr<idyl::parser::at_block> > ();
+        break;
+
+      case symbol_kind::S_catch_block: // catch_block
+        value.template destroy< std::shared_ptr<idyl::parser::catch_block> > ();
+        break;
+
+      case symbol_kind::S_each_block: // each_block
+        value.template destroy< std::shared_ptr<idyl::parser::each_block> > ();
+        break;
+
+      case symbol_kind::S_flow_definition: // flow_definition
+        value.template destroy< std::shared_ptr<idyl::parser::flow_definition> > ();
+        break;
+
+      case symbol_kind::S_function_definition: // function_definition
+        value.template destroy< std::shared_ptr<idyl::parser::function_definition> > ();
+        break;
+
+      case symbol_kind::S_init_block: // init_block
+        value.template destroy< std::shared_ptr<idyl::parser::init_block> > ();
+        break;
+
+      case symbol_kind::S_lambda_block: // lambda_block
+        value.template destroy< std::shared_ptr<idyl::parser::lambda_block> > ();
+        break;
+
+      case symbol_kind::S_on_block: // on_block
+        value.template destroy< std::shared_ptr<idyl::parser::on_block> > ();
+        break;
+
+      case symbol_kind::S_process_block: // process_block
+        value.template destroy< std::shared_ptr<idyl::parser::process_block> > ();
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.template destroy< std::shared_ptr<idyl::parser::start_statement> > ();
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.template destroy< std::shared_ptr<idyl::parser::stop_statement> > ();
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // IDENTIFIER
+      case symbol_kind::S_NUMBER: // NUMBER
+      case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
+      case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+        value.template destroy< std::string > ();
+        break;
+
+      case symbol_kind::S_flow_elements: // flow_elements
+      case symbol_kind::S_ternary_options: // ternary_options
+        value.template destroy< std::vector<idyl::parser::expr_ptr> > ();
+        break;
+
+      case symbol_kind::S_parameter_list: // parameter_list
+        value.template destroy< std::vector<idyl::parser::param_ptr> > ();
+        break;
+
+      case symbol_kind::S_top_level_statements: // top_level_statements
+      case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_each_body: // each_body
+      case symbol_kind::S_lambda_statements: // lambda_statements
+      case symbol_kind::S_block_body: // block_body
+        value.template destroy< std::vector<idyl::parser::stmt_ptr> > ();
+        break;
+
+      case symbol_kind::S_argument_list: // argument_list
+        value.template destroy< std::vector<std::shared_ptr<idyl::parser::argument>> > ();
+        break;
+
+      case symbol_kind::S_flow_members: // flow_members
+        value.template destroy< std::vector<std::shared_ptr<idyl::parser::flow_member>> > ();
+        break;
+
+      default:
+        break;
+    }
+
+        Base::clear ();
+      }
+
+      /// The user-facing name of this symbol.
+      std::string name () const YY_NOEXCEPT
+      {
+        return parser::symbol_name (this->kind ());
+      }
+
+      /// Whether empty.
+      bool empty () const YY_NOEXCEPT;
+
+      /// Destructive move, \a s is emptied into this.
+      void move (basic_symbol& s);
+
+      /// The semantic value.
+      value_type value;
+
+      /// The location.
+      location_type location;
+
+    private:
+#if YY_CPLUSPLUS < 201103L
+      /// Assignment operator.
+      basic_symbol& operator= (const basic_symbol& that);
+#endif
+    };
+
+    /// Type access provider for token (enum) based symbols.
+    struct by_kind
+    {
+      /// The symbol kind as needed by the constructor.
+      typedef token_kind_type kind_type;
+
+      /// Default constructor.
+      by_kind () YY_NOEXCEPT;
+
+#if 201103L <= YY_CPLUSPLUS
+      /// Move constructor.
+      by_kind (by_kind&& that) YY_NOEXCEPT;
+#endif
+
+      /// Copy constructor.
+      by_kind (const by_kind& that) YY_NOEXCEPT;
+
+      /// Constructor from (external) token numbers.
+      by_kind (kind_type t) YY_NOEXCEPT;
+
+
+      /// Copy assignment.
+      by_kind& operator= (const by_kind& that);
+
+      /// Move assignment.
+      by_kind& operator= (by_kind&& that);
+
+
+      /// Record that this symbol is empty.
+      void clear () YY_NOEXCEPT;
+
+      /// Steal the symbol kind from \a that.
+      void move (by_kind& that);
+
+      /// The (internal) type number (corresponding to \a type).
+      /// \a empty when empty.
+      symbol_kind_type kind () const YY_NOEXCEPT;
+
+      /// The symbol kind.
+      /// \a S_YYEMPTY when empty.
+      symbol_kind_type kind_;
+    };
+
+    /// "External" symbols: returned by the scanner.
+    struct symbol_type : basic_symbol<by_kind>
+    {
+      /// Superclass.
+      typedef basic_symbol<by_kind> super_type;
+
+      /// Empty symbol.
+      symbol_type () YY_NOEXCEPT {}
+
+      /// Constructor for valueless symbols, and symbols from each type.
+#if 201103L <= YY_CPLUSPLUS
+      symbol_type (int tok, location_type l)
+        : super_type (token_kind_type (tok), std::move (l))
+#else
+      symbol_type (int tok, const location_type& l)
+        : super_type (token_kind_type (tok), l)
+#endif
+      {}
+#if 201103L <= YY_CPLUSPLUS
+      symbol_type (int tok, std::string v, location_type l)
+        : super_type (token_kind_type (tok), std::move (v), std::move (l))
+#else
+      symbol_type (int tok, const std::string& v, const location_type& l)
+        : super_type (token_kind_type (tok), v, l)
+#endif
+      {}
+    };
+
+
+    // FIXME: should be private eventually.
+    class glr_stack;
+    class glr_state;
+
+    /// Build a parser object.
+    parser (yy::lexer& driver_yyarg);
+    ~parser ();
+
+    /// Parse.  An alias for parse ().
+    /// \returns  0 iff parsing succeeded.
+    int operator() ();
+
+    /// Parse.
+    /// \returns  0 iff parsing succeeded.
+    int parse ();
+
+#if YYDEBUG
+    /// The current debugging stream.
+    std::ostream& debug_stream () const;
+    /// Set the current debugging stream.
+    void set_debug_stream (std::ostream &);
+
+    /// Type for debugging levels.
+    using debug_level_type = int;
+    /// The current debugging level.
+    debug_level_type debug_level () const;
+    /// Set the current debugging level.
+    void set_debug_level (debug_level_type l);
+#endif
+
+    /// Report a syntax error.
+    /// \param loc    where the syntax error is found.
+    /// \param msg    a description of the syntax error.
+    void error (const location_type& loc, const std::string& msg);
+
+    /// The user-facing name of the symbol whose (internal) number is
+    /// YYSYMBOL.  No bounds checking.
+    static std::string symbol_name (symbol_kind_type yysymbol);
+
+    // Implementation of make_symbol for each token kind.
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_YYEOF (location_type l)
+      {
+        return symbol_type (token::YYEOF, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_YYEOF (const location_type& l)
+      {
+        return symbol_type (token::YYEOF, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_YYerror (location_type l)
+      {
+        return symbol_type (token::YYerror, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_YYerror (const location_type& l)
+      {
+        return symbol_type (token::YYerror, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_YYUNDEF (location_type l)
+      {
+        return symbol_type (token::YYUNDEF, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_YYUNDEF (const location_type& l)
+      {
+        return symbol_type (token::YYUNDEF, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_IDENTIFIER (std::string v, location_type l)
+      {
+        return symbol_type (token::IDENTIFIER, std::move (v), std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_IDENTIFIER (const std::string& v, const location_type& l)
+      {
+        return symbol_type (token::IDENTIFIER, v, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_NUMBER (std::string v, location_type l)
+      {
+        return symbol_type (token::NUMBER, std::move (v), std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_NUMBER (const std::string& v, const location_type& l)
+      {
+        return symbol_type (token::NUMBER, v, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_TIME_LITERAL (std::string v, location_type l)
+      {
+        return symbol_type (token::TIME_LITERAL, std::move (v), std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_TIME_LITERAL (const std::string& v, const location_type& l)
+      {
+        return symbol_type (token::TIME_LITERAL, v, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_STRING_LITERAL (std::string v, location_type l)
+      {
+        return symbol_type (token::STRING_LITERAL, std::move (v), std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_STRING_LITERAL (const std::string& v, const location_type& l)
+      {
+        return symbol_type (token::STRING_LITERAL, v, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_FLOW (location_type l)
+      {
+        return symbol_type (token::FLOW, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_FLOW (const location_type& l)
+      {
+        return symbol_type (token::FLOW, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_PROCESS (location_type l)
+      {
+        return symbol_type (token::PROCESS, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_PROCESS (const location_type& l)
+      {
+        return symbol_type (token::PROCESS, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_IMPORT (location_type l)
+      {
+        return symbol_type (token::IMPORT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_IMPORT (const location_type& l)
+      {
+        return symbol_type (token::IMPORT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_MODULE (location_type l)
+      {
+        return symbol_type (token::MODULE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_MODULE (const location_type& l)
+      {
+        return symbol_type (token::MODULE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_INIT (location_type l)
+      {
+        return symbol_type (token::INIT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_INIT (const location_type& l)
+      {
+        return symbol_type (token::INIT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_EMIT (location_type l)
+      {
+        return symbol_type (token::EMIT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_EMIT (const location_type& l)
+      {
+        return symbol_type (token::EMIT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_CATCH (location_type l)
+      {
+        return symbol_type (token::CATCH, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_CATCH (const location_type& l)
+      {
+        return symbol_type (token::CATCH, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_END (location_type l)
+      {
+        return symbol_type (token::END, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_END (const location_type& l)
+      {
+        return symbol_type (token::END, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_DT (location_type l)
+      {
+        return symbol_type (token::DT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_DT (const location_type& l)
+      {
+        return symbol_type (token::DT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_DUR (location_type l)
+      {
+        return symbol_type (token::DUR, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_DUR (const location_type& l)
+      {
+        return symbol_type (token::DUR, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_STOP (location_type l)
+      {
+        return symbol_type (token::STOP, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_STOP (const location_type& l)
+      {
+        return symbol_type (token::STOP, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_START (location_type l)
+      {
+        return symbol_type (token::START, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_START (const location_type& l)
+      {
+        return symbol_type (token::START, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_AGE (location_type l)
+      {
+        return symbol_type (token::AGE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_AGE (const location_type& l)
+      {
+        return symbol_type (token::AGE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LAMBDA_BLOCK (location_type l)
+      {
+        return symbol_type (token::LAMBDA_BLOCK, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LAMBDA_BLOCK (const location_type& l)
+      {
+        return symbol_type (token::LAMBDA_BLOCK, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_NAMESPACE_DOT (location_type l)
+      {
+        return symbol_type (token::NAMESPACE_DOT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_NAMESPACE_DOT (const location_type& l)
+      {
+        return symbol_type (token::NAMESPACE_DOT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RESTART_MARKER (location_type l)
+      {
+        return symbol_type (token::RESTART_MARKER, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RESTART_MARKER (const location_type& l)
+      {
+        return symbol_type (token::RESTART_MARKER, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_MEMORY_OP (location_type l)
+      {
+        return symbol_type (token::MEMORY_OP, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_MEMORY_OP (const location_type& l)
+      {
+        return symbol_type (token::MEMORY_OP, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RANGE (location_type l)
+      {
+        return symbol_type (token::RANGE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RANGE (const location_type& l)
+      {
+        return symbol_type (token::RANGE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_REST (location_type l)
+      {
+        return symbol_type (token::REST, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_REST (const location_type& l)
+      {
+        return symbol_type (token::REST, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_AT_OP (location_type l)
+      {
+        return symbol_type (token::AT_OP, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_AT_OP (const location_type& l)
+      {
+        return symbol_type (token::AT_OP, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_PLUS (location_type l)
+      {
+        return symbol_type (token::PLUS, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_PLUS (const location_type& l)
+      {
+        return symbol_type (token::PLUS, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_MINUS (location_type l)
+      {
+        return symbol_type (token::MINUS, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_MINUS (const location_type& l)
+      {
+        return symbol_type (token::MINUS, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_MUL (location_type l)
+      {
+        return symbol_type (token::MUL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_MUL (const location_type& l)
+      {
+        return symbol_type (token::MUL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_DIV (location_type l)
+      {
+        return symbol_type (token::DIV, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_DIV (const location_type& l)
+      {
+        return symbol_type (token::DIV, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_MOD (location_type l)
+      {
+        return symbol_type (token::MOD, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_MOD (const location_type& l)
+      {
+        return symbol_type (token::MOD, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_EQ (location_type l)
+      {
+        return symbol_type (token::EQ, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_EQ (const location_type& l)
+      {
+        return symbol_type (token::EQ, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_NEQ (location_type l)
+      {
+        return symbol_type (token::NEQ, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_NEQ (const location_type& l)
+      {
+        return symbol_type (token::NEQ, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LT (location_type l)
+      {
+        return symbol_type (token::LT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LT (const location_type& l)
+      {
+        return symbol_type (token::LT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_GT (location_type l)
+      {
+        return symbol_type (token::GT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_GT (const location_type& l)
+      {
+        return symbol_type (token::GT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LE (location_type l)
+      {
+        return symbol_type (token::LE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LE (const location_type& l)
+      {
+        return symbol_type (token::LE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_GE (location_type l)
+      {
+        return symbol_type (token::GE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_GE (const location_type& l)
+      {
+        return symbol_type (token::GE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_AND (location_type l)
+      {
+        return symbol_type (token::AND, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_AND (const location_type& l)
+      {
+        return symbol_type (token::AND, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_OR (location_type l)
+      {
+        return symbol_type (token::OR, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_OR (const location_type& l)
+      {
+        return symbol_type (token::OR, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_XOR (location_type l)
+      {
+        return symbol_type (token::XOR, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_XOR (const location_type& l)
+      {
+        return symbol_type (token::XOR, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_NOT (location_type l)
+      {
+        return symbol_type (token::NOT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_NOT (const location_type& l)
+      {
+        return symbol_type (token::NOT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LSHIFT (location_type l)
+      {
+        return symbol_type (token::LSHIFT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LSHIFT (const location_type& l)
+      {
+        return symbol_type (token::LSHIFT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RSHIFT (location_type l)
+      {
+        return symbol_type (token::RSHIFT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RSHIFT (const location_type& l)
+      {
+        return symbol_type (token::RSHIFT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_QUESTION (location_type l)
+      {
+        return symbol_type (token::QUESTION, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_QUESTION (const location_type& l)
+      {
+        return symbol_type (token::QUESTION, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_ASSIGN (location_type l)
+      {
+        return symbol_type (token::ASSIGN, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_ASSIGN (const location_type& l)
+      {
+        return symbol_type (token::ASSIGN, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_COLON (location_type l)
+      {
+        return symbol_type (token::COLON, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_COLON (const location_type& l)
+      {
+        return symbol_type (token::COLON, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_SEMICOLON (location_type l)
+      {
+        return symbol_type (token::SEMICOLON, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_SEMICOLON (const location_type& l)
+      {
+        return symbol_type (token::SEMICOLON, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_COMMA (location_type l)
+      {
+        return symbol_type (token::COMMA, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_COMMA (const location_type& l)
+      {
+        return symbol_type (token::COMMA, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_DOT (location_type l)
+      {
+        return symbol_type (token::DOT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_DOT (const location_type& l)
+      {
+        return symbol_type (token::DOT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_TRIGGER (location_type l)
+      {
+        return symbol_type (token::TRIGGER, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_TRIGGER (const location_type& l)
+      {
+        return symbol_type (token::TRIGGER, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LPAREN (location_type l)
+      {
+        return symbol_type (token::LPAREN, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LPAREN (const location_type& l)
+      {
+        return symbol_type (token::LPAREN, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RPAREN (location_type l)
+      {
+        return symbol_type (token::RPAREN, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RPAREN (const location_type& l)
+      {
+        return symbol_type (token::RPAREN, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LBRACKET (location_type l)
+      {
+        return symbol_type (token::LBRACKET, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LBRACKET (const location_type& l)
+      {
+        return symbol_type (token::LBRACKET, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RBRACKET (location_type l)
+      {
+        return symbol_type (token::RBRACKET, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RBRACKET (const location_type& l)
+      {
+        return symbol_type (token::RBRACKET, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LBRACE (location_type l)
+      {
+        return symbol_type (token::LBRACE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LBRACE (const location_type& l)
+      {
+        return symbol_type (token::LBRACE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RBRACE (location_type l)
+      {
+        return symbol_type (token::RBRACE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RBRACE (const location_type& l)
+      {
+        return symbol_type (token::RBRACE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_ON (location_type l)
+      {
+        return symbol_type (token::ON, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_ON (const location_type& l)
+      {
+        return symbol_type (token::ON, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_EACH (location_type l)
+      {
+        return symbol_type (token::EACH, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_EACH (const location_type& l)
+      {
+        return symbol_type (token::EACH, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_IN (location_type l)
+      {
+        return symbol_type (token::IN, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_IN (const location_type& l)
+      {
+        return symbol_type (token::IN, l);
+      }
+#endif
+
+
+    class context
+    {
+    public:
+      context (glr_stack& yystack, const symbol_type& yyla);
+      const symbol_type& lookahead () const YY_NOEXCEPT { return yyla_; }
+      symbol_kind_type token () const YY_NOEXCEPT { return yyla_.kind (); }
+      const location_type& location () const YY_NOEXCEPT { return yyla_.location; }
+
+      /// Put in YYARG at most YYARGN of the expected tokens, and return the
+      /// number of tokens stored in YYARG.  If YYARG is null, return the
+      /// number of expected tokens (guaranteed to be less than YYNTOKENS).
+      int expected_tokens (symbol_kind_type yyarg[], int yyargn) const;
+
+    private:
+      glr_stack& yystack_;
+      const symbol_type& yyla_;
+    };
+
+# if YYDEBUG
+  public:
+    /// \brief Report a symbol value on the debug stream.
+    /// \param yykind   The symbol kind.
+    /// \param yyval    Its semantic value.
+    /// \param yyloc    Its location.
+    void yy_symbol_value_print_ (symbol_kind_type yykind,
+                                 const value_type& yyval,
+                                 const location_type& yyloc) const;
+    /// \brief Report a symbol on the debug stream.
+    /// \param yykind   The symbol kind.
+    /// \param yyval    Its semantic value.
+    /// \param yyloc    Its location.
+    void yy_symbol_print_ (symbol_kind_type yykind,
+                           const value_type& yyval,
+                           const location_type& yyloc) const;
+  private:
+    /// Debug stream.
+    std::ostream* yycdebug_;
+#endif
+
+
+  private:
+    /// The arguments of the error message.
+    int yy_syntax_error_arguments_ (const context& yyctx,
+                                    symbol_kind_type yyarg[], int yyargn) const;
+
+    /// Generate an error message.
+    /// \param yyctx     the context in which the error occurred.
+    virtual std::string yysyntax_error_ (const context& yyctx) const;
+
+    /// Convert a scanner token kind \a t to a symbol kind.
+    /// In theory \a t should be a token_kind_type, but character literals
+    /// are valid, yet not members of the token_kind_type enum.
+    static symbol_kind_type yytranslate_ (int t) YY_NOEXCEPT;
+
+    /// Convert the symbol name \a n to a form suitable for a diagnostic.
+    static std::string yytnamerr_ (const char *yystr);
+
+    /// For a symbol, its name in clear.
+    static const char* const yytname_[];
+
+
+    /// \brief Reclaim the memory associated to a symbol.
+    /// \param yymsg     Why this token is reclaimed.
+    ///                  If null, print nothing.
+    /// \param yykind    The symbol kind.
+    void yy_destroy_ (const char* yymsg, symbol_kind_type yykind,
+                      value_type& yyval,
+                      location_type& yyloc);
+
+
+    // User arguments.
+    yy::lexer& driver;
+    // Needs access to yy_destroy_, report_syntax_error, etc.
+    friend glr_stack;
+  };
+
+  parser::symbol_kind_type
+  parser::yytranslate_ (int t) YY_NOEXCEPT
+  {
+    // YYTRANSLATE[TOKEN-NUM] -- Symbol number corresponding to
+    // TOKEN-NUM as returned by yylex.
+    static
+    const signed char
+    translate_table[] =
+    {
+       0,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
+       5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
+      15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
+      25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
+      35,    36,    37,    38,    39,    40,    41,    42,    43,    44,
+      45,    46,    47,    48,    49,    50,    51,    52,    53,    54,
+      55,    56,    57,    58,    59
+    };
+    // Last valid token kind.
+    const int code_max = 314;
+
+    if (t <= 0)
+      return symbol_kind::S_YYEOF;
+    else if (t <= code_max)
+      return static_cast <symbol_kind_type> (translate_table[t]);
+    else
+      return symbol_kind::S_YYUNDEF;
+  }
+
+  // basic_symbol.
+  template <typename Base>
+  parser::basic_symbol<Base>::basic_symbol (const basic_symbol& that)
+    : Base (that)
+    , value ()
+    , location (that.location)
+  {
+    switch (this->kind ())
+    {
+      case symbol_kind::S_flow_literal: // flow_literal
+      case symbol_kind::S_generator_expression: // generator_expression
+      case symbol_kind::S_each_dt_opt: // each_dt_opt
+      case symbol_kind::S_expression: // expression
+      case symbol_kind::S_assignment_expression: // assignment_expression
+      case symbol_kind::S_ternary_expression: // ternary_expression
+      case symbol_kind::S_logical_or_expression: // logical_or_expression
+      case symbol_kind::S_logical_and_expression: // logical_and_expression
+      case symbol_kind::S_bitwise_or_expression: // bitwise_or_expression
+      case symbol_kind::S_bitwise_xor_expression: // bitwise_xor_expression
+      case symbol_kind::S_bitwise_and_expression: // bitwise_and_expression
+      case symbol_kind::S_equality_expression: // equality_expression
+      case symbol_kind::S_relational_expression: // relational_expression
+      case symbol_kind::S_shift_expression: // shift_expression
+      case symbol_kind::S_additive_expression: // additive_expression
+      case symbol_kind::S_multiplicative_expression: // multiplicative_expression
+      case symbol_kind::S_unary_expression: // unary_expression
+      case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_primary_expression: // primary_expression
+        value.copy< idyl::parser::expr_ptr > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_program: // program
+        value.copy< idyl::parser::node_ptr > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.copy< idyl::parser::param_ptr > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_top_level_statement: // top_level_statement
+      case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_lambda_statement: // lambda_statement
+      case symbol_kind::S_block_body_statement: // block_body_statement
+        value.copy< idyl::parser::stmt_ptr > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_argument: // argument
+        value.copy< std::shared_ptr<idyl::parser::argument> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_at_block: // at_block
+        value.copy< std::shared_ptr<idyl::parser::at_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_catch_block: // catch_block
+        value.copy< std::shared_ptr<idyl::parser::catch_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_each_block: // each_block
+        value.copy< std::shared_ptr<idyl::parser::each_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_flow_definition: // flow_definition
+        value.copy< std::shared_ptr<idyl::parser::flow_definition> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_function_definition: // function_definition
+        value.copy< std::shared_ptr<idyl::parser::function_definition> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_init_block: // init_block
+        value.copy< std::shared_ptr<idyl::parser::init_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_lambda_block: // lambda_block
+        value.copy< std::shared_ptr<idyl::parser::lambda_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_on_block: // on_block
+        value.copy< std::shared_ptr<idyl::parser::on_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_process_block: // process_block
+        value.copy< std::shared_ptr<idyl::parser::process_block> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.copy< std::shared_ptr<idyl::parser::start_statement> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.copy< std::shared_ptr<idyl::parser::stop_statement> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // IDENTIFIER
+      case symbol_kind::S_NUMBER: // NUMBER
+      case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
+      case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+        value.copy< std::string > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_flow_elements: // flow_elements
+      case symbol_kind::S_ternary_options: // ternary_options
+        value.copy< std::vector<idyl::parser::expr_ptr> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_parameter_list: // parameter_list
+        value.copy< std::vector<idyl::parser::param_ptr> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_top_level_statements: // top_level_statements
+      case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_each_body: // each_body
+      case symbol_kind::S_lambda_statements: // lambda_statements
+      case symbol_kind::S_block_body: // block_body
+        value.copy< std::vector<idyl::parser::stmt_ptr> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_argument_list: // argument_list
+        value.copy< std::vector<std::shared_ptr<idyl::parser::argument>> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_flow_members: // flow_members
+        value.copy< std::vector<std::shared_ptr<idyl::parser::flow_member>> > (YY_MOVE (that.value));
+        break;
+
+      default:
+        break;
+    }
+
+  }
+
+
+
+
+
+  template <typename Base>
+  bool
+  parser::basic_symbol<Base>::empty () const YY_NOEXCEPT
+  {
+    return this->kind () == symbol_kind::S_YYEMPTY;
+  }
+
+  template <typename Base>
+  void
+  parser::basic_symbol<Base>::move (basic_symbol& s)
+  {
+    super_type::move (s);
+    switch (this->kind ())
+    {
+      case symbol_kind::S_flow_literal: // flow_literal
+      case symbol_kind::S_generator_expression: // generator_expression
+      case symbol_kind::S_each_dt_opt: // each_dt_opt
+      case symbol_kind::S_expression: // expression
+      case symbol_kind::S_assignment_expression: // assignment_expression
+      case symbol_kind::S_ternary_expression: // ternary_expression
+      case symbol_kind::S_logical_or_expression: // logical_or_expression
+      case symbol_kind::S_logical_and_expression: // logical_and_expression
+      case symbol_kind::S_bitwise_or_expression: // bitwise_or_expression
+      case symbol_kind::S_bitwise_xor_expression: // bitwise_xor_expression
+      case symbol_kind::S_bitwise_and_expression: // bitwise_and_expression
+      case symbol_kind::S_equality_expression: // equality_expression
+      case symbol_kind::S_relational_expression: // relational_expression
+      case symbol_kind::S_shift_expression: // shift_expression
+      case symbol_kind::S_additive_expression: // additive_expression
+      case symbol_kind::S_multiplicative_expression: // multiplicative_expression
+      case symbol_kind::S_unary_expression: // unary_expression
+      case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_primary_expression: // primary_expression
+        value.move< idyl::parser::expr_ptr > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_program: // program
+        value.move< idyl::parser::node_ptr > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.move< idyl::parser::param_ptr > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_top_level_statement: // top_level_statement
+      case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_lambda_statement: // lambda_statement
+      case symbol_kind::S_block_body_statement: // block_body_statement
+        value.move< idyl::parser::stmt_ptr > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_argument: // argument
+        value.move< std::shared_ptr<idyl::parser::argument> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_at_block: // at_block
+        value.move< std::shared_ptr<idyl::parser::at_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_catch_block: // catch_block
+        value.move< std::shared_ptr<idyl::parser::catch_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_each_block: // each_block
+        value.move< std::shared_ptr<idyl::parser::each_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_flow_definition: // flow_definition
+        value.move< std::shared_ptr<idyl::parser::flow_definition> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_function_definition: // function_definition
+        value.move< std::shared_ptr<idyl::parser::function_definition> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_init_block: // init_block
+        value.move< std::shared_ptr<idyl::parser::init_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_lambda_block: // lambda_block
+        value.move< std::shared_ptr<idyl::parser::lambda_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_on_block: // on_block
+        value.move< std::shared_ptr<idyl::parser::on_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_process_block: // process_block
+        value.move< std::shared_ptr<idyl::parser::process_block> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_start_statement: // start_statement
+        value.move< std::shared_ptr<idyl::parser::start_statement> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_stop_statement: // stop_statement
+        value.move< std::shared_ptr<idyl::parser::stop_statement> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // IDENTIFIER
+      case symbol_kind::S_NUMBER: // NUMBER
+      case symbol_kind::S_TIME_LITERAL: // TIME_LITERAL
+      case symbol_kind::S_STRING_LITERAL: // STRING_LITERAL
+        value.move< std::string > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_flow_elements: // flow_elements
+      case symbol_kind::S_ternary_options: // ternary_options
+        value.move< std::vector<idyl::parser::expr_ptr> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_parameter_list: // parameter_list
+        value.move< std::vector<idyl::parser::param_ptr> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_top_level_statements: // top_level_statements
+      case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_each_body: // each_body
+      case symbol_kind::S_lambda_statements: // lambda_statements
+      case symbol_kind::S_block_body: // block_body
+        value.move< std::vector<idyl::parser::stmt_ptr> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_argument_list: // argument_list
+        value.move< std::vector<std::shared_ptr<idyl::parser::argument>> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_flow_members: // flow_members
+        value.move< std::vector<std::shared_ptr<idyl::parser::flow_member>> > (YY_MOVE (s.value));
+        break;
+
+      default:
+        break;
+    }
+
+    location = YY_MOVE (s.location);
+  }
+
+  // by_kind.
+  parser::by_kind::by_kind () YY_NOEXCEPT
+    : kind_ (symbol_kind::S_YYEMPTY)
+  {}
+
+#if 201103L <= YY_CPLUSPLUS
+  parser::by_kind::by_kind (by_kind&& that) YY_NOEXCEPT
+    : kind_ (that.kind_)
+  {
+    that.clear ();
+  }
+#endif
+
+  parser::by_kind::by_kind (const by_kind& that) YY_NOEXCEPT
+    : kind_ (that.kind_)
+  {}
+
+  parser::by_kind::by_kind (token_kind_type t) YY_NOEXCEPT
+    : kind_ (yytranslate_ (t))
+  {}
+
+
+  parser::by_kind&
+  parser::by_kind::by_kind::operator= (const by_kind& that)
+  {
+    kind_ = that.kind_;
+    return *this;
+  }
+
+  parser::by_kind&
+  parser::by_kind::by_kind::operator= (by_kind&& that)
+  {
+    kind_ = that.kind_;
+    that.clear ();
+    return *this;
+  }
+
+
+  void
+  parser::by_kind::clear () YY_NOEXCEPT
+  {
+    kind_ = symbol_kind::S_YYEMPTY;
+  }
+
+  void
+  parser::by_kind::move (by_kind& that)
+  {
+    kind_ = that.kind_;
+    that.clear ();
+  }
+
+  parser::symbol_kind_type
+  parser::by_kind::kind () const YY_NOEXCEPT
+  {
+    return kind_;
+  }
+
+
+
+} // yy
+#line 3289 "idyl.tab.cc"
+
+
+
+
 
 namespace
 {
@@ -76,7 +3302,7 @@ namespace
 
 
 // Unqualified %code blocks.
-#line 26 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 26 "src/parser/idyl.y"
 
     #include <iostream>
     #include <sstream>
@@ -88,7 +3314,7 @@ namespace
     
     std::shared_ptr<idyl::parser::program> g_program = nullptr;
 
-#line 92 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 3318 "idyl.tab.cc"
 
 
 #include <cstdio>
@@ -4157,58 +7383,58 @@ namespace yy
       switch (yyrule)
         {
       case 2: // program: top_level_statements
-#line 122 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 122 "src/parser/idyl.y"
     {
         auto prog = std::make_shared<idyl::parser::program>();
         prog->statements_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
         (*yyvalp).as < idyl::parser::node_ptr > () = prog;
         g_program = prog;
     }
-#line 4168 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7394 "idyl.tab.cc"
     break;
 
   case 3: // program: %empty
-#line 129 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 129 "src/parser/idyl.y"
     {
         auto prog = std::make_shared<idyl::parser::program>();
         (*yyvalp).as < idyl::parser::node_ptr > () = prog;
         g_program = prog;
     }
-#line 4178 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7404 "idyl.tab.cc"
     break;
 
   case 4: // top_level_statements: top_level_statements top_level_statement
-#line 138 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 138 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 4187 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7413 "idyl.tab.cc"
     break;
 
   case 5: // top_level_statements: top_level_statement
-#line 143 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 143 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = {};
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 4196 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7422 "idyl.tab.cc"
     break;
 
   case 6: // top_level_statement: function_or_flow_definition
-#line 150 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 150 "src/parser/idyl.y"
                                   { (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > (); }
-#line 4202 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7428 "idyl.tab.cc"
     break;
 
   case 7: // top_level_statement: process_block
-#line 151 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 151 "src/parser/idyl.y"
                     { (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::process_block> > (); }
-#line 4208 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7434 "idyl.tab.cc"
     break;
 
   case 8: // top_level_statement: IMPORT LPAREN STRING_LITERAL RPAREN
-#line 153 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 153 "src/parser/idyl.y"
     {
         auto lib_import = std::make_shared<idyl::parser::library_import>();
         lib_import->path_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::string > ();
@@ -4216,11 +7442,11 @@ namespace yy
         lib_import->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = lib_import;
     }
-#line 4220 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7446 "idyl.tab.cc"
     break;
 
   case 9: // top_level_statement: IDENTIFIER ASSIGN IMPORT LPAREN STRING_LITERAL RPAREN
-#line 161 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 161 "src/parser/idyl.y"
     {
         auto lib_import = std::make_shared<idyl::parser::library_import>();
         lib_import->namespace_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < std::string > ();
@@ -4229,11 +7455,11 @@ namespace yy
         lib_import->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = lib_import;
     }
-#line 4233 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7459 "idyl.tab.cc"
     break;
 
   case 10: // top_level_statement: MODULE LPAREN STRING_LITERAL RPAREN
-#line 170 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 170 "src/parser/idyl.y"
     {
         auto mod_import = std::make_shared<idyl::parser::module_import>();
         mod_import->path_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::string > ();
@@ -4241,11 +7467,11 @@ namespace yy
         mod_import->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = mod_import;
     }
-#line 4245 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7471 "idyl.tab.cc"
     break;
 
   case 11: // top_level_statement: IDENTIFIER ASSIGN MODULE LPAREN STRING_LITERAL RPAREN
-#line 178 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 178 "src/parser/idyl.y"
     {
         auto mod_import = std::make_shared<idyl::parser::module_import>();
         mod_import->namespace_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < std::string > ();
@@ -4254,23 +7480,23 @@ namespace yy
         mod_import->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = mod_import;
     }
-#line 4258 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7484 "idyl.tab.cc"
     break;
 
   case 12: // function_or_flow_definition: function_definition
-#line 189 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 189 "src/parser/idyl.y"
                           { (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::function_definition> > (); }
-#line 4264 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7490 "idyl.tab.cc"
     break;
 
   case 13: // function_or_flow_definition: flow_definition
-#line 190 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 190 "src/parser/idyl.y"
                       { (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::flow_definition> > (); }
-#line 4270 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7496 "idyl.tab.cc"
     break;
 
   case 14: // function_definition: IDENTIFIER LPAREN parameter_list RPAREN ASSIGN expression
-#line 195 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 195 "src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < std::string > ();
@@ -4280,11 +7506,11 @@ namespace yy
         func->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::function_definition> > () = func;
     }
-#line 4284 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7510 "idyl.tab.cc"
     break;
 
   case 15: // function_definition: IDENTIFIER LPAREN RPAREN ASSIGN expression
-#line 205 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 205 "src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().value ().as < std::string > ();
@@ -4295,11 +7521,11 @@ namespace yy
         func->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::function_definition> > () = func;
     }
-#line 4299 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7525 "idyl.tab.cc"
     break;
 
   case 16: // function_definition: IDENTIFIER LPAREN parameter_list RPAREN ASSIGN expression lambda_block
-#line 216 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 216 "src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-6)].getState().value ().as < std::string > ();
@@ -4310,11 +7536,11 @@ namespace yy
         func->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-6)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::function_definition> > () = func;
     }
-#line 4314 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7540 "idyl.tab.cc"
     break;
 
   case 17: // function_definition: IDENTIFIER LPAREN RPAREN ASSIGN expression lambda_block
-#line 227 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 227 "src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < std::string > ();
@@ -4326,11 +7552,11 @@ namespace yy
         func->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::function_definition> > () = func;
     }
-#line 4330 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7556 "idyl.tab.cc"
     break;
 
   case 18: // function_definition: IDENTIFIER ASSIGN expression
-#line 239 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 239 "src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -4340,11 +7566,11 @@ namespace yy
         func->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::function_definition> > () = func;
     }
-#line 4344 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7570 "idyl.tab.cc"
     break;
 
   case 19: // function_definition: IDENTIFIER ASSIGN expression lambda_block
-#line 249 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 249 "src/parser/idyl.y"
     {
         auto func = std::make_shared<idyl::parser::function_definition>();
         func->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().value ().as < std::string > ();
@@ -4355,11 +7581,11 @@ namespace yy
         func->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::function_definition> > () = func;
     }
-#line 4359 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7585 "idyl.tab.cc"
     break;
 
   case 20: // flow_definition: FLOW IDENTIFIER ASSIGN flow_literal
-#line 263 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 263 "src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -4374,11 +7600,11 @@ namespace yy
         flow->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::flow_definition> > () = flow;
     }
-#line 4378 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7604 "idyl.tab.cc"
     break;
 
   case 21: // flow_definition: FLOW IDENTIFIER LPAREN parameter_list RPAREN ASSIGN flow_literal
-#line 278 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 278 "src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < std::string > ();
@@ -4393,11 +7619,11 @@ namespace yy
         flow->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-6)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::flow_definition> > () = flow;
     }
-#line 4397 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7623 "idyl.tab.cc"
     break;
 
   case 22: // flow_definition: FLOW IDENTIFIER ASSIGN LBRACE flow_members RBRACE
-#line 293 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 293 "src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().value ().as < std::string > ();
@@ -4407,11 +7633,11 @@ namespace yy
         flow->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::flow_definition> > () = flow;
     }
-#line 4411 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7637 "idyl.tab.cc"
     break;
 
   case 23: // flow_definition: FLOW IDENTIFIER LPAREN parameter_list RPAREN ASSIGN LBRACE flow_members RBRACE
-#line 303 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 303 "src/parser/idyl.y"
     {
         auto flow = std::make_shared<idyl::parser::flow_definition>();
         flow->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-7)].getState().value ().as < std::string > ();
@@ -4421,11 +7647,11 @@ namespace yy
         flow->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-8)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::flow_definition> > () = flow;
     }
-#line 4425 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7651 "idyl.tab.cc"
     break;
 
   case 24: // flow_members: flow_members IDENTIFIER COLON flow_literal
-#line 316 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 316 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().value ().as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ();
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -4435,11 +7661,11 @@ namespace yy
         member->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ().push_back(member);
     }
-#line 4439 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7665 "idyl.tab.cc"
     break;
 
   case 25: // flow_members: flow_members IDENTIFIER ON IDENTIFIER COLON flow_literal
-#line 326 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 326 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ();
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -4450,11 +7676,11 @@ namespace yy
         member->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().yyloc).begin.column;
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ().push_back(member);
     }
-#line 4454 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7680 "idyl.tab.cc"
     break;
 
   case 26: // flow_members: IDENTIFIER COLON flow_literal
-#line 337 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 337 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = {};
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -4464,11 +7690,11 @@ namespace yy
         member->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ().push_back(member);
     }
-#line 4468 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7694 "idyl.tab.cc"
     break;
 
   case 27: // flow_members: IDENTIFIER ON IDENTIFIER COLON flow_literal
-#line 347 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 347 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > () = {};
         auto member = std::make_shared<idyl::parser::flow_member>();
@@ -4479,11 +7705,11 @@ namespace yy
         member->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().yyloc).begin.column;
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ().push_back(member);
     }
-#line 4483 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7709 "idyl.tab.cc"
     break;
 
   case 28: // flow_literal: LBRACKET flow_elements RBRACKET
-#line 361 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 361 "src/parser/idyl.y"
     {
         auto flow_lit = std::make_shared<idyl::parser::flow_literal>();
         flow_lit->elements_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::expr_ptr> > ();
@@ -4495,26 +7721,26 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 4499 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7725 "idyl.tab.cc"
     break;
 
   case 29: // flow_literal: generator_expression
-#line 372 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 372 "src/parser/idyl.y"
                            { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 4505 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7731 "idyl.tab.cc"
     break;
 
   case 30: // flow_elements: flow_elements COMMA expression
-#line 377 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 377 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::vector<idyl::parser::expr_ptr> > ();
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > ());
     }
-#line 4514 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7740 "idyl.tab.cc"
     break;
 
   case 31: // flow_elements: flow_elements COMMA LBRACKET NUMBER RBRACKET
-#line 382 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 382 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().value ().as < std::vector<idyl::parser::expr_ptr> > ();
         auto rep = std::make_shared<idyl::parser::repetition_marker>();
@@ -4531,11 +7757,11 @@ namespace yy
         rep->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > ().push_back(expr);
     }
-#line 4535 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7761 "idyl.tab.cc"
     break;
 
   case 32: // flow_elements: flow_elements COMMA RESTART_MARKER
-#line 399 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 399 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::vector<idyl::parser::expr_ptr> > ();
         auto restart = std::make_shared<idyl::parser::repetition_marker>();
@@ -4544,17 +7770,17 @@ namespace yy
         restart->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > ().push_back(nullptr); // Placeholder for restart
     }
-#line 4548 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7774 "idyl.tab.cc"
     break;
 
   case 33: // flow_elements: expression
-#line 407 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 407 "src/parser/idyl.y"
                  { (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > () = {(static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > ()}; }
-#line 4554 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7780 "idyl.tab.cc"
     break;
 
   case 34: // generator_expression: LBRACKET IDENTIFIER ASSIGN expression RANGE expression COLON expression RBRACKET
-#line 412 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 412 "src/parser/idyl.y"
     {
         auto gen = std::make_shared<idyl::parser::generator_expr>();
         gen->variable_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-7)].getState().value ().as < std::string > ();
@@ -4569,11 +7795,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-8)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 4573 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7799 "idyl.tab.cc"
     break;
 
   case 35: // process_block: PROCESS COLON LBRACE process_body_statements RBRACE
-#line 430 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 430 "src/parser/idyl.y"
     {
         auto proc = std::make_shared<idyl::parser::process_block>();
         proc->name_ = "main";
@@ -4584,11 +7810,11 @@ namespace yy
         proc->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::process_block> > () = proc;
     }
-#line 4588 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7814 "idyl.tab.cc"
     break;
 
   case 36: // process_block: PROCESS IDENTIFIER COMMA DUR ASSIGN expression COLON LBRACE process_body_statements RBRACE
-#line 441 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 441 "src/parser/idyl.y"
     {
         auto proc = std::make_shared<idyl::parser::process_block>();
         proc->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-8)].getState().value ().as < std::string > ();
@@ -4600,11 +7826,11 @@ namespace yy
         proc->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-9)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::process_block> > () = proc;
     }
-#line 4604 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7830 "idyl.tab.cc"
     break;
 
   case 37: // process_block: PROCESS IDENTIFIER COLON LBRACE process_body_statements RBRACE
-#line 453 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 453 "src/parser/idyl.y"
     {
         auto proc = std::make_shared<idyl::parser::process_block>();
         proc->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().value ().as < std::string > ();
@@ -4615,29 +7841,29 @@ namespace yy
         proc->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::process_block> > () = proc;
     }
-#line 4619 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7845 "idyl.tab.cc"
     break;
 
   case 38: // process_body_statements: process_body_statements process_body_statement
-#line 467 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 467 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 4628 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7854 "idyl.tab.cc"
     break;
 
   case 39: // process_body_statements: process_body_statement
-#line 472 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 472 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = {};
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 4637 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7863 "idyl.tab.cc"
     break;
 
   case 40: // process_body_statement: postfix_expression ASSIGN expression
-#line 480 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 480 "src/parser/idyl.y"
     {
         // Interpret postfix_expression ASSIGN expression as a local function definition.
         // postfix_expression is either:
@@ -4686,11 +7912,11 @@ namespace yy
         }
         (*yyvalp).as < idyl::parser::stmt_ptr > () = func;
     }
-#line 4690 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7916 "idyl.tab.cc"
     break;
 
   case 41: // process_body_statement: IDENTIFIER ASSIGN expression
-#line 529 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 529 "src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -4700,11 +7926,11 @@ namespace yy
         assign->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 4704 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7930 "idyl.tab.cc"
     break;
 
   case 42: // process_body_statement: EMIT IDENTIFIER ASSIGN expression
-#line 539 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 539 "src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -4714,59 +7940,59 @@ namespace yy
         assign->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 4718 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7944 "idyl.tab.cc"
     break;
 
   case 43: // process_body_statement: stop_statement
-#line 549 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 549 "src/parser/idyl.y"
     {
         (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::stop_statement> > ();
     }
-#line 4726 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7952 "idyl.tab.cc"
     break;
 
   case 44: // process_body_statement: start_statement
-#line 553 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 553 "src/parser/idyl.y"
     {
         (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::start_statement> > ();
     }
-#line 4734 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7960 "idyl.tab.cc"
     break;
 
   case 45: // process_body_statement: catch_block
-#line 557 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 557 "src/parser/idyl.y"
     {
         (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::catch_block> > ();
     }
-#line 4742 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7968 "idyl.tab.cc"
     break;
 
   case 46: // process_body_statement: at_block
-#line 561 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 561 "src/parser/idyl.y"
     {
         (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::at_block> > ();
     }
-#line 4750 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7976 "idyl.tab.cc"
     break;
 
   case 47: // process_body_statement: on_block
-#line 565 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 565 "src/parser/idyl.y"
     {
         (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::on_block> > ();
     }
-#line 4758 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7984 "idyl.tab.cc"
     break;
 
   case 48: // process_body_statement: each_block
-#line 569 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 569 "src/parser/idyl.y"
     {
         (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::each_block> > ();
     }
-#line 4766 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 7992 "idyl.tab.cc"
     break;
 
   case 49: // process_body_statement: expression
-#line 573 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 573 "src/parser/idyl.y"
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
         es->expression_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -4774,11 +8000,11 @@ namespace yy
         es->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = es;
     }
-#line 4778 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8004 "idyl.tab.cc"
     break;
 
   case 50: // at_block: AT_OP LPAREN expression RPAREN COLON LBRACE process_body_statements RBRACE
-#line 584 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 584 "src/parser/idyl.y"
     {
         auto at_stmt = std::make_shared<idyl::parser::at_block>();
         at_stmt->time_expr_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -4787,11 +8013,11 @@ namespace yy
         at_stmt->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-7)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::at_block> > () = at_stmt;
     }
-#line 4791 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8017 "idyl.tab.cc"
     break;
 
   case 51: // on_block: ON expression COLON LBRACE process_body_statements RBRACE
-#line 596 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 596 "src/parser/idyl.y"
     {
         auto on_stmt = std::make_shared<idyl::parser::on_block>();
         on_stmt->trigger_expr_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -4800,35 +8026,35 @@ namespace yy
         on_stmt->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::on_block> > () = on_stmt;
     }
-#line 4804 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8030 "idyl.tab.cc"
     break;
 
   case 52: // each_dt_opt: %empty
-#line 608 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 608 "src/parser/idyl.y"
                                      { (*yyvalp).as < idyl::parser::expr_ptr > () = nullptr; }
-#line 4810 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8036 "idyl.tab.cc"
     break;
 
   case 53: // each_dt_opt: COMMA DT ASSIGN expression
-#line 609 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 609 "src/parser/idyl.y"
                                      { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 4816 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8042 "idyl.tab.cc"
     break;
 
   case 54: // each_dt_opt: COMMA expression
-#line 610 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 610 "src/parser/idyl.y"
                                      { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 4822 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8048 "idyl.tab.cc"
     break;
 
   case 55: // each_body: LBRACE process_body_statements RBRACE
-#line 615 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 615 "src/parser/idyl.y"
                                              { (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > (); }
-#line 4828 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8054 "idyl.tab.cc"
     break;
 
   case 56: // each_block: EACH IDENTIFIER IN expression each_dt_opt COLON each_body
-#line 626 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 626 "src/parser/idyl.y"
     {
         auto eb = std::make_shared<idyl::parser::each_block>();
         eb->var_name_   = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < std::string > ();
@@ -4839,11 +8065,11 @@ namespace yy
         eb->column_     = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-6)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::each_block> > () = eb;
     }
-#line 4843 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8069 "idyl.tab.cc"
     break;
 
   case 57: // each_block: EACH IDENTIFIER IN expression RANGE expression each_dt_opt COLON each_body
-#line 638 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 638 "src/parser/idyl.y"
     {
         auto eb = std::make_shared<idyl::parser::each_block>();
         eb->var_name_   = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-7)].getState().value ().as < std::string > ();
@@ -4855,11 +8081,11 @@ namespace yy
         eb->column_     = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-8)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::each_block> > () = eb;
     }
-#line 4859 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8085 "idyl.tab.cc"
     break;
 
   case 58: // each_block: EACH IDENTIFIER IN expression RANGE expression RANGE expression each_dt_opt COLON each_body
-#line 651 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 651 "src/parser/idyl.y"
     {
         auto eb = std::make_shared<idyl::parser::each_block>();
         eb->var_name_   = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-9)].getState().value ().as < std::string > ();
@@ -4872,11 +8098,11 @@ namespace yy
         eb->column_     = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-10)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::each_block> > () = eb;
     }
-#line 4876 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8102 "idyl.tab.cc"
     break;
 
   case 59: // stop_statement: STOP IDENTIFIER
-#line 667 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 667 "src/parser/idyl.y"
     {
         auto stop_stmt = std::make_shared<idyl::parser::stop_statement>();
         stop_stmt->target_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::string > ();
@@ -4884,11 +8110,11 @@ namespace yy
         stop_stmt->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::stop_statement> > () = stop_stmt;
     }
-#line 4888 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8114 "idyl.tab.cc"
     break;
 
   case 60: // start_statement: START IDENTIFIER
-#line 678 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 678 "src/parser/idyl.y"
     {
         auto start_stmt = std::make_shared<idyl::parser::start_statement>();
         start_stmt->target_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::string > ();
@@ -4896,11 +8122,11 @@ namespace yy
         start_stmt->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::start_statement> > () = start_stmt;
     }
-#line 4900 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8126 "idyl.tab.cc"
     break;
 
   case 61: // catch_block: CATCH postfix_expression NAMESPACE_DOT IDENTIFIER COLON LBRACE process_body_statements RBRACE
-#line 689 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 689 "src/parser/idyl.y"
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
         catch_b->instance_expr_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-6)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -4910,11 +8136,11 @@ namespace yy
         catch_b->column_        = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-7)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::catch_block> > () = catch_b;
     }
-#line 4914 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8140 "idyl.tab.cc"
     break;
 
   case 62: // catch_block: CATCH postfix_expression NAMESPACE_DOT END COLON LBRACE process_body_statements RBRACE
-#line 699 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 699 "src/parser/idyl.y"
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
         catch_b->instance_expr_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-6)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -4924,11 +8150,11 @@ namespace yy
         catch_b->column_        = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-7)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::catch_block> > () = catch_b;
     }
-#line 4928 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8154 "idyl.tab.cc"
     break;
 
   case 63: // lambda_block: LAMBDA_BLOCK LBRACE init_block lambda_statements RBRACE
-#line 712 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 712 "src/parser/idyl.y"
     {
         auto lambda = std::make_shared<idyl::parser::lambda_block>();
         lambda->init_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::shared_ptr<idyl::parser::init_block> > ();
@@ -4937,11 +8163,11 @@ namespace yy
         lambda->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::lambda_block> > () = lambda;
     }
-#line 4941 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8167 "idyl.tab.cc"
     break;
 
   case 64: // lambda_block: LAMBDA_BLOCK LBRACE init_block RBRACE
-#line 721 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 721 "src/parser/idyl.y"
     {
         auto lambda = std::make_shared<idyl::parser::lambda_block>();
         lambda->init_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::shared_ptr<idyl::parser::init_block> > ();
@@ -4950,11 +8176,11 @@ namespace yy
         lambda->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::lambda_block> > () = lambda;
     }
-#line 4954 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8180 "idyl.tab.cc"
     break;
 
   case 65: // lambda_block: LAMBDA_BLOCK LBRACE lambda_statements RBRACE
-#line 730 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 730 "src/parser/idyl.y"
     {
         auto lambda = std::make_shared<idyl::parser::lambda_block>();
         lambda->update_statements_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
@@ -4962,11 +8188,11 @@ namespace yy
         lambda->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::lambda_block> > () = lambda;
     }
-#line 4966 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8192 "idyl.tab.cc"
     break;
 
   case 66: // init_block: INIT COLON LBRACE lambda_statements RBRACE
-#line 741 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 741 "src/parser/idyl.y"
     {
         auto init = std::make_shared<idyl::parser::init_block>();
         init->statements_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
@@ -4974,29 +8200,29 @@ namespace yy
         init->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::init_block> > () = init;
     }
-#line 4978 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8204 "idyl.tab.cc"
     break;
 
   case 67: // lambda_statements: lambda_statements lambda_statement
-#line 752 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 752 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 4987 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8213 "idyl.tab.cc"
     break;
 
   case 68: // lambda_statements: lambda_statement
-#line 757 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 757 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = {};
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 4996 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8222 "idyl.tab.cc"
     break;
 
   case 69: // lambda_statement: postfix_expression ASSIGN expression
-#line 765 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 765 "src/parser/idyl.y"
     {
         // Same pattern as in process_body_statement: interpret as local function definition
         // when lhs is a function call, or as an assignment when lhs is an identifier.
@@ -5035,11 +8261,11 @@ namespace yy
         }
         (*yyvalp).as < idyl::parser::stmt_ptr > () = func;
     }
-#line 5039 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8265 "idyl.tab.cc"
     break;
 
   case 70: // lambda_statement: IDENTIFIER ASSIGN expression
-#line 804 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 804 "src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -5049,11 +8275,11 @@ namespace yy
         assign->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 5053 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8279 "idyl.tab.cc"
     break;
 
   case 71: // lambda_statement: EMIT IDENTIFIER ASSIGN expression
-#line 814 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 814 "src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -5063,11 +8289,11 @@ namespace yy
         assign->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 5067 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8293 "idyl.tab.cc"
     break;
 
   case 72: // lambda_statement: DT ASSIGN expression
-#line 824 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 824 "src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = "dt";
@@ -5077,11 +8303,11 @@ namespace yy
         assign->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 5081 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8307 "idyl.tab.cc"
     break;
 
   case 73: // lambda_statement: expression
-#line 834 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 834 "src/parser/idyl.y"
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
         es->expression_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5089,35 +8315,35 @@ namespace yy
         es->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = es;
     }
-#line 5093 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8319 "idyl.tab.cc"
     break;
 
   case 74: // block_body: block_body SEMICOLON block_body_statement
-#line 845 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 845 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 5102 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8328 "idyl.tab.cc"
     break;
 
   case 75: // block_body: block_body_statement
-#line 850 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 850 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = {};
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::stmt_ptr > ());
     }
-#line 5111 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8337 "idyl.tab.cc"
     break;
 
   case 76: // block_body: %empty
-#line 854 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 854 "src/parser/idyl.y"
                   { (*yyvalp).as < std::vector<idyl::parser::stmt_ptr> > () = {}; }
-#line 5117 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8343 "idyl.tab.cc"
     break;
 
   case 77: // block_body_statement: IDENTIFIER ASSIGN expression
-#line 859 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 859 "src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -5127,11 +8353,11 @@ namespace yy
         assign->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 5131 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8357 "idyl.tab.cc"
     break;
 
   case 78: // block_body_statement: EMIT IDENTIFIER ASSIGN expression
-#line 869 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 869 "src/parser/idyl.y"
     {
         auto assign = std::make_shared<idyl::parser::assignment>();
         assign->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -5141,23 +8367,23 @@ namespace yy
         assign->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = assign;
     }
-#line 5145 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8371 "idyl.tab.cc"
     break;
 
   case 79: // block_body_statement: stop_statement
-#line 878 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 878 "src/parser/idyl.y"
                       { (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::stop_statement> > (); }
-#line 5151 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8377 "idyl.tab.cc"
     break;
 
   case 80: // block_body_statement: start_statement
-#line 879 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 879 "src/parser/idyl.y"
                       { (*yyvalp).as < idyl::parser::stmt_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::start_statement> > (); }
-#line 5157 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8383 "idyl.tab.cc"
     break;
 
   case 81: // block_body_statement: expression
-#line 881 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 881 "src/parser/idyl.y"
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
         es->expression_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5165,26 +8391,26 @@ namespace yy
         es->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::stmt_ptr > () = es;
     }
-#line 5169 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8395 "idyl.tab.cc"
     break;
 
   case 82: // parameter_list: parameter_list COMMA parameter
-#line 892 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 892 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::param_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::vector<idyl::parser::param_ptr> > ();
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::param_ptr > ()) (*yyvalp).as < std::vector<idyl::parser::param_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::param_ptr > ());
     }
-#line 5178 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8404 "idyl.tab.cc"
     break;
 
   case 83: // parameter_list: parameter
-#line 896 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 896 "src/parser/idyl.y"
                 { (*yyvalp).as < std::vector<idyl::parser::param_ptr> > () = {(static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::param_ptr > ()}; }
-#line 5184 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8410 "idyl.tab.cc"
     break;
 
   case 84: // parameter: IDENTIFIER
-#line 901 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 901 "src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::string > ();
@@ -5193,11 +8419,11 @@ namespace yy
         param->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::param_ptr > () = param;
     }
-#line 5197 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8423 "idyl.tab.cc"
     break;
 
   case 85: // parameter: IDENTIFIER TRIGGER
-#line 910 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 910 "src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::string > ();
@@ -5206,11 +8432,11 @@ namespace yy
         param->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::param_ptr > () = param;
     }
-#line 5210 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8436 "idyl.tab.cc"
     break;
 
   case 86: // parameter: IDENTIFIER ASSIGN expression
-#line 919 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 919 "src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -5219,11 +8445,11 @@ namespace yy
         param->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::param_ptr > () = param;
     }
-#line 5223 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8449 "idyl.tab.cc"
     break;
 
   case 87: // parameter: DT ASSIGN expression
-#line 928 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 928 "src/parser/idyl.y"
     {
         auto param = std::make_shared<idyl::parser::parameter>();
         param->name_ = "dt";
@@ -5233,29 +8459,29 @@ namespace yy
         param->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::param_ptr > () = param;
     }
-#line 5237 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8463 "idyl.tab.cc"
     break;
 
   case 88: // expression: assignment_expression
-#line 940 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 940 "src/parser/idyl.y"
                             { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5243 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8469 "idyl.tab.cc"
     break;
 
   case 89: // assignment_expression: ternary_expression
-#line 944 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 944 "src/parser/idyl.y"
                          { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5249 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8475 "idyl.tab.cc"
     break;
 
   case 90: // ternary_expression: logical_or_expression
-#line 948 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 948 "src/parser/idyl.y"
                             { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5255 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8481 "idyl.tab.cc"
     break;
 
   case 91: // ternary_expression: logical_or_expression QUESTION ternary_options
-#line 950 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 950 "src/parser/idyl.y"
     {
         auto ternary = std::make_shared<idyl::parser::ternary_op>();
         ternary->options_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::vector<idyl::parser::expr_ptr> > ();
@@ -5280,34 +8506,34 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5284 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8510 "idyl.tab.cc"
     break;
 
   case 92: // ternary_options: ternary_options SEMICOLON logical_or_expression
-#line 978 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 978 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::vector<idyl::parser::expr_ptr> > ();
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > ());
     }
-#line 5293 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8519 "idyl.tab.cc"
     break;
 
   case 93: // ternary_options: logical_or_expression
-#line 983 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 983 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<idyl::parser::expr_ptr> > () = {(static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > ()};
     }
-#line 5301 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8527 "idyl.tab.cc"
     break;
 
   case 94: // logical_or_expression: logical_and_expression
-#line 989 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 989 "src/parser/idyl.y"
                              { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5307 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8533 "idyl.tab.cc"
     break;
 
   case 95: // logical_or_expression: logical_or_expression OR logical_and_expression
-#line 991 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 991 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "|";
@@ -5321,17 +8547,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5325 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8551 "idyl.tab.cc"
     break;
 
   case 96: // logical_and_expression: bitwise_or_expression
-#line 1007 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1007 "src/parser/idyl.y"
                             { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5331 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8557 "idyl.tab.cc"
     break;
 
   case 97: // logical_and_expression: logical_and_expression AND bitwise_or_expression
-#line 1009 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1009 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "&";
@@ -5345,17 +8571,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5349 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8575 "idyl.tab.cc"
     break;
 
   case 98: // bitwise_or_expression: bitwise_xor_expression
-#line 1025 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1025 "src/parser/idyl.y"
                              { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5355 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8581 "idyl.tab.cc"
     break;
 
   case 99: // bitwise_or_expression: bitwise_or_expression OR bitwise_xor_expression
-#line 1027 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1027 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "|";
@@ -5369,17 +8595,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5373 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8599 "idyl.tab.cc"
     break;
 
   case 100: // bitwise_xor_expression: bitwise_and_expression
-#line 1043 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1043 "src/parser/idyl.y"
                              { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5379 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8605 "idyl.tab.cc"
     break;
 
   case 101: // bitwise_xor_expression: bitwise_xor_expression XOR bitwise_and_expression
-#line 1045 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1045 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "^";
@@ -5393,17 +8619,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5397 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8623 "idyl.tab.cc"
     break;
 
   case 102: // bitwise_and_expression: equality_expression
-#line 1061 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1061 "src/parser/idyl.y"
                           { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5403 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8629 "idyl.tab.cc"
     break;
 
   case 103: // bitwise_and_expression: bitwise_and_expression AND equality_expression
-#line 1063 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1063 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "&";
@@ -5417,17 +8643,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5421 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8647 "idyl.tab.cc"
     break;
 
   case 104: // equality_expression: relational_expression
-#line 1079 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1079 "src/parser/idyl.y"
                             { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5427 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8653 "idyl.tab.cc"
     break;
 
   case 105: // equality_expression: equality_expression EQ relational_expression
-#line 1081 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1081 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "==";
@@ -5441,11 +8667,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5445 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8671 "idyl.tab.cc"
     break;
 
   case 106: // equality_expression: equality_expression NEQ relational_expression
-#line 1095 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1095 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "!=";
@@ -5459,17 +8685,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5463 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8689 "idyl.tab.cc"
     break;
 
   case 107: // relational_expression: shift_expression
-#line 1111 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1111 "src/parser/idyl.y"
                        { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5469 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8695 "idyl.tab.cc"
     break;
 
   case 108: // relational_expression: relational_expression LT shift_expression
-#line 1113 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1113 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "<";
@@ -5483,11 +8709,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5487 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8713 "idyl.tab.cc"
     break;
 
   case 109: // relational_expression: relational_expression GT shift_expression
-#line 1127 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1127 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = ">";
@@ -5501,11 +8727,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5505 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8731 "idyl.tab.cc"
     break;
 
   case 110: // relational_expression: relational_expression LE shift_expression
-#line 1141 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1141 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "<=";
@@ -5519,11 +8745,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5523 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8749 "idyl.tab.cc"
     break;
 
   case 111: // relational_expression: relational_expression GE shift_expression
-#line 1155 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1155 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = ">=";
@@ -5537,17 +8763,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5541 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8767 "idyl.tab.cc"
     break;
 
   case 112: // shift_expression: additive_expression
-#line 1171 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1171 "src/parser/idyl.y"
                           { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5547 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8773 "idyl.tab.cc"
     break;
 
   case 113: // shift_expression: shift_expression LSHIFT additive_expression
-#line 1173 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1173 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "<<";
@@ -5561,11 +8787,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5565 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8791 "idyl.tab.cc"
     break;
 
   case 114: // shift_expression: shift_expression RSHIFT additive_expression
-#line 1187 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1187 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = ">>";
@@ -5579,17 +8805,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5583 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8809 "idyl.tab.cc"
     break;
 
   case 115: // additive_expression: multiplicative_expression
-#line 1203 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1203 "src/parser/idyl.y"
                                 { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5589 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8815 "idyl.tab.cc"
     break;
 
   case 116: // additive_expression: additive_expression PLUS multiplicative_expression
-#line 1205 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1205 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "+";
@@ -5603,11 +8829,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5607 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8833 "idyl.tab.cc"
     break;
 
   case 117: // additive_expression: additive_expression MINUS multiplicative_expression
-#line 1219 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1219 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "-";
@@ -5621,17 +8847,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5625 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8851 "idyl.tab.cc"
     break;
 
   case 118: // multiplicative_expression: unary_expression
-#line 1235 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1235 "src/parser/idyl.y"
                        { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5631 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8857 "idyl.tab.cc"
     break;
 
   case 119: // multiplicative_expression: multiplicative_expression MUL unary_expression
-#line 1237 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1237 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "*";
@@ -5645,11 +8871,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5649 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8875 "idyl.tab.cc"
     break;
 
   case 120: // multiplicative_expression: multiplicative_expression DIV unary_expression
-#line 1251 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1251 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "/";
@@ -5663,11 +8889,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5667 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8893 "idyl.tab.cc"
     break;
 
   case 121: // multiplicative_expression: multiplicative_expression MOD unary_expression
-#line 1265 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1265 "src/parser/idyl.y"
     {
         auto binop = std::make_shared<idyl::parser::binary_op>();
         binop->op_ = "%";
@@ -5681,17 +8907,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5685 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8911 "idyl.tab.cc"
     break;
 
   case 122: // unary_expression: postfix_expression
-#line 1281 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1281 "src/parser/idyl.y"
                          { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5691 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8917 "idyl.tab.cc"
     break;
 
   case 123: // unary_expression: NOT unary_expression
-#line 1283 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1283 "src/parser/idyl.y"
     {
         auto unop = std::make_shared<idyl::parser::unary_op>();
         unop->op_ = "~";
@@ -5704,11 +8930,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5708 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8934 "idyl.tab.cc"
     break;
 
   case 124: // unary_expression: MINUS unary_expression
-#line 1296 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1296 "src/parser/idyl.y"
     {
         auto unop = std::make_shared<idyl::parser::unary_op>();
         unop->op_ = "-";
@@ -5721,11 +8947,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5725 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8951 "idyl.tab.cc"
     break;
 
   case 125: // unary_expression: MEMORY_OP LPAREN expression RPAREN
-#line 1309 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1309 "src/parser/idyl.y"
     {
         auto memop = std::make_shared<idyl::parser::memory_op>();
         memop->expr_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5737,11 +8963,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5741 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8967 "idyl.tab.cc"
     break;
 
   case 126: // unary_expression: MEMORY_OP LPAREN expression COMMA expression RPAREN
-#line 1321 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1321 "src/parser/idyl.y"
     {
         auto memop = std::make_shared<idyl::parser::memory_op>();
         memop->expr_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5754,17 +8980,17 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5758 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8984 "idyl.tab.cc"
     break;
 
   case 127: // postfix_expression: primary_expression
-#line 1336 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1336 "src/parser/idyl.y"
                          { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 5764 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 8990 "idyl.tab.cc"
     break;
 
   case 128: // postfix_expression: postfix_expression LPAREN argument_list RPAREN
-#line 1338 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1338 "src/parser/idyl.y"
     {
         auto call = std::make_shared<idyl::parser::function_call>();
         call->function_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5777,11 +9003,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5781 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9007 "idyl.tab.cc"
     break;
 
   case 129: // postfix_expression: postfix_expression LPAREN RPAREN
-#line 1351 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1351 "src/parser/idyl.y"
     {
         auto call = std::make_shared<idyl::parser::function_call>();
         call->function_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5794,11 +9020,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5798 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9024 "idyl.tab.cc"
     break;
 
   case 130: // postfix_expression: postfix_expression DOT IDENTIFIER
-#line 1364 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1364 "src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::flow_access>();
         access->flow_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5811,11 +9037,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5815 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9041 "idyl.tab.cc"
     break;
 
   case 131: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER
-#line 1377 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1377 "src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::module_access>();
         access->module_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5829,11 +9055,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5833 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9059 "idyl.tab.cc"
     break;
 
   case 132: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER LPAREN argument_list RPAREN
-#line 1391 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1391 "src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::module_access>();
         access->module_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-5)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5847,11 +9073,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5851 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9077 "idyl.tab.cc"
     break;
 
   case 133: // postfix_expression: postfix_expression NAMESPACE_DOT IDENTIFIER LPAREN RPAREN
-#line 1405 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1405 "src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::module_access>();
         access->module_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-4)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5865,11 +9091,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5869 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9095 "idyl.tab.cc"
     break;
 
   case 134: // postfix_expression: postfix_expression LBRACKET expression RBRACKET
-#line 1419 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1419 "src/parser/idyl.y"
     {
         auto access = std::make_shared<idyl::parser::flow_access>();
         access->flow_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -5882,11 +9108,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5886 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9112 "idyl.tab.cc"
     break;
 
   case 135: // primary_expression: IDENTIFIER
-#line 1435 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1435 "src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::string > ();
@@ -5898,11 +9124,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5902 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9128 "idyl.tab.cc"
     break;
 
   case 136: // primary_expression: NUMBER
-#line 1447 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1447 "src/parser/idyl.y"
     {
         auto num = std::make_shared<idyl::parser::number_literal>();
         num->value_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::string > ();
@@ -5914,11 +9140,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5918 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9144 "idyl.tab.cc"
     break;
 
   case 137: // primary_expression: TIME_LITERAL
-#line 1459 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1459 "src/parser/idyl.y"
     {
         auto time = std::make_shared<idyl::parser::time_literal>();
         // Parse time literal
@@ -5947,11 +9173,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5951 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9177 "idyl.tab.cc"
     break;
 
   case 138: // primary_expression: TRIGGER
-#line 1488 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1488 "src/parser/idyl.y"
     {
         auto trigger = std::make_shared<idyl::parser::trigger_literal>();
         trigger->line_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.line;
@@ -5962,11 +9188,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5966 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9192 "idyl.tab.cc"
     break;
 
   case 139: // primary_expression: REST
-#line 1499 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1499 "src/parser/idyl.y"
     {
         auto rest = std::make_shared<idyl::parser::rest_literal>();
         rest->line_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.line;
@@ -5977,11 +9203,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5981 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9207 "idyl.tab.cc"
     break;
 
   case 140: // primary_expression: DT
-#line 1510 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1510 "src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dt";
@@ -5993,11 +9219,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 5997 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9223 "idyl.tab.cc"
     break;
 
   case 141: // primary_expression: DUR
-#line 1522 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1522 "src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "dur";
@@ -6009,11 +9235,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 6013 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9239 "idyl.tab.cc"
     break;
 
   case 142: // primary_expression: AGE
-#line 1534 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1534 "src/parser/idyl.y"
     {
         auto id = std::make_shared<idyl::parser::identifier>();
         id->name_ = "age";
@@ -6025,11 +9251,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 6029 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9255 "idyl.tab.cc"
     break;
 
   case 143: // primary_expression: STRING_LITERAL
-#line 1546 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1546 "src/parser/idyl.y"
     {
         auto str = std::make_shared<idyl::parser::string_literal>();
         str->value_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::string > ();
@@ -6041,11 +9267,11 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 6045 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9271 "idyl.tab.cc"
     break;
 
   case 144: // primary_expression: LPAREN expression RPAREN
-#line 1558 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1558 "src/parser/idyl.y"
     {
         auto paren = std::make_shared<idyl::parser::parenthesized_expr>();
         paren->expr_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < idyl::parser::expr_ptr > ();
@@ -6053,17 +9279,17 @@ namespace yy
         paren->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = paren;
     }
-#line 6057 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9283 "idyl.tab.cc"
     break;
 
   case 145: // primary_expression: flow_literal
-#line 1565 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1565 "src/parser/idyl.y"
                    { (*yyvalp).as < idyl::parser::expr_ptr > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < idyl::parser::expr_ptr > (); }
-#line 6063 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9289 "idyl.tab.cc"
     break;
 
   case 146: // primary_expression: FLOW LBRACE flow_members RBRACE
-#line 1567 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1567 "src/parser/idyl.y"
     {
         auto expr = std::make_shared<idyl::parser::flow_literal_expr>();
         expr->named_members_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<std::shared_ptr<idyl::parser::flow_member>> > ();
@@ -6071,22 +9297,22 @@ namespace yy
         expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-3)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = expr;
     }
-#line 6075 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9301 "idyl.tab.cc"
     break;
 
   case 147: // primary_expression: STOP
-#line 1575 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1575 "src/parser/idyl.y"
     {
         auto stop_expr = std::make_shared<idyl::parser::self_stop_expr>();
         stop_expr->line_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.line;
         stop_expr->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = stop_expr;
     }
-#line 6086 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9312 "idyl.tab.cc"
     break;
 
   case 148: // primary_expression: LBRACE block_body RBRACE
-#line 1582 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1582 "src/parser/idyl.y"
     {
         auto block = std::make_shared<idyl::parser::block_expr>();
         block->statements_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-1)].getState().value ().as < std::vector<idyl::parser::stmt_ptr> > ();
@@ -6094,26 +9320,26 @@ namespace yy
         block->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < idyl::parser::expr_ptr > () = block;
     }
-#line 6098 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9324 "idyl.tab.cc"
     break;
 
   case 149: // argument_list: argument_list COMMA argument
-#line 1593 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1593 "src/parser/idyl.y"
     {
         (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::argument>> > () = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::vector<std::shared_ptr<idyl::parser::argument>> > ();
         if ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::argument> > ()) (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::argument>> > ().push_back((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::argument> > ());
     }
-#line 6107 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9333 "idyl.tab.cc"
     break;
 
   case 150: // argument_list: argument
-#line 1597 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1597 "src/parser/idyl.y"
                { (*yyvalp).as < std::vector<std::shared_ptr<idyl::parser::argument>> > () = {(static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().value ().as < std::shared_ptr<idyl::parser::argument> > ()}; }
-#line 6113 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9339 "idyl.tab.cc"
     break;
 
   case 151: // argument: expression
-#line 1602 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1602 "src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = "";
@@ -6122,11 +9348,11 @@ namespace yy
         arg->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (0)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 6126 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9352 "idyl.tab.cc"
     break;
 
   case 152: // argument: IDENTIFIER ASSIGN expression
-#line 1611 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1611 "src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = (static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().value ().as < std::string > ();
@@ -6135,11 +9361,11 @@ namespace yy
         arg->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 6139 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9365 "idyl.tab.cc"
     break;
 
   case 153: // argument: DT ASSIGN expression
-#line 1620 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 1620 "src/parser/idyl.y"
     {
         auto arg = std::make_shared<idyl::parser::argument>();
         arg->name_ = "dt";
@@ -6148,11 +9374,11 @@ namespace yy
         arg->column_ = ((static_cast<glr_stack_item const *>(yyvsp))[YYFILL (-2)].getState().yyloc).begin.column;
         (*yyvalp).as < std::shared_ptr<idyl::parser::argument> > () = arg;
     }
-#line 6152 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9378 "idyl.tab.cc"
     break;
 
 
-#line 6156 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 9382 "idyl.tab.cc"
 
           default: break;
         }
@@ -7271,7 +10497,7 @@ namespace
 #endif
 
 namespace yy {
-#line 7275 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
+#line 10501 "idyl.tab.cc"
 
   /// Build a parser object.
   parser::parser (yy::lexer& driver_yyarg)
@@ -7574,8 +10800,8 @@ namespace yy {
 
 
 } // yy
-#line 7578 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.cc"
-#line 1630 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
+#line 10804 "idyl.tab.cc"
+#line 1630 "src/parser/idyl.y"
 
 
 void yy::parser::error(const location_type& l, const std::string& m) {

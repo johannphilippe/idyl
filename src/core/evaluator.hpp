@@ -139,6 +139,15 @@ namespace idyl::core {
         std::unordered_map<std::string, std::vector<uint64_t>>
             active_process_instances_;
 
+        // Scheduler subscription IDs for temporal each-blocks, keyed by process
+        // name.  These have no function_instance entry; stop_process() cancels them.
+        std::unordered_map<std::string, std::vector<uint64_t>>
+            process_each_subs_;
+
+        // Name of the process block currently being evaluated (set in exec_stmt
+        // process_block case so nested exec_stmt calls can register each subs).
+        std::string current_process_name_;
+
         // ── Scheduler callback context ─────────────────────────────────────────
         // Set to the currently-ticking instance while the scheduler callback is
         // running reactions and catches.  Bare `stop` inside process catch handlers
