@@ -41,7 +41,8 @@ Same for engine implementation.
 | **Process control** | `start name` / `stop name` (or just `stop`) — start and stop named process blocks from within a running process. |
 | **Modules** | Built-in OSC and Csound support. Native temporal module functions (`osc_recv`, `cs_chnget`) integrate with the reactive system. External modules via `module()`. Libraries via `import()` with namespace support. |
 | **Process blocks** | The only executable entry points. Named, with optional duration. Start and stop them via OSC in `--listen` mode or from within other processes. |
-| **7-pass semantic analysis** | Symbol collection, name resolution, arity checking, type inference, temporal validation, flow validation, scope validation — all before a single line runs. |
+| **2-pass semantic analysis** | Pass 1: library/module collection and top-level name registration. Pass 2: recursive name resolution, arity checking, temporal validation, flow validation, scope structure — all before a single line runs. |
+| **Bytecode VM** | Pure user-functions and reaction lists are compiled to a compact stack-based bytecode at definition time. The evaluator dispatches to the VM for compiled code and falls back to AST-walking for temporal functions, flow operations, and control-flow constructs that the compiler does not cover. |
 
 ---
 
@@ -511,13 +512,15 @@ Source (.idyl)
  AST (ast.hpp)
      │
      ▼
- Semantic Analysis (7 passes)
+ Semantic Analysis (2 passes)
      │
      ▼
- Tree-walking Evaluator
+ Evaluator
+     ├── Compiler → Bytecode VM  (pure functions, reaction lists)
+     └── AST-walking interpreter (temporal, flow, control flow)
      │
      ├── Temporal instances → Scheduler (system clock)
-     ├── Module calls → OSC / external modules
+     ├── Module calls → OSC / Csound / external modules
      └── Process blocks → reactive execution
 ```
 
@@ -558,8 +561,9 @@ Pre-alpha. The core language, temporal engine, scheduler, module system, and sem
 
 What exists:
 - Full parser (Bison/Flex) with location tracking
-- 7-pass semantic analyzer
+- 2-pass semantic analyzer (global scope collection + recursive resolution)
 - Tree-walking evaluator with temporal function instantiation
+- Bytecode VM: stack-based compiler + VM for pure functions and reaction lists; evaluator falls back to AST-walking for unsupported constructs; recompiles automatically on hot-reload
 - System-clock scheduler with drift-free ticking and live `dt` updates
 - Sample-based delay operator `'(expr)` / `'(expr, N)` with per-expression circular buffers
 - Deferred execution blocks `@(time): { }` — one-shot scheduler callbacks

@@ -25,13 +25,28 @@ Source (.idyl)
      │ AST
      ▼
 ┌──────────────────┐
-│ Semantic Analyzer │   7 passes over the AST
+│ Semantic Analyzer │   2 passes over the AST
 └────┬─────────────┘
      │ validated AST
      ▼
-┌───────────┐
-│ Evaluator  │   Tree-walking interpreter + scheduler
-└───────────┘
+┌──────────────────────────────────────────┐
+│                Evaluator                  │
+│                                           │
+│  ┌──────────┐     ┌────────────────────┐ │
+│  │ Compiler │────▶│   Bytecode VM      │ │
+│  └──────────┘     │  (pure functions,  │ │
+│                   │   reaction lists)  │ │
+│                   └────────────────────┘ │
+│  ┌────────────────────────────────────┐  │
+│  │   AST-walking interpreter          │  │
+│  │   (temporal, flow, control flow,   │  │
+│  │    fallback for uncompiled fns)    │  │
+│  └────────────────────────────────────┘  │
+└──────────────────────────────────────────┘
+     │
+     ├── Temporal instances → Scheduler (system clock)
+     ├── Module calls → OSC / Csound / external modules
+     └── Process blocks → reactive execution
 ```
 
 ---
@@ -40,10 +55,10 @@ Source (.idyl)
 
 The lexer is defined in `src/parser/idyl.l`. It recognises:
 
-- Keywords: `process`, `init`, `emit`, `catch`, `import`, `module`, `clock`, `tempo`
-- Literals: numbers, time suffixes (`ms`, `s`, `hz`, `b`, `bpm`), strings, triggers (`!`), rest (`_`)
-- Operators: `|>`, `::`, arithmetic, comparison, bitwise
-- Structural tokens: braces, brackets, commas, colons, equals
+- **Keywords**: `process`, `flow`, `init`, `emit`, `catch`, `import`, `module`, `on`, `each`, `in`, `start`, `stop`, `clock`, `tempo`
+- **Literals**: numbers, time suffixes (`ms`, `s`, `hz`, `b`, `bpm`), strings, triggers (`!`), rest (`_`)
+- **Operators**: `|>` (lambda), `::` (namespace/emit access), `..` (range), `@` (deferred block), `'` (delay/memory), arithmetic, comparison, bitwise
+- **Structural tokens**: braces, brackets, commas, colons, semicolons, equals, pipe bars `|` (repeat markers)
 
 The lexer produces tokens consumed by the Bison parser.
 
@@ -51,62 +66,90 @@ The lexer produces tokens consumed by the Bison parser.
 
 ## Parser (Bison)
 
-The parser is defined in `src/parser/idyl.y`. It builds an **Abstract Syntax Tree** (AST) from token streams. Key AST node types (defined in `src/parser/ast.hpp`):
+The parser is defined in `src/parser/idyl.y`. It builds an **Abstract Syntax Tree** (AST) from token streams. All node types are defined in `src/parser/ast.hpp` under the `node_t` enum:
+
+**Literals**
 
 | Node type | Represents |
 |-----------|------------|
-| `NumberLiteral` | Numeric value |
-| `TimeLiteral` | Time value with unit |
-| `StringLiteral` | Quoted string |
-| `TriggerLiteral` | `!` trigger value |
-| `RestLiteral` | `_` rest value |
-| `Identifier` | Variable reference |
-| `BinaryExpr` | Binary operation |
-| `UnaryExpr` | Unary operation |
-| `TernaryExpr` | 2-way ternary |
-| `MultiTernaryExpr` | Multi-way ternary |
-| `FunctionCall` | `f(args)` |
-| `FunctionDef` | `f(params) = body` |
-| `TemporalLambda` | `f(dt=...) = v \|> { ... }` |
-| `FlowLiteral` | `[1, 2, 3]` |
-| `GeneratorExpr` | `[x = 0..n : expr]` |
-| `ProcessBlock` | `process name: { ... }` |
-| `InitBlock` | `init: { ... }` |
-| `EmitStmt` | `emit name = expr` |
-| `CatchBlock` | `instance catch name: { ... }` |
-| `EmitAccess` | `instance::name` |
-| `Assignment` | `x = expr` |
-| `LibImport` | `import("path")` |
-| `ModuleImport` | `module("name")` |
+| `number_literal` | Numeric value |
+| `time_literal` | Time value with unit (`100ms`, `1s`, `440hz`, `2b`, `120bpm`) |
+| `string_literal` | Quoted string |
+| `trigger_literal` | `!` trigger value |
+| `rest_literal` | `_` rest value |
+
+**Expressions**
+
+| Node type | Represents |
+|-----------|------------|
+| `identifier` | Variable reference |
+| `binary_op` | Binary operation (`+`, `-`, `*`, `/`, `%`, bitwise, comparison) |
+| `unary_op` | Unary negation or bitwise NOT |
+| `ternary_op` | `cond ? a; b` — 2-way or multi-way selection |
+| `memory_op` | `'(expr)` or `'(expr, N)` — sample-based circular delay |
+| `flow_literal` | `[1, 2, 3]` — simple flow literal |
+| `generator_expr` | `[x = 0..n : expr]` — flow generator |
+| `repetition_marker` | `\|N\|` — repeat bar; expands the preceding element or group N times in the physical table |
+| `flow_member` | Named member inside `flow { }`: `name [on gate]: [...]` |
+| `function_call` | `f(args)` |
+| `flow_access` | `flow[index]` — trigger, integer, or float indexing |
+| `module_access` | `lib::name` — namespace access or emit accessor `instance::event` |
+| `memory_op_expr` | Wrapper expression node for `memory_op` |
+| `self_stop_expr` | `stop` inside a temporal lambda body — terminates the instance |
+| `block_expr` | Anonymous block `{ stmt; …; expr }` |
+
+**Definitions**
+
+| Node type | Represents |
+|-----------|------------|
+| `function_definition` | `f(params) = body` — pure or temporal (with `\|> { }` lambda) |
+| `flow_definition` | `flow name = { member: [...] }` — global named-member flow |
+| `init_block` | `init: { … }` inside a temporal lambda |
+| `lambda_block` | `\|> { init: { } update-stmts }` — temporal update body |
+| `parameter` | Single function parameter (name, optional default, trigger flag) |
+| `argument` | Single call argument (positional or named) |
+
+**Statements**
+
+| Node type | Represents |
+|-----------|------------|
+| `assignment` | `x = expr` |
+| `expression_stmt` | Bare function call (side-effect without assignment) |
+| `catch_block` | `catch instance::event: { … }` |
+| `at_block` | `@(time): { … }` — one-shot deferred execution block |
+| `on_block` | `on expr: { … }` — trigger-gated reaction block |
+| `each_block` | `each n in count [, dt=time]: { … }` — counted loop |
+| `stop_statement` | `stop [name]` — stop current or named process |
+| `start_statement` | `start name` — start a named process |
+| `process_block` | `process [name] [, dur=…]: { … }` |
+| `library_import` | `import("path")` |
+| `module_import` | `module("name")` |
 
 ---
 
 ## Semantic analyzer
 
-The semantic analyzer (`src/semantic/analyzer.cpp`) performs **7 ordered passes**:
+The semantic analyzer (`src/semantic/analyzer.cpp`) runs **2 passes** over the AST before any code executes.
 
-### Pass 1 — Library collection
-Collects all `import()` calls, resolves paths, detects circular dependencies.
+### Pass 1 — `global_scope_pass`
 
-### Pass 2 — Module collection
-Collects `module()` imports, validates module names.
+A single forward scan of all top-level statements. In order:
 
-### Pass 3 — Top-level binding
-Registers all top-level names (functions, constants, process blocks) into the global scope.
+1. **Library imports** — `import("path")` calls are resolved, the file is loaded and parsed, circular imports are detected, and library symbols are registered (namespaced if the import is named).
+2. **Module imports** — `module("name")` directives are collected and validated against known built-in module names.
+3. **Top-level binding** — every top-level function definition, flow definition, and process block is entered into the global scope so that mutual references resolve correctly in pass 2.
 
-### Pass 4 — Function analysis
-Validates function definitions: parameter counts, default values, return types. Checks for recursion and undefined references.
+### Pass 2 — `resolve`
 
-### Pass 5 — Temporal analysis
-Validates temporal lambdas: ensures `dt=` or trigger parameters are present, checks init blocks, validates state variable usage.
+A recursive descent over every node in the AST. For each node type it performs the checks relevant to that construct:
 
-### Pass 6 — Flow analysis
-Validates flow literals and generators: checks bounds, member names, access patterns.
+- **Name resolution** — every identifier is verified against the scope chain; undefined names produce an error.
+- **Arity checking** — call argument counts are checked against the declared parameter list.
+- **Temporal validation** — temporal functions must have a `dt=` or trigger parameter; `stop` may only appear inside a lambda update body; `emit` names are recorded.
+- **Flow validation** — flow member names are unique; gated members (`on`) reference a member that appears before them.
+- **Scope structure** — `catch`, `each`, `on`, and `@` blocks are validated for correct nesting and consistent emit/catch pairing.
 
-### Pass 7 — Process block analysis
-Validates process block contents: ensures temporal functions are properly instantiated, checks emit/catch consistency, validates duration expressions.
-
-Each pass uses the **scope system** (`src/semantic/scope.hpp`) and **symbol table** (`src/semantic/symbol.hpp`) to track declarations and detect errors before evaluation begins.
+Both passes use the **scope system** (`src/semantic/scope.hpp`) and **symbol table** (`src/semantic/symbol.hpp`). All diagnostics are collected and reported before evaluation begins — no code runs if the program contains errors.
 
 ---
 
@@ -119,12 +162,16 @@ The evaluator (`src/core/evaluator.cpp`) is a **tree-walking interpreter**. It t
 | Component | File | Purpose |
 |-----------|------|---------|
 | `Environment` | `src/core/environment.hpp` | Runtime scope chain for variable lookup |
-| `function_defs_` | `src/core/evaluator.hpp` | Map of function name → AST definition node |
-| `fn_library_scope_` | `src/core/evaluator.hpp` | Map of qualified name → library-local scope |
+| `function_defs_` | `src/core/evaluator.hpp` | Map of interned name ID → AST function definition |
+| `fn_library_scope_` | `src/core/evaluator.hpp` | Map of qualified name → library-local scope (for namespaced imports) |
+| `instances_` | `src/core/evaluator.hpp` | Map of instance ID → live `function_instance` (temporal functions) |
+| `live_processes_` | `src/core/evaluator.hpp` | Map of process name → `live_process` (segments, reactions, catch blocks) |
+| `stored_processes_` | `src/core/evaluator.hpp` | Map of process name → AST node (for listen mode) |
+| `flow_cache_` | `src/core/evaluator.hpp` | Cache of (flow name, args) → built flow value (for parametric flows) |
 | `Scheduler` | `src/time/scheduler.hpp` | Drift-free timer management |
 | `ClockRegistry` | `src/core/core.hpp` | Clock hierarchy and tempo propagation |
 | `ModuleRegistry` | `src/include/module.hpp` | Lazy-loaded module catalog and handles |
-| `ProcessStore` | `src/core/evaluator.hpp` | Named process blocks for listen mode |
+| `vm_` | `src/vm/vm.hpp` | Bytecode VM for compiled pure functions and reaction lists |
 
 ---
 
@@ -232,6 +279,87 @@ Each tick:
 4. Advance the next fire time by exactly `dt`.
 
 The scheduler runs in a tight loop with a configurable sleep granularity to balance CPU usage against timing precision.
+
+---
+
+## Bytecode VM
+
+The bytecode VM (`src/vm/`) accelerates execution of pure functions and process-block reaction lists. It sits alongside the AST-walking evaluator: the evaluator attempts to compile eligible code at definition time and dispatches to the VM at call time, falling back to AST-walking for anything the compiler does not support.
+
+### Components
+
+| File | Purpose |
+|------|---------|
+| `src/vm/instruction.hpp` | `opcode` enum and `instruction` struct |
+| `src/vm/chunk.hpp` | `bytecode_fn` — one compiled unit (instruction array + constant pool) |
+| `src/vm/compiler.hpp/cpp` | AST → bytecode compiler |
+| `src/vm/vm.hpp/cpp` | Stack-based VM execution engine |
+
+### Instruction format
+
+Each `instruction` is a fixed-width 8-byte struct:
+
+```
+┌────────┬────────┬────────┬──────────────────────┐
+│  op    │   a    │   b    │          c            │
+│ uint8  │ uint16 │ uint16 │        int32          │
+└────────┴────────┴────────┴──────────────────────┘
+ opcode   slot /   builtin   fn_id (CALL) /
+          argc /   idx       jump offset (JUMP) /
+          const-             reserved
+          idx
+```
+
+### Instruction set
+
+| Category | Opcodes |
+|----------|---------|
+| Loads / stores | `LOAD_CONST`, `LOAD_LOCAL`, `STORE_LOCAL`, `LOAD_NIL`, `POP`, `LOAD_GLOBAL`, `STORE_GLOBAL` |
+| Arithmetic | `ADD`, `SUB`, `MUL`, `DIV`, `MOD` |
+| Unary | `NEG`, `NOT_OP` |
+| Comparison | `LT`, `LE`, `GT`, `GE`, `EQ`, `NE` |
+| Logical | `AND`, `OR` |
+| String | `CONCAT` |
+| Flow | `FLOW_INDEX` — pop index and flow, push the element at the wrapped physical slot |
+| Control | `JUMP` (unconditional, relative offset), `JUMP_IF_FALSY` (pop condition, branch) |
+| Calls | `CALL` (compiled user function by fn_id), `CALL_NATIVE` (built-in by index) |
+| Return | `RETURN` |
+
+### Compilation scope
+
+**What gets compiled:**
+
+- **Pure user functions** (`function_definition` with no lambda block, no named arguments, supported expression types) — compiled at the moment the function is registered, before any process block runs.
+- **Reaction lists** — the statement lists inside `on` blocks that fire on every temporal tick. Variables are accessed via `LOAD_GLOBAL`/`STORE_GLOBAL` because reactions operate on the live process environment.
+
+**What falls back to AST-walking:**
+
+- Temporal functions (lambda blocks, `init`, state update)
+- `each` loops, `@` deferred blocks, `catch` blocks, `start`/`stop`
+- Functions with named arguments or unsupported AST nodes (flow literals, module calls, etc.)
+- Any call made while the VM is already active (re-entrancy guard — the VM is not re-entrant)
+
+### Integration with the evaluator
+
+```
+evaluator::register_function(def)
+    └── try_compile(def, fn_id)          ← compiler returns bytecode_fn or nullptr
+            └── vm_.store(fn_id, chunk)
+
+evaluator::eval_user_function(key, args)
+    ├── if vm_.has_compiled(fn_id)
+    │       └── vm_.run(fn_id, args)     ← fast path
+    └── else
+            └── ast_walk(def, args)      ← fallback
+
+scheduler tick → reaction fires
+    ├── if rxn.compiled_reactions
+    │       └── vm_.run_reactions(chunk) ← fast path
+    └── else
+            └── ast_walk(reactions)      ← fallback
+```
+
+On hot-reload, affected function chunks and reaction chunks are recompiled automatically before the next tick.
 
 ---
 

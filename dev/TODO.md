@@ -18,7 +18,7 @@ This must be done in a smart way :
 - [syntax] : loops in flows (generators) and loops in `each` do no share syntax (`each n in 1..4` against `n = 1..4`) 
 - [crash] Some issues make the vm crash : this should be avoided ! 
 
-- [issue] repeat bars (from syntax.md) do not seem implemented (or badly, probably according to ancient design when there were no comma separators). Needs to be implemented syntactically before checking engine behavior. 
+- [implemented] repeat bars (from syntax.md) do not seem implemented (or badly, probably according to ancient design when there were no comma separators). Needs to be implemented syntactically before checking engine behavior. 
 - [question_or_issue] hot reloading a repeating temporal loop (nested in a on bloc for example) will only occur when iterator repeats, is that correct behavior ? I understand it is logic on the engine side. How can we think this. 
 - [question_or_issue] stop and start from OSC (probably from idyl too) restarts counter of a temporal each loop (arpeggio for example). It it what we decided ?  Maybe there should also be a "pause" primitive and OSC action to just suspend process. 
 
