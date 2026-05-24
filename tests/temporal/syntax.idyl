@@ -212,25 +212,25 @@ bitwise_not(x) = ~int_a(x)
 simple_sequence = [1, 2, 3, 4, 5]
 
 // Flow with arithmetic sequence
-numbers_0_to_9 = [i = 0..9 : i]
+numbers_0_to_9 = [i in 0..9 : i]
 
 // Flow with scaling
-doubled_values = [i = 0..9 : i * 2]
+doubled_values = [i in 0..9 : i * 2]
 
 // Flow with function application
-squared_values = [i = 1..5 : square(i)]
+squared_values = [i in 1..5 : square(i)]
 
 // Flow with range and expression
 harmonics(fundamental_freq) = 
-    [harmonic = 1..8 : fundamental_freq * harmonic]
+    [harmonic in 1..8 : fundamental_freq * harmonic]
 
 // Sine table for wavetable synthesis
 sine_table(table_size) = 
-    [i = 0..table_size - 1 : sin(i / table_size * 2 * pi)]
+    [i in 0..table_size - 1 : sin(i / table_size * 2 * pi)]
 
 // Musical scale degrees (12-tone equal temperament)
 chromatic_scale(root_freq) = 
-    [semitone = 0..11 : root_freq * (2.0 ^ (semitone / 12.0))]
+    [semitone in 0..11 : root_freq * (2.0 ^ (semitone / 12.0))]
 
 
 // ============================================================================
@@ -242,10 +242,10 @@ chromatic_scale(root_freq) =
 // Here we use a constant sustain level (0.7) as a concrete example.
 sustain_lvl = 0.7
 flow envelope_data(attack_time, decay_time, release_time) = {
-    attack: [i = 0..100 : i / 100]
-    decay: [i = 0..50 : sustain_lvl + (1 - sustain_lvl) * (1 - i / 50)]
+    attack: [i in 0..100 : i / 100]
+    decay: [i in 0..50 : sustain_lvl + (1 - sustain_lvl) * (1 - i / 50)]
     sustain: [sustain_lvl]
-    release: [i = 0..100 : sustain_lvl * (1 - i / 100)]
+    release: [i in 0..100 : sustain_lvl * (1 - i / 100)]
 }
 
 // A flow representing musical intervals
@@ -421,11 +421,11 @@ chain_effects(input, scale1, offset1, scale2, offset2) =
 
 // Apply function to flow elements (use len, not length)
 apply_to_flow(flow_input, scale_factor) = 
-    [i = 0..len(flow_input) : flow_input[i] * scale_factor]
+    [i in 0..len(flow_input) : flow_input[i] * scale_factor]
 
 // Combine two flows element-wise
 combine_flows(flow_a, flow_b) = 
-    [i = 0..len(flow_a) : blend(flow_a[i], flow_b[i], 0.5)]
+    [i in 0..len(flow_a) : blend(flow_a[i], flow_b[i], 0.5)]
 
 
 // ============================================================================

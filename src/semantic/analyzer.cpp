@@ -854,13 +854,15 @@ namespace idyl::semantic {
                 resolve(std::static_pointer_cast<parser::generator_expr_node>(node)->generator_);
                 break;
             }
-            case parser::node_t::generator_expr: 
+            case parser::node_t::generator_expr:
             {
                 idyl::debug("Resolving generator expression.");
                 auto gen = std::static_pointer_cast<parser::generator_expr>(node);
-                // Resolve range bounds first (outside generator scope)
-                resolve(gen->range_start_);
-                resolve(gen->range_end_);
+                // Resolve bounds first (outside generator scope)
+                if (gen->count_expr_)  resolve(gen->count_expr_);
+                if (gen->range_start_) resolve(gen->range_start_);
+                if (gen->range_end_)   resolve(gen->range_end_);
+                if (gen->step_expr_)   resolve(gen->step_expr_);
                 // Push a scope for the generator variable, then resolve the body
                 scope_stack_.push(scope_t::function_body);
                 scope_stack_.define(gen->variable_, symbol_info{symbol_t::local_variable, gen->variable_, node->line_, node->column_});

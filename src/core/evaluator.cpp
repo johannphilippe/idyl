@@ -2618,18 +2618,43 @@ value evaluator::eval_flow_literal(const parser::flow_literal& fl) {
 }
 
 value evaluator::eval_generator(const parser::generator_expr& gen) {
-    value start = eval_expr(gen.range_start_);
-    value end = eval_expr(gen.range_end_);
-    int s = static_cast<int>(start.as_number());
-    int n = static_cast<int>(end.as_number());
+    double start_d, end_d, step_d;
+    if (gen.count_expr_) {
+        start_d = 0.0;
+        end_d   = eval_expr(gen.count_expr_).as_number() - 1.0;
+        step_d  = 1.0;
+    } else {
+        start_d = gen.range_start_ ? eval_expr(gen.range_start_).as_number() : 0.0;
+        end_d   = gen.range_end_   ? eval_expr(gen.range_end_).as_number()   : 0.0;
+        step_d  = gen.step_expr_   ? eval_expr(gen.step_expr_).as_number()
+                                   : (start_d <= end_d ? 1.0 : -1.0);
+    }
 
     auto fd = std::make_shared<flow_data>();
     flow_member fm;
 
+    if (step_d == 0.0) {
+        fd->members_.push_back(std::move(fm));
+        return value::from_flow(std::move(fd));
+    }
+
     env_.push_scope();
-    for (int i = s; i < n; ++i) {
-        env_.define(gen.variable_, value::number(static_cast<double>(i)));
-        fm.elements_.push_back(eval_expr(gen.body_));
+    if (step_d > 0.0) {
+        for (double i = start_d; i <= end_d + 1e-9; i += step_d) {
+            env_.define(gen.variable_, value::number(i));
+            fm.elements_.push_back(eval_expr(gen.body_));
+            fm.live_exprs_.push_back(nullptr);
+            fm.live_deps_.push_back(nullptr);
+            fm.repeat_counts_.push_back(1);
+        }
+    } else {
+        for (double i = start_d; i >= end_d - 1e-9; i += step_d) {
+            env_.define(gen.variable_, value::number(i));
+            fm.elements_.push_back(eval_expr(gen.body_));
+            fm.live_exprs_.push_back(nullptr);
+            fm.live_deps_.push_back(nullptr);
+            fm.repeat_counts_.push_back(1);
+        }
     }
     env_.pop_scope();
 
@@ -2700,17 +2725,38 @@ std::shared_ptr<flow_data> evaluator::eval_flow_members(
                 auto& gn = static_cast<const parser::generator_expr_node&>(*member->value_);
                 if (gn.generator_) {
                     auto& gen = *gn.generator_;
-                    int s = static_cast<int>(eval_expr(gen.range_start_).as_number());
-                    int n = static_cast<int>(eval_expr(gen.range_end_).as_number());
-                    env_.push_scope();
-                    for (int i = s; i < n; ++i) {
-                        env_.define(gen.variable_, value::number(static_cast<double>(i)));
-                        fm.elements_.push_back(eval_expr(gen.body_));
-                        fm.live_exprs_.push_back(nullptr);
-                        fm.live_deps_.push_back(nullptr);
-                        fm.repeat_counts_.push_back(1);
+                    double start_d, end_d, step_d;
+                    if (gen.count_expr_) {
+                        start_d = 0.0;
+                        end_d   = eval_expr(gen.count_expr_).as_number() - 1.0;
+                        step_d  = 1.0;
+                    } else {
+                        start_d = gen.range_start_ ? eval_expr(gen.range_start_).as_number() : 0.0;
+                        end_d   = gen.range_end_   ? eval_expr(gen.range_end_).as_number()   : 0.0;
+                        step_d  = gen.step_expr_   ? eval_expr(gen.step_expr_).as_number()
+                                                   : (start_d <= end_d ? 1.0 : -1.0);
                     }
-                    env_.pop_scope();
+                    if (step_d != 0.0) {
+                        env_.push_scope();
+                        if (step_d > 0.0) {
+                            for (double i = start_d; i <= end_d + 1e-9; i += step_d) {
+                                env_.define(gen.variable_, value::number(i));
+                                fm.elements_.push_back(eval_expr(gen.body_));
+                                fm.live_exprs_.push_back(nullptr);
+                                fm.live_deps_.push_back(nullptr);
+                                fm.repeat_counts_.push_back(1);
+                            }
+                        } else {
+                            for (double i = start_d; i >= end_d - 1e-9; i += step_d) {
+                                env_.define(gen.variable_, value::number(i));
+                                fm.elements_.push_back(eval_expr(gen.body_));
+                                fm.live_exprs_.push_back(nullptr);
+                                fm.live_deps_.push_back(nullptr);
+                                fm.repeat_counts_.push_back(1);
+                            }
+                        }
+                        env_.pop_scope();
+                    }
                 }
             } else {
                 last_instantiated_ = nullptr;

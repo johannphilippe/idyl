@@ -420,19 +420,52 @@ flow_elements
     ;
 
 generator_expression
-    : LBRACKET IDENTIFIER ASSIGN expression RANGE expression COLON expression RBRACKET
+    // count form: [i in N : body]
+    : LBRACKET IDENTIFIER IN expression COLON expression RBRACKET
     {
         auto gen = std::make_shared<idyl::parser::generator_expr>();
-        gen->variable_ = $2;
-        gen->range_start_ = $4;
-        gen->range_end_ = $6;
-        gen->body_ = $8;
-        gen->line_ = @1.begin.line;
-        gen->column_ = @1.begin.column;
+        gen->variable_   = $2;
+        gen->count_expr_ = $4;
+        gen->body_       = $6;
+        gen->line_       = @1.begin.line;
+        gen->column_     = @1.begin.column;
         auto expr = std::make_shared<idyl::parser::generator_expr_node>();
         expr->generator_ = gen;
-        expr->line_ = @1.begin.line;
-        expr->column_ = @1.begin.column;
+        expr->line_      = @1.begin.line;
+        expr->column_    = @1.begin.column;
+        $$ = expr;
+    }
+    // range form: [i in S..E : body]
+    | LBRACKET IDENTIFIER IN expression RANGE expression COLON expression RBRACKET
+    {
+        auto gen = std::make_shared<idyl::parser::generator_expr>();
+        gen->variable_    = $2;
+        gen->range_start_ = $4;
+        gen->range_end_   = $6;
+        gen->body_        = $8;
+        gen->line_        = @1.begin.line;
+        gen->column_      = @1.begin.column;
+        auto expr = std::make_shared<idyl::parser::generator_expr_node>();
+        expr->generator_ = gen;
+        expr->line_      = @1.begin.line;
+        expr->column_    = @1.begin.column;
+        $$ = expr;
+    }
+    // range+step form: [i in S..E..ST : body]
+    | LBRACKET IDENTIFIER IN expression RANGE expression RANGE expression COLON expression RBRACKET
+    {
+        auto gen = std::make_shared<idyl::parser::generator_expr>();
+        gen->variable_    = $2;
+        gen->range_start_ = $4;
+        gen->range_end_   = $6;
+        gen->step_expr_   = $8;
+        gen->body_        = $10;
+        gen->line_        = @1.begin.line;
+        gen->column_      = @1.begin.column;
+        auto expr = std::make_shared<idyl::parser::generator_expr_node>();
+        expr->generator_ = gen;
+        expr->line_      = @1.begin.line;
+        expr->column_    = @1.begin.column;
         $$ = expr;
     }
     ;

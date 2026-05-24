@@ -252,17 +252,21 @@ struct memory_op : node {
 
 struct generator_expr : node {
     std::string variable_;
-    expr_ptr range_start_;
+    expr_ptr count_expr_;   // [i in N : body]           — count form
+    expr_ptr range_start_;  // [i in S..E : body]        — range form
     expr_ptr range_end_;
+    expr_ptr step_expr_;    // [i in S..E..ST : body]    — range+step form
     expr_ptr body_;
-    
+
     generator_expr() : node(node_t::generator_expr) {}
-    
+
     void print(int indent = 0) const override {
         printIndent(indent);
-        std::cout << "GeneratorExpr([" << variable_ << " = range : expr])\n";
+        std::cout << "GeneratorExpr([" << variable_ << " in range : expr])\n";
+        if (count_expr_)  count_expr_->print(indent + 1);
         if (range_start_) range_start_->print(indent + 1);
-        if (range_end_) range_end_->print(indent + 1);
+        if (range_end_)   range_end_->print(indent + 1);
+        if (step_expr_)   step_expr_->print(indent + 1);
         if (body_) body_->print(indent + 1);
     }
 };

@@ -29,26 +29,29 @@ notes      = [60, 62, 64, 67, 69]
 
 ## Generator expressions
 
-Create flows programmatically with the `[var = range : expression]` syntax:
+Create flows programmatically with the `[var in range : expression]` syntax. Three forms are supported:
 
 ```idyl
-// 0 through 9
-numbers = [i = 0..9 : i]
+// Count form — var runs 0 … N-1
+fives = [i in 5 : i * 2]            // [0, 2, 4, 6, 8]
 
-// Doubled
-doubled = [i = 0..9 : i * 2]
+// Range form — ascending (exclusive end)
+squares = [i in 1..5 : i * i]       // [1, 4, 9, 16, 25]
 
-// Squares
-squares = [i = 1..5 : i * i]
+// Range form — descending (direction inferred automatically)
+countdown = [i in 5..1 : i]         // [5, 4, 3, 2, 1]
+
+// Range + step (float step allowed)
+thirds = [i in 0..1..0.25 : i]      // [0, 0.25, 0.5, 0.75, 1.0]
 
 // Using functions
-harmonics(root) = [h = 1..8 : root * h]
+harmonics(root) = [h in 1..8 : root * h]
 
 // Sine table
-sine_table(size) = [i = 0..size - 1 : sin(i / size * 2 * pi)]
+sine_table(size) = [i in 0..size - 1 : sin(i / size * 2 * pi)]
 ```
 
-The range `start..end` is inclusive of `start`, exclusive of `end`.
+For the two-value range form, `start..end` is inclusive of both ends. Direction is inferred: ascending when `start ≤ end`, descending otherwise. The step form `start..end..step` walks by `step` (which may be a float).
 
 ---
 
@@ -146,10 +149,10 @@ scale(root) = [root, root * 1.125, root * 1.25, root * 1.5]
 sustain_lvl = 0.7
 
 envelope_data(attack_time, decay_time, release_time) = flow {
-    attack:  [i = 0..100 : i / 100]
-    decay:   [i = 0..50 : sustain_lvl + (1 - sustain_lvl) * (1 - i / 50)]
+    attack:  [i in 0..100 : i / 100]
+    decay:   [i in 0..50 : sustain_lvl + (1 - sustain_lvl) * (1 - i / 50)]
     sustain: [sustain_lvl]
-    release: [i = 0..100 : sustain_lvl * (1 - i / 100)]
+    release: [i in 0..100 : sustain_lvl * (1 - i / 100)]
 }
 ```
 
@@ -259,7 +262,7 @@ Flows are indexed with brackets:
 
 ```idyl
 process: {
-    scale = [i = 0..11 : 440 * pow(2.0, i / 12.0)]
+    scale = [i in 0..11 : 440 * pow(2.0, i / 12.0)]
     first_note = scale[0]
     fifth_note = scale[4]
     print(first_note, fifth_note)
@@ -358,10 +361,10 @@ flow_a = [1, 2, 3, 4]
 flow_b = [10, 20, 30, 40]
 
 // Element-wise combination
-combined = [i = 0..len(flow_a) : flow_a[i] + flow_b[i]]
+combined = [i in 0..len(flow_a) : flow_a[i] + flow_b[i]]
 
 // Scale every element
-scaled = [i = 0..len(flow_a) : flow_a[i] * 2]
+scaled = [i in 0..len(flow_a) : flow_a[i] * 2]
 ```
 
 ---

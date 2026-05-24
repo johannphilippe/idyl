@@ -88,7 +88,7 @@ The parser is defined in `src/parser/idyl.y`. It builds an **Abstract Syntax Tre
 | `ternary_op` | `cond ? a; b` — 2-way or multi-way selection |
 | `memory_op` | `'(expr)` or `'(expr, N)` — sample-based circular delay |
 | `flow_literal` | `[1, 2, 3]` — simple flow literal |
-| `generator_expr` | `[x = 0..n : expr]` — flow generator |
+| `generator_expr` | `[x in N : expr]` / `[x in S..E : expr]` / `[x in S..E..ST : expr]` — flow generator (count, range, range+step) |
 | `repetition_marker` | `\|N\|` — repeat bar; expands the preceding element or group N times in the physical table |
 | `flow_member` | Named member inside `flow { }`: `name [on gate]: [...]` |
 | `function_call` | `f(args)` |

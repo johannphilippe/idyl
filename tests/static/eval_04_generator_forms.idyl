@@ -1,0 +1,64 @@
+/*
+  Evaluator Test 04: Generator expression forms
+  ──────────────────────────────────────────────
+  Tests: count form, ascending range, descending range, float step.
+
+  Expected output:
+    === count form [i in 5 : i * 2] ===
+    0
+    2
+    4
+    6
+    8
+    === ascending range [i in 1..5 : i * i] ===
+    1
+    4
+    9
+    16
+    25
+    === descending range [i in 5..1 : i] ===
+    5
+    4
+    3
+    2
+    1
+    === float step [i in 0..1..0.25 : i] ===
+    0
+    0.25
+    0.5
+    0.75
+    1
+    done
+*/
+
+import("stdlib")
+
+flow count_gen  = [i in 5      : i * 2]
+flow asc_gen    = [i in 1..5   : i * i]
+flow desc_gen   = [i in 5..1   : i]
+flow step_gen   = [i in 0..1..0.25 : i]
+
+process: {
+    print("=== count form [i in 5 : i * 2] ===")
+    each n in len(count_gen): {
+        print(count_gen[n])
+    }
+
+    print("=== ascending range [i in 1..5 : i * i] ===")
+    each n in len(asc_gen): {
+        print(asc_gen[n])
+    }
+
+    print("=== descending range [i in 5..1 : i] ===")
+    each n in len(desc_gen): {
+        print(desc_gen[n])
+    }
+
+    print("=== float step [i in 0..1..0.25 : i] ===")
+    each n in len(step_gen): {
+        print(step_gen[n])
+    }
+
+    print("done")
+    @(200ms): { stop }
+}

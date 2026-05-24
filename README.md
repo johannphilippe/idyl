@@ -127,7 +127,7 @@ drum_pattern = flow {
 }
 
 // Functions returning flows — no `flow` keyword needed for simple lists
-chromatic(root) = [semitone = 0..11 : root * pow(2.0, semitone / 12.0)]
+chromatic(root) = [semitone in 0..11 : root * pow(2.0, semitone / 12.0)]
 intervals(root) = [root, root * 1.25, root * 1.5]
 
 // Functions returning named-member flows — use `flow { }`

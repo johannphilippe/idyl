@@ -204,13 +204,13 @@ Instead of imperative loops, use generators to create flows:
 
 ```idyl
 // Range
-numbers = [i = 0..10 : i]
+numbers = [i in 0..10 : i]
 
 // With transform
-table = [i = 0..256 : sin(i / 256 * 2 * pi)]
+table = [i in 0..256 : sin(i / 256 * 2 * pi)]
 
 // Chromatic scale
-chromatic(root) = [s = 0..11 : root * pow(2.0, s / 12.0)]
+chromatic(root) = [s in 0..11 : root * pow(2.0, s / 12.0)]
 ```
 
 Generators are declarative, composable, and produce flows directly.

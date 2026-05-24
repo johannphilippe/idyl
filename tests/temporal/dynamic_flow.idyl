@@ -6,9 +6,9 @@ flow pattern(i) = {
 
 flow incr_pattern = [2, 12, 24]
 
-flow gen_pattern(i) = [n = 1..4: 50 + n + i]
+flow gen_pattern(i) = [n in 1..4: 50 + n + i]
 
-functional(i) = [n = 1..4: 50 + n + i]
+functional(i) = [n in 1..4: 50 + n + i]
 
 
 process: {
