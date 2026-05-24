@@ -1409,11 +1409,15 @@ namespace idyl::semantic {
             case parser::node_t::start_statement:
             {
                 if(auto start = std::static_pointer_cast<parser::start_statement>(node); start->target_.empty()) {
-                    // Error, start statement must have a target 
-                        diagnostics_.push_back(diagnostic{severity::error,
-                            "Start statement missing target flow name.",
-                            node->line_, node->column_});
+                    diagnostics_.push_back(diagnostic{severity::error,
+                        "Start statement missing target flow name.",
+                        node->line_, node->column_});
                 }
+                return inferred_t::trigger;
+            }
+            case parser::node_t::pause_statement:
+            case parser::node_t::resume_statement:
+            {
                 return inferred_t::trigger;
             }
 

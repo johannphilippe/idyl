@@ -59,7 +59,7 @@ syn match   idylOperator      '[+\-*/%<>&|^~?]'
 syn match   idylAssign        '=\ze[^>=]'
 
 " ── Control keywords ────────────────────────────────────────────────────────
-syn keyword idylControl       process catch emit init start stop on each in
+syn keyword idylControl       process catch emit init start stop pause resume on each in
 
 " ── Declaration keywords ────────────────────────────────────────────────────
 syn keyword idylDecl          flow import module

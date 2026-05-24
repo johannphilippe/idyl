@@ -31,12 +31,12 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/johann/Documents/git/idyl/src/parser/location.hh
+ ** \file src/parser/location.hh
  ** Define the yy::location class.
  */
 
-#ifndef YY_YY_HOME_JOHANN_DOCUMENTS_GIT_IDYL_SRC_PARSER_LOCATION_HH_INCLUDED
-# define YY_YY_HOME_JOHANN_DOCUMENTS_GIT_IDYL_SRC_PARSER_LOCATION_HH_INCLUDED
+#ifndef YY_YY_SRC_PARSER_LOCATION_HH_INCLUDED
+# define YY_YY_SRC_PARSER_LOCATION_HH_INCLUDED
 
 # include <iostream>
 # include <string>
@@ -54,7 +54,7 @@
 # endif
 
 namespace yy {
-#line 58 "/home/johann/Documents/git/idyl/src/parser/location.hh"
+#line 58 "src/parser/location.hh"
 
   /// A point in a source file.
   class position
@@ -299,6 +299,6 @@ namespace yy {
   }
 
 } // yy
-#line 303 "/home/johann/Documents/git/idyl/src/parser/location.hh"
+#line 303 "src/parser/location.hh"
 
-#endif // !YY_YY_HOME_JOHANN_DOCUMENTS_GIT_IDYL_SRC_PARSER_LOCATION_HH_INCLUDED
+#endif // !YY_YY_SRC_PARSER_LOCATION_HH_INCLUDED

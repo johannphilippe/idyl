@@ -88,7 +88,12 @@ process test4: {
 
 		}
 	}
+
+	@(3s): {
+		stop test4
+	} 
 }
+
 
 process test5: {
 	clk = clock(120bpm)
@@ -100,11 +105,13 @@ process test5: {
 			print(arp.degree)
 			//arp2 = arps[-n] 
 			//print("arp", n)
-			cs_note(cs, "sine", 1s, 0.3, tune(base, melodic_minor, arp.degree, just), arp.chn)
+			cs_note(cs, "sine", 10s, ff, tune(base, melodic_minor, arp.degree, just), arp.chn)
 			//cs_note(cs, "sine", 10s, 0.3, tune(base, melodic_minor, arp2.degree, just), arp2.chn)
 
 		}
 	}
+
+
 }
 
 process test6: {
@@ -122,4 +129,11 @@ process test6: {
 
 		}
 	}
+}
+
+flow cnt = [1 , 2, 3, 4, 5] 
+process test7: {
+	m = metro(0.5s)
+	print(cnt[metro(0.5s)])
+	print(cnt[metro(0.5s)], cnt[m])
 }

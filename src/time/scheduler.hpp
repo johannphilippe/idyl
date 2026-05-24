@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -44,10 +45,14 @@ using tick_fn = std::function<bool(double current_time_ms, double dt_ms)>;
 
 // ── Subscription record ────────────────────────────────────────────────────────
 struct subscription {
-    subscription_id  id_       = 0;
-    double           dt_ms_    = 0.0;     // tick interval in milliseconds
+    subscription_id  id_             = 0;
+    double           dt_ms_          = 0.0;
     tick_fn          callback_;
-    bool             active_   = true;
+    bool             active_         = true;
+    std::string      process_tag_;           // owning process name (empty = unowned)
+    bool             paused_         = false;
+    time_point_t     last_fire_at_   = {};  // deadline of the last successful tick
+    uint64_t         armed_generation_ = 0; // incremented on each arm; stale lambdas exit
 };
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -63,9 +68,13 @@ struct idyl_scheduler {
     virtual void            stop()                                               = 0;
     virtual bool            is_running()   const noexcept                        = 0;
 
-    virtual subscription_id subscribe(double dt_ms, tick_fn callback)            = 0;
+    virtual subscription_id subscribe(double dt_ms, tick_fn callback,
+                                      std::string process_tag = "")              = 0;
     virtual void            unsubscribe(subscription_id id)                      = 0;
     virtual void            update_dt(subscription_id id, double new_dt_ms)      = 0;
+
+    virtual void            pause_process(const std::string& name)               = 0;
+    virtual void            resume_process(const std::string& name)              = 0;
 
     virtual double          now_ms()       const noexcept                        = 0;
     virtual std::size_t     active_count() const noexcept                        = 0;
@@ -118,23 +127,25 @@ struct sys_clock_scheduler : idyl_scheduler {
     // ── Subscribe / unsubscribe ────────────────────────────────────────────────
 
     // Register a periodic callback with the given tick interval.
-    // Returns a handle that can be passed to unsubscribe().
-    subscription_id subscribe(double dt_ms, tick_fn callback) override {
+    // process_tag, if non-empty, associates this subscription with a named
+    // process so that pause_process() / resume_process() can target it.
+    subscription_id subscribe(double dt_ms, tick_fn callback,
+                              std::string process_tag = "") override {
         subscription_id id = next_id_++;
 
         subscription sub;
-        sub.id_       = id;
-        sub.dt_ms_    = dt_ms;
-        sub.callback_ = std::move(callback);
-        sub.active_   = true;
+        sub.id_          = id;
+        sub.dt_ms_       = dt_ms;
+        sub.callback_    = std::move(callback);
+        sub.active_      = true;
+        sub.process_tag_ = std::move(process_tag);
 
         {
             std::lock_guard<std::mutex> lock(subs_mutex_);
             subscriptions_[id] = std::move(sub);
         }
 
-        // Schedule the first tick
-        schedule_next_(id, steady_clock_t::now());
+        arm_subscription_(id, steady_clock_t::now());
         return id;
     }
 
@@ -155,6 +166,66 @@ struct sys_clock_scheduler : idyl_scheduler {
         auto it = subscriptions_.find(id);
         if (it != subscriptions_.end())
             it->second.dt_ms_ = new_dt_ms;
+    }
+
+    // Pause all subscriptions tagged with name.  Their lambdas will detect the
+    // paused_ flag on the next fire, save their current fire_at, and return
+    // nullopt — removing themselves from the engine queue while staying in the
+    // subscriptions_ map.
+    void pause_process(const std::string& name) override {
+        std::lock_guard<std::mutex> lock(subs_mutex_);
+        for (auto& [id, sub] : subscriptions_) {
+            if (sub.process_tag_ == name && sub.active_ && !sub.paused_)
+                sub.paused_ = true;
+        }
+        paused_at_[name] = steady_clock_t::now();
+    }
+
+    // Resume all subscriptions tagged with name.
+    // Uses phase-preserving timing: the first tick fires at expected_next + pause_dur,
+    // where expected_next = last_fire_at_ + dt.  This ensures an each-loop subscription
+    // always fires before the outer metro subscription (same ordering as before the
+    // pause), so the each-loop plays its remaining iterations without overlap.
+    void resume_process(const std::string& name) override {
+        time_point_t resume_at = steady_clock_t::now();
+
+        // Collect baselines under the lock, then arm outside it
+        // (arm_subscription_ acquires subs_mutex_ internally).
+        std::vector<std::pair<subscription_id, time_point_t>> to_arm;
+        {
+            std::lock_guard<std::mutex> lock(subs_mutex_);
+            auto pause_it = paused_at_.find(name);
+            if (pause_it == paused_at_.end()) return;
+            auto pause_dur = resume_at - pause_it->second;
+            paused_at_.erase(pause_it);
+
+            for (auto& [id, sub] : subscriptions_) {
+                if (sub.process_tag_ == name && sub.active_ && sub.paused_) {
+                    sub.paused_ = false;
+                    // Pre-invalidate the old lambda NOW, while we hold the lock.
+                    sub.armed_generation_++;
+
+                    auto dt_dur = std::chrono::duration_cast<duration_t>(
+                        std::chrono::duration<double, std::milli>(sub.dt_ms_));
+
+                    time_point_t baseline;
+                    if (sub.last_fire_at_ != time_point_t{}) {
+                        // Phase-preserving: fire at (last_fire_at_ + dt + pause_dur).
+                        // Because last_fire_at_ + dt = the next scheduled deadline
+                        // (drift-free), shifting by pause_dur maintains relative order
+                        // between subscriptions (e.g., each-loop before outer metro).
+                        baseline = sub.last_fire_at_ + pause_dur;
+                    } else {
+                        // Never ticked yet — fire at resume_at.
+                        baseline = resume_at - dt_dur;
+                    }
+                    to_arm.emplace_back(id, baseline);
+                }
+            }
+        }
+
+        for (auto& [id, baseline] : to_arm)
+            arm_subscription_(id, baseline);
     }
 
     // ── Queries ────────────────────────────────────────────────────────────────
@@ -189,14 +260,20 @@ private:
     // get here.  Reserved for future metrics / logging.
     void on_engine_event_(const engine_event& /*ev*/) {}
 
-    // ── Schedule the next tick for a subscription ──────────────────────────────
-    void schedule_next_(subscription_id id, time_point_t baseline) {
-        double dt_ms = 0.0;
+    // ── Arm a subscription: schedule its next tick at fire_at + dt ───────────────
+    // Used both by subscribe() (initial arm) and resume_process() (re-arm).
+    // Caller must NOT hold subs_mutex_.
+    void arm_subscription_(subscription_id id, time_point_t baseline) {
+        double   dt_ms = 0.0;
+        uint64_t gen   = 0;
         {
             std::lock_guard<std::mutex> lock(subs_mutex_);
             auto it = subscriptions_.find(id);
             if (it == subscriptions_.end() || !it->second.active_) return;
             dt_ms = it->second.dt_ms_;
+            // Increment generation so any older lambda in the engine queue will
+            // detect the mismatch and exit without firing.
+            gen = ++it->second.armed_generation_;
         }
 
         auto dt_dur  = std::chrono::duration_cast<duration_t>(
@@ -208,11 +285,14 @@ private:
         ev.member_time    = fire_at;
         ev.member_payload = tick_payload{id};
 
-        // Self-rescheduling callback: fires the user tick, then returns
-        // the next drift-free deadline (previous deadline + current dt).
-        // dt is re-read from the subscription record each tick so that
-        // update_dt() takes effect on the very next reschedule.
-        ev.member_callback = [this, dt_ms, fire_at](tick_payload& payload) mutable
+        // Self-rescheduling callback.
+        // On each fire:
+        //   1. If inactive → erase and return nullopt.
+        //   2. If generation mismatch → stale lambda (superseded by resume re-arm) → exit.
+        //   3. If paused  → return nullopt (resume re-arms with immediate baseline)
+        //                    (subscription stays in map; resume re-arms it).
+        //   4. Normal tick → invoke callback, reschedule at next deadline.
+        ev.member_callback = [this, dt_ms, fire_at, gen](tick_payload& payload) mutable
             -> std::optional<time_point_t>
         {
             tick_fn cb;
@@ -222,8 +302,23 @@ private:
                 auto it = subscriptions_.find(payload.sub_id);
                 if (it == subscriptions_.end() || !it->second.active_)
                     return std::nullopt;
+
+                // Stale lambda: a newer arm superseded us (e.g. resume re-arm).
+                if (it->second.armed_generation_ != gen)
+                    return std::nullopt;
+
+                // Paused: save the deadline we would have fired at and leave
+                // the engine queue (subscription stays alive in the map).
+                if (it->second.paused_) {
+                    return std::nullopt;
+                }
+
+                // Record the deadline of this successful tick so resume_process
+                // can compute expected_next = last_fire_at_ + dt even when the
+                // lambda hasn't had a chance to detect the pause yet (quick pause).
+                it->second.last_fire_at_ = fire_at;
                 cb = it->second.callback_;
-                current_dt_ms = it->second.dt_ms_;  // read live value
+                current_dt_ms = it->second.dt_ms_;
             }
 
             double t = now_ms();
@@ -235,9 +330,7 @@ private:
                 return std::nullopt;
             }
 
-            // Re-read dt after the callback: tick_instance may have called
-            // update_dt() to reflect a tempo change or dynamic dt update.
-            // Using the post-callback value keeps the reschedule in sync.
+            // Re-read dt after the callback so update_dt() takes effect.
             {
                 std::lock_guard<std::mutex> lock(subs_mutex_);
                 auto it2 = subscriptions_.find(payload.sub_id);
@@ -245,10 +338,15 @@ private:
                     current_dt_ms = it2->second.dt_ms_;
             }
 
-            // Drift-free: next deadline = previous deadline + current dt
+            // Drift-free: next deadline = previous deadline + current dt.
+            // Skip ahead by whole periods if we fell behind (avoids burst
+            // catch-up firing that causes audible duplicate notes).
             auto current_dt_dur = std::chrono::duration_cast<duration_t>(
                 std::chrono::duration<double, std::milli>(current_dt_ms));
             fire_at += current_dt_dur;
+            auto now_tp = steady_clock_t::now();
+            while (fire_at <= now_tp)
+                fire_at += current_dt_dur;
             return fire_at;
         };
 
@@ -263,6 +361,7 @@ private:
     mutable std::mutex                                 subs_mutex_;
     std::unordered_map<subscription_id, subscription>  subscriptions_;
     std::atomic<subscription_id>                       next_id_{1};
+    std::unordered_map<std::string, time_point_t>      paused_at_;
 };
 
 } // namespace idyl::time

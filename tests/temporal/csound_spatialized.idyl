@@ -4,7 +4,7 @@ module("csound")
 flow seq = {
 	rhythm: [_, !, _, _, !, !, _ , _ , ! , ! , _ ]
 	notes on rhythm: [50, 53, 60, 67, 65, 69] 
-	ch on rhythm: [i= 1..8 : i ]
+	ch on rhythm: [i in 1..8 : i ]
 }
 
 handle = cs_open("csound_spatialized.csd") 

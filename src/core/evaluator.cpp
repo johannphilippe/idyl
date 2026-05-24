@@ -319,6 +319,17 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 continue;
             }
 
+            // start/stop/pause/resume internally create/destroy instances for OTHER
+            // processes.  Those must never become temporal segments of the enclosing
+            // process — executing them directly avoids the created_instance check.
+            if (s->type_ == parser::node_t::start_statement ||
+                s->type_ == parser::node_t::stop_statement  ||
+                s->type_ == parser::node_t::pause_statement ||
+                s->type_ == parser::node_t::resume_statement) {
+                exec_stmt(s);
+                continue;
+            }
+
             // Extract variable name if this is a binding
             std::string binding_name;
             if (s->type_ == parser::node_t::function_definition)
@@ -454,7 +465,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                                 }
                             }
                             return true;
-                        });
+                        }, current_process_name_);
                 }
             }
         }
@@ -675,7 +686,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         }
 
                         return !should_end;
-                    });
+                    }, proc.name_);
             }
         }
 
@@ -734,12 +745,19 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         // Capture handler statements and current evaluator reference.
         // The process scope is kept alive (has_temporal = true in process loop),
         // so env_ variables remain valid when the callback fires.
+        // Capture current_process_name_ so that bare `pause`/`resume`/`stop`
+        // inside the handler resolve to the owning process, not whatever other
+        // callback happened to run last.
         auto handler = atb.handler_;
+        auto at_proc_name = current_process_name_;
         scheduler_->subscribe(delay_ms,
-            [this, handler](double /*t*/, double /*dt*/) -> bool {
+            [this, handler, at_proc_name](double /*t*/, double /*dt*/) -> bool {
                 std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
+                auto saved_proc = current_process_name_;
+                current_process_name_ = at_proc_name;
                 for (const auto& h : handler)
                     exec_stmt(h);
+                current_process_name_ = saved_proc;
                 return false;  // one-shot: do not reschedule
             });
         break;
@@ -815,7 +833,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                             for (const auto& h : handler) exec_stmt(h);
                             env_.pop_scope();
                             return count + 1 < seq.size();  // stop after one full cycle
-                        });
+                        }, current_process_name_);
                     if (!current_process_name_.empty())
                         process_each_subs_[current_process_name_].push_back(sub_id);
                 }
@@ -861,6 +879,26 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
         if (!start_process(target)) {
             warnings_.push_back({start_stmt.line_, start_stmt.column_,
                 "No stored process named '" + target + "' found to start."});
+        }
+        break;
+    }
+
+    case parser::node_t::pause_statement: {
+        auto& ps = static_cast<const parser::pause_statement&>(*stmt);
+        std::string ptarget = ps.target_.empty() ? current_process_name_ : ps.target_;
+        if (!pause_process(ptarget)) {
+            warnings_.push_back({ps.line_, ps.column_,
+                "No running process named '" + ptarget + "' found to pause."});
+        }
+        break;
+    }
+
+    case parser::node_t::resume_statement: {
+        auto& rs = static_cast<const parser::resume_statement&>(*stmt);
+        std::string rtarget = rs.target_.empty() ? current_process_name_ : rs.target_;
+        if (!resume_process(rtarget)) {
+            warnings_.push_back({rs.line_, rs.column_,
+                "No paused process named '" + rtarget + "' found to resume."});
         }
         break;
     }
@@ -2909,7 +2947,7 @@ void evaluator::schedule_instance(std::shared_ptr<function_instance> inst) {
             }
             tick_instance(si, def_ptr);
             return true;
-        });
+        }, current_process_name_);
 }
 
 void evaluator::auto_schedule_flow(flow_data& fd) {
@@ -2954,6 +2992,16 @@ bool evaluator::start_process(const std::string& name) {
         return false;
     }
 
+    // Smart start: if paused → resume (no fresh instantiation).
+    {
+        auto lp_it = live_processes_.find(name);
+        if (lp_it != live_processes_.end() &&
+            lp_it->second.state == process_state::paused) {
+            std::cout << "Resuming paused process '" << name << "'.\n";
+            return resume_process(name);
+        }
+    }
+
     // If already running, stop first.
     // Track whether this is a restart so we can suppress module side-effects
     // (cs_note etc.) during the setup exec_stmt below.  Without suppression,
@@ -2980,6 +3028,11 @@ bool evaluator::start_process(const std::string& name) {
 
     std::cout << "Starting process '" << name << "'.\n";
     exec_stmt(std::static_pointer_cast<parser::statement>(it->second));
+
+    // Mark running state.
+    auto lp_it = live_processes_.find(name);
+    if (lp_it != live_processes_.end())
+        lp_it->second.state = process_state::running;
 
     process_filter_  = saved_filter;
     listen_mode_     = saved_listen;
@@ -3026,8 +3079,37 @@ bool evaluator::stop_process(const std::string& name) {
             if (seg.rxn)
                 seg.rxn->cancelled.store(true, std::memory_order_release);
         }
+        lp_it->second.state = process_state::stopped;
     }
 
+    return true;
+}
+
+bool evaluator::pause_process(const std::string& name) {
+    std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
+
+    auto lp_it = live_processes_.find(name);
+    if (lp_it == live_processes_.end() ||
+        lp_it->second.state != process_state::running)
+        return false;
+
+    lp_it->second.state = process_state::paused;
+    if (scheduler_) scheduler_->pause_process(name);
+    std::cout << "Paused process '" << name << "'.\n";
+    return true;
+}
+
+bool evaluator::resume_process(const std::string& name) {
+    std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
+
+    auto lp_it = live_processes_.find(name);
+    if (lp_it == live_processes_.end() ||
+        lp_it->second.state != process_state::paused)
+        return false;
+
+    lp_it->second.state = process_state::running;
+    if (scheduler_) scheduler_->resume_process(name);
+    std::cout << "Resumed process '" << name << "'.\n";
     return true;
 }
 
@@ -3813,7 +3895,7 @@ void evaluator::diff_and_apply(live_process& lp,
                     }
 
                     return true;
-                });
+                }, lp.name);
         }
 
         lp.segments.push_back(std::move(new_seg));

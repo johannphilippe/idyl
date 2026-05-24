@@ -198,12 +198,15 @@ namespace idyl::core {
             std::shared_ptr<reaction_set>   rxn;    // shared with scheduler closure
         };
 
+        enum class process_state { running, paused, stopped };
+
         // live_process: complete live state of one running named process.
         struct live_process {
             std::string                                     name;
             std::shared_ptr<parser::process_block>          ast;
             std::vector<live_segment>                       segments;
             std::size_t                                     scope_depth = 0;
+            process_state                                   state = process_state::running;
         };
 
         // Authoritative live state for all running named processes.
@@ -229,9 +232,11 @@ namespace idyl::core {
         // `a = note(spike!, freq)` don't fire cs_note at hot-reload time.
         bool speculative_exec_ = false;
 
-        // ── Process start / stop (listen mode) ─────────────────────────────────
-        bool start_process(const std::string& name);
+        // ── Process lifecycle (listen mode) ────────────────────────────────────
+        bool start_process(const std::string& name);   // smart: resume if paused, fresh if stopped
         bool stop_process(const std::string& name);
+        bool pause_process(const std::string& name);
+        bool resume_process(const std::string& name);
         std::vector<std::string> list_stored_processes() const;
 
         // ── Hot reload ─────────────────────────────────────────────────────────

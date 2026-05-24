@@ -12,14 +12,14 @@ flow simple = [1, 2, 3, 4, 5]
 flow computed = [10, 20, 30]
 
 // ── Generator: identity ───────────────────────────────────────────
-flow identity = [i in0..5 : i]
+flow identity = [i in 0..5 : i]
 
 // ── Generator: doubling ───────────────────────────────────────────
-flow doubled = [i in1..6 : i * 2]
+flow doubled = [i in 1..6 : i * 2]
 
 // ── Generator with function ───────────────────────────────────────
 square(x) = x * x
-flow squares = [i in1..5 : square(i)]
+flow squares = [i in 1..5 : square(i)]
 
 // ── Multi-member flow ─────────────────────────────────────────────
 flow intervals = {
@@ -30,8 +30,8 @@ flow intervals = {
 
 // ── Multi-member flow with generators ─────────────────────────────
 flow scale_data = {
-    degrees: [i in0..4 : i]
-    freqs: [i in0..4 : 440 * (i + 1)]
+    degrees: [i in 0..4 : i]
+    freqs: [i in 0..4 : 440 * (i + 1)]
 }
 
 process: {

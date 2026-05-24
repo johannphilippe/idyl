@@ -246,8 +246,8 @@ int main(int argc, char** argv) {
         // Commands are queued from the listener thread and dispatched on the
         // main thread to avoid concurrent evaluator access.
         struct listen_command {
-            enum class type { start, stop, list, eval } type_;
-            std::string name_;   // process name for start/stop; source code for eval
+            enum class type { start, stop, pause, resume, list, eval } type_;
+            std::string name_;   // process name for start/stop/pause/resume; source code for eval
         };
         std::mutex cmd_mutex;
         std::deque<listen_command> cmd_queue;
@@ -292,6 +292,18 @@ int main(int argc, char** argv) {
                                 if (name) {
                                     std::lock_guard<std::mutex> lk(cmd_mutex);
                                     cmd_queue.push_back(listen_command{listen_command::type::stop, *name});
+                                }
+                            } else if (addr == "/idyl/process/pause") {
+                                auto name = msg.try_get<std::string>(0);
+                                if (name) {
+                                    std::lock_guard<std::mutex> lk(cmd_mutex);
+                                    cmd_queue.push_back(listen_command{listen_command::type::pause, *name});
+                                }
+                            } else if (addr == "/idyl/process/resume") {
+                                auto name = msg.try_get<std::string>(0);
+                                if (name) {
+                                    std::lock_guard<std::mutex> lk(cmd_mutex);
+                                    cmd_queue.push_back(listen_command{listen_command::type::resume, *name});
                                 }
                             } else if (addr == "/idyl/process/list") {
                                 std::lock_guard<std::mutex> lk(cmd_mutex);
@@ -339,6 +351,18 @@ int main(int argc, char** argv) {
                                 std::cerr << "listen: stopped '" << cmd.name_ << "'\n";
                             else
                                 std::cerr << "listen: '" << cmd.name_ << "' not running\n";
+                            break;
+                        case listen_command::type::pause:
+                            if (eval.pause_process(cmd.name_))
+                                std::cerr << "listen: paused '" << cmd.name_ << "'\n";
+                            else
+                                std::cerr << "listen: '" << cmd.name_ << "' not running\n";
+                            break;
+                        case listen_command::type::resume:
+                            if (eval.resume_process(cmd.name_))
+                                std::cerr << "listen: resumed '" << cmd.name_ << "'\n";
+                            else
+                                std::cerr << "listen: '" << cmd.name_ << "' not paused\n";
                             break;
                         case listen_command::type::list: {
                             auto names = eval.list_stored_processes();

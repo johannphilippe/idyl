@@ -15,7 +15,9 @@ This must be done in a smart way :
 
 ## Known bugs (unsolved)
 
-- [syntax] : loops in flows (generators) and loops in `each` do no share syntax (`each n in 1..4` against `n = 1..4`) 
+- [bug] : pause/resume in system clock scheduler (each arpeggio inside an on block) causes duplicates of a few events. Working fine in audio clock.
+- [issue_or_question] tests/temporal/trigger_and_stop.idyl : several consecutive ternary do not parse . Also, behavior of trigger as conditions is unclear.
+- [done] : loops in flows (generators) and loops in `each` do no share syntax (`each n in 1..4` against `n = 1..4`) 
 - [crash] Some issues make the vm crash : this should be avoided ! 
 
 - [implemented] repeat bars (from syntax.md) do not seem implemented (or badly, probably according to ancient design when there were no comma separators). Needs to be implemented syntactically before checking engine behavior. 
@@ -81,6 +83,7 @@ c = counter(dt=300ms)
     - `start` : `dawn`, `rise`, `wake`, `spark` (dawn)
     - `stop`: `ease`, `dim`, `wane` , 
     - `catch`: `meet`, `hear`, `heed` (favoritee hear)
+    - `on` : 
 
 for example, rise a tide, then wane it. inside the tide, everything can drift.
 And we can hear some signals.

@@ -1,0 +1,16 @@
+
+func(spike!) = spike
+
+process: {
+    print(func(!))
+
+    a = (_) ? 0 ; 1 
+    b = (!) ? 0 ; 1
+
+    print(a, b)
+
+    print( (_) ? "silent double ternary" ; "trigger double ternary")
+    print( (!) ? "silent double ternary" ; "trigger double ternary")
+    print( (0) ? "silent double ternary" ; "trigger double ternary")
+    print( (1) ? "silent double ternary" ; "trigger double ternary")
+}

@@ -1,0 +1,18 @@
+import("stdlib")
+
+process counter: {
+    m = metro(dt=500ms)
+    on m: {
+        print("tick")
+    }
+}
+
+process ctrl: {
+    start counter
+    @(1000ms): { pause counter }
+    @(3000ms): { resume counter }
+    @(5000ms): {
+        stop counter
+        stop ctrl
+    }
+}

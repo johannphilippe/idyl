@@ -112,7 +112,8 @@ struct audio_clock_scheduler : idyl_scheduler {
 
     // ── Subscribe / unsubscribe ────────────────────────────────────────────────
 
-    subscription_id subscribe(double dt_ms, tick_fn callback) override {
+    subscription_id subscribe(double dt_ms, tick_fn callback,
+                              std::string process_tag = "") override {
         subscription_id id = next_id_++;
 
         subs_entry e;
@@ -121,10 +122,41 @@ struct audio_clock_scheduler : idyl_scheduler {
         e.callback_     = std::move(callback);
         e.next_fire_ms_ = now_ms() + dt_ms;
         e.active_       = true;
+        e.process_tag_  = std::move(process_tag);
 
         std::lock_guard<std::mutex> lk(subs_mutex_);
         subscriptions_[id] = std::move(e);
         return id;
+    }
+
+    void pause_process(const std::string& name) override {
+        std::lock_guard<std::mutex> lk(subs_mutex_);
+        for (auto& [id, e] : subscriptions_) {
+            if (e.process_tag_ == name && e.active_ && !e.paused_)
+                e.paused_ = true;
+        }
+        paused_at_[name] = now_ms();
+    }
+
+    void resume_process(const std::string& name) override {
+        std::lock_guard<std::mutex> lk(subs_mutex_);
+        const double now = now_ms();
+        auto pit = paused_at_.find(name);
+        if (pit == paused_at_.end()) return;
+        const double pause_dur_ms = now - pit->second;
+        paused_at_.erase(pit);
+
+        for (auto& [id, e] : subscriptions_) {
+            if (e.process_tag_ == name && e.active_ && e.paused_) {
+                e.paused_        = false;
+                // Phase-preserving: shift next_fire_ms_ by pause duration.
+                // next_fire_ms_ already holds the expected next deadline (set after
+                // each fire in fire_due_), so adding pause_dur preserves the relative
+                // ordering between subscriptions — the each-loop fires before the
+                // outer metro, same as before the pause.
+                e.next_fire_ms_ += pause_dur_ms;
+            }
+        }
     }
 
     void unsubscribe(subscription_id id) override {
@@ -165,6 +197,8 @@ private:
         double          next_fire_ms_ = 0.0;
         tick_fn         callback_;
         bool            active_       = true;
+        bool            paused_       = false;
+        std::string     process_tag_;
     };
 
     // ── State ──────────────────────────────────────────────────────────────────
@@ -177,6 +211,7 @@ private:
     mutable std::mutex                               subs_mutex_;
     std::unordered_map<subscription_id, subs_entry>  subscriptions_;
     std::atomic<subscription_id>                     next_id_{1};
+    std::unordered_map<std::string, double>          paused_at_;
 
     // ── Worker thread — platform dispatch ─────────────────────────────────────
 
@@ -282,7 +317,7 @@ private:
         {
             std::lock_guard<std::mutex> lk(subs_mutex_);
             for (const auto& [id, e] : subscriptions_)
-                if (e.active_ && now >= e.next_fire_ms_)
+                if (e.active_ && !e.paused_ && now >= e.next_fire_ms_)
                     due.push_back(id);
         }
 
@@ -294,7 +329,7 @@ private:
             {
                 std::lock_guard<std::mutex> lk(subs_mutex_);
                 auto it = subscriptions_.find(id);
-                if (it == subscriptions_.end() || !it->second.active_) continue;
+                if (it == subscriptions_.end() || !it->second.active_ || it->second.paused_) continue;
                 cb           = it->second.callback_;
                 dt_ms        = it->second.dt_ms_;
                 prev_fire_ms = it->second.next_fire_ms_;

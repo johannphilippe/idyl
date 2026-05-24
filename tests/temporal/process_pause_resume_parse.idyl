@@ -1,0 +1,30 @@
+/*
+  Parser test: pause / resume statement syntax
+  ─────────────────────────────────────────────
+  Verifies that `pause name` and `resume name` parse correctly when
+  nested inside a process body (inside a catch or on-block handler).
+  The process itself is not started (listen mode is not active here),
+  so no output is produced — this is a parse-only / no-crash test.
+
+  Expected output:
+    done
+*/
+
+import("stdlib")
+
+process my_proc: {
+    m = metro(dt=200ms)
+    on metro(0.5s): {
+        print("tick")
+    }
+}
+
+process ctrl: {
+    @(1000ms): {
+        pause my_proc
+    }
+    @(3000ms): {
+        resume my_proc
+    }
+
+}

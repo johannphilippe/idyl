@@ -144,6 +144,26 @@ function! IdylStopProcess() abort
   call s:SendOsc(l:name, '/idyl/process/stop')
 endfunction
 
+function! IdylPauseProcess() abort
+  let l:name = s:CleanName(IdylProcessNameAtCursor())
+  if empty(l:name)
+    echom '[idyl] no process name found — is cursor inside a process block?'
+    return
+  endif
+  echom '[idyl] pause "' . l:name . '"'
+  call s:SendOsc(l:name, '/idyl/process/pause')
+endfunction
+
+function! IdylResumeProcess() abort
+  let l:name = s:CleanName(IdylProcessNameAtCursor())
+  if empty(l:name)
+    echom '[idyl] no process name found — is cursor inside a process block?'
+    return
+  endif
+  echom '[idyl] resume "' . l:name . '"'
+  call s:SendOsc(l:name, '/idyl/process/resume')
+endfunction
+
 function! IdylDiag(name) abort
   let l:name = s:CleanName(a:name)
   echom '[idyl-diag] sending start "' . l:name . '"'
@@ -156,6 +176,8 @@ command! -nargs=1 IdylDiag call IdylDiag(<q-args>)
 function! s:ApplyMappings() abort
   nnoremap <buffer> <nowait> <silent> s :<C-u>call IdylStartProcess()<CR>
   nnoremap <buffer> <nowait> <silent> q :<C-u>call IdylStopProcess()<CR>
+  nnoremap <buffer> <nowait> <silent> z :<C-u>call IdylPauseProcess()<CR>
+  nnoremap <buffer> <nowait> <silent> r :<C-u>call IdylResumeProcess()<CR>
   nnoremap <buffer> <nowait> <silent> t :<C-u>call IdylEvalAtCursor()<CR>
   silent! inoremap <buffer> <nowait> <silent> <C-e> <C-o>:call IdylEvalAtCursor()<CR>
 endfunction

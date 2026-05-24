@@ -35,6 +35,7 @@ enum class node_t {
     expression_stmt, assignment, catch_block, at_block, on_block, each_block,
     function_definition, process_block_body, process_block,
     library_import, module_import, stop_statement, start_statement, sched_statement,
+    pause_statement, resume_statement,
     // Special expression: self-stop inside temporal lambda block
     self_stop_expr,
     // Top-level
@@ -808,6 +809,28 @@ struct start_statement : statement {
     void print(int indent = 0) const override {
         printIndent(indent);
         std::cout << "StartStatement(start"
+                  << (target_.empty() ? "" : " " + target_) << ")\n";
+    }
+};
+
+struct pause_statement : statement {
+    std::string target_;
+    pause_statement() : statement(node_t::pause_statement) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "PauseStatement(pause"
+                  << (target_.empty() ? "" : " " + target_) << ")\n";
+    }
+};
+
+struct resume_statement : statement {
+    std::string target_;
+    resume_statement() : statement(node_t::resume_statement) {}
+
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        std::cout << "ResumeStatement(resume"
                   << (target_.empty() ? "" : " " + target_) << ")\n";
     }
 };

@@ -2,7 +2,7 @@
 %require "3.8"
 %language "c++"
 
-%expect 16
+%expect 18
 
 %locations
 %define parse.error verbose
@@ -41,7 +41,7 @@
 %token <std::string> TIME_LITERAL
 %token <std::string> STRING_LITERAL
 
-%token FLOW PROCESS IMPORT MODULE INIT EMIT CATCH END DT DUR STOP START AGE
+%token FLOW PROCESS IMPORT MODULE INIT EMIT CATCH END DT DUR STOP START AGE PAUSE RESUME
 %token LAMBDA_BLOCK NAMESPACE_DOT MEMORY_OP RANGE REST AT_OP
 %token <std::string> REPEAT_MARKER
 %token PLUS MINUS MUL DIV MOD
@@ -69,6 +69,8 @@
 %type <idyl::parser::node_ptr> program
 %type <std::shared_ptr<idyl::parser::stop_statement>> stop_statement
 %type <std::shared_ptr<idyl::parser::start_statement>> start_statement
+%type <std::shared_ptr<idyl::parser::pause_statement>> pause_statement
+%type <std::shared_ptr<idyl::parser::resume_statement>> resume_statement
 %type <std::vector<idyl::parser::stmt_ptr>> top_level_statements
 %type <idyl::parser::stmt_ptr> top_level_statement
 %type <idyl::parser::stmt_ptr> function_or_flow_definition
@@ -590,11 +592,19 @@ process_body_statement
         assign->column_ = @1.begin.column;
         $$ = assign;
     }
-    | stop_statement 
+    | stop_statement
     {
         $$ = $1;
     }
     | start_statement
+    {
+        $$ = $1;
+    }
+    | pause_statement
+    {
+        $$ = $1;
+    }
+    | resume_statement
     {
         $$ = $1;
     }
@@ -719,13 +729,51 @@ stop_statement
     ;
 
 start_statement
-    : START IDENTIFIER  
+    : START IDENTIFIER
     {
         auto start_stmt = std::make_shared<idyl::parser::start_statement>();
         start_stmt->target_ = $2;
         start_stmt->line_ = @1.begin.line;
         start_stmt->column_ = @1.begin.column;
         $$ = start_stmt;
+    }
+    ;
+
+pause_statement
+    : PAUSE IDENTIFIER
+    {
+        auto stmt = std::make_shared<idyl::parser::pause_statement>();
+        stmt->target_ = $2;
+        stmt->line_ = @1.begin.line;
+        stmt->column_ = @1.begin.column;
+        $$ = stmt;
+    }
+    | PAUSE
+    {
+        auto stmt = std::make_shared<idyl::parser::pause_statement>();
+        stmt->target_ = "";   // empty = current process
+        stmt->line_ = @1.begin.line;
+        stmt->column_ = @1.begin.column;
+        $$ = stmt;
+    }
+    ;
+
+resume_statement
+    : RESUME IDENTIFIER
+    {
+        auto stmt = std::make_shared<idyl::parser::resume_statement>();
+        stmt->target_ = $2;
+        stmt->line_ = @1.begin.line;
+        stmt->column_ = @1.begin.column;
+        $$ = stmt;
+    }
+    | RESUME
+    {
+        auto stmt = std::make_shared<idyl::parser::resume_statement>();
+        stmt->target_ = "";   // empty = current process
+        stmt->line_ = @1.begin.line;
+        stmt->column_ = @1.begin.column;
+        $$ = stmt;
     }
     ;
 
@@ -920,8 +968,10 @@ block_body_statement
         assign->column_ = @1.begin.column;
         $$ = assign;
     }
-    | stop_statement  { $$ = $1; }
-    | start_statement { $$ = $1; }
+    | stop_statement   { $$ = $1; }
+    | start_statement  { $$ = $1; }
+    | pause_statement  { $$ = $1; }
+    | resume_statement { $$ = $1; }
     | expression
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();

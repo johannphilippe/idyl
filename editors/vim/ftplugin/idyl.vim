@@ -141,6 +141,26 @@ function! IdylStopProcess() abort
   call s:SendOsc(l:name, '/idyl/process/stop')
 endfunction
 
+function! IdylPauseProcess() abort
+  let l:name = s:CleanName(IdylProcessNameAtCursor())
+  if empty(l:name)
+    echom '[idyl] no process name found — is cursor inside a process block?'
+    return
+  endif
+  echom '[idyl] pause "' . l:name . '"'
+  call s:SendOsc(l:name, '/idyl/process/pause')
+endfunction
+
+function! IdylResumeProcess() abort
+  let l:name = s:CleanName(IdylProcessNameAtCursor())
+  if empty(l:name)
+    echom '[idyl] no process name found — is cursor inside a process block?'
+    return
+  endif
+  echom '[idyl] resume "' . l:name . '"'
+  call s:SendOsc(l:name, '/idyl/process/resume')
+endfunction
+
 " :IdylDiag <name> — send a start OSC directly, bypassing cursor detection.
 " Use this to verify OSC works when s/q don't: :IdylDiag myprocess
 function! IdylDiag(name) abort
