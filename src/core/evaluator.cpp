@@ -3674,7 +3674,20 @@ void evaluator::diff_and_apply(live_process& lp,
                     // Re-extract the dt from the new AST so that a dt change
                     // (e.g. counter(dt=0.3s) → counter(dt=0.5s)) is reflected
                     // in nsi.dt_ms and triggers the scheduler update in pass 1.
-                    auto extract_dt_arg = [](const parser::stmt_ptr& stmt) -> parser::expr_ptr {
+                    //
+                    // Look up the function definition so we can tell whether the
+                    // first positional argument IS the dt parameter.  For functions
+                    // like free_phasor(freq, dt=10ms) or euclid(hits, steps, dt=…),
+                    // the first positional arg is NOT dt, so blindly using it as dt
+                    // would set the wrong scheduler interval on hot-reload.
+                    std::shared_ptr<const parser::function_definition> dt_fdef;
+                    {
+                        uint32_t fn_id = env_.intern(oldseg.def_name);
+                        std::shared_lock lk(defs_mutex_);
+                        auto dit = function_defs_.find(fn_id);
+                        if (dit != function_defs_.end()) dt_fdef = dit->second;
+                    }
+                    auto extract_dt_arg = [&dt_fdef](const parser::stmt_ptr& stmt) -> parser::expr_ptr {
                         parser::expr_ptr call_expr;
                         if (stmt->type_ == parser::node_t::assignment)
                             call_expr = static_cast<const parser::assignment&>(*stmt).value_;
@@ -3704,7 +3717,19 @@ void evaluator::diff_and_apply(live_process& lp,
                             if (arg->name_ == "dt") return arg->value_;
                             if (arg->name_.empty() && !first_pos) first_pos = arg->value_;
                         }
-                        return first_pos; // positional dt (first param of any temporal fn)
+                        // Only treat first_pos as the dt argument when the function's
+                        // first parameter actually IS dt.  For user-defined temporals
+                        // whose first param is something else (e.g. free_phasor(freq,…)
+                        // or euclid(hits, steps,…)), fall back to the old dt so the
+                        // scheduler interval is not wrongly updated on hot-reload.
+                        // Native temporals (no fdef) keep the old heuristic.
+                        if (first_pos && dt_fdef && !dt_fdef->parameters_.empty()
+                                && dt_fdef->parameters_[0]) {
+                            const auto& p0 = *dt_fdef->parameters_[0];
+                            if (p0.name_ != "dt" && !p0.has_default_time_)
+                                return nullptr;
+                        }
+                        return first_pos;
                     };
 
                     double new_dt = oldseg.dt_ms;
@@ -3929,6 +3954,92 @@ void evaluator::diff_and_apply(live_process& lp,
                     pexprs["dt"] = new_dt_expr;
                 else
                     pexprs.erase("dt");
+            }
+        }
+
+        // ── Update non-dt param_exprs from new AST ────────────────────────
+        // The dt block above only updates dt. All other params (e.g. hits,
+        // steps, phase_in) must also be refreshed so hot-reloaded argument
+        // changes take effect without a stop/restart cycle.
+        if (ns.fresh_stmt) {
+            // Extract the function_call_expr from the new binding statement.
+            auto get_call_expr = [](const parser::stmt_ptr& s)
+                    -> const parser::function_call_expr* {
+                if (!s) return nullptr;
+                parser::expr_ptr call_expr;
+                if (s->type_ == parser::node_t::assignment)
+                    call_expr = static_cast<const parser::assignment&>(*s).value_;
+                else if (s->type_ == parser::node_t::function_definition) {
+                    auto& fd = static_cast<const parser::function_definition&>(*s);
+                    if (!fd.lambda_block_) call_expr = fd.body_;
+                }
+                if (!call_expr) return nullptr;
+                if (call_expr->type_ == parser::node_t::binary_op_expr) {
+                    auto& boe = static_cast<const parser::binary_op_expr&>(*call_expr);
+                    if (boe.op_) call_expr = boe.op_->left_;
+                }
+                if (call_expr->type_ == parser::node_t::flow_access_expr) {
+                    auto& fae = static_cast<const parser::flow_access_expr&>(*call_expr);
+                    if (fae.access_ && fae.access_->index_)
+                        call_expr = fae.access_->index_;
+                }
+                if (!call_expr || call_expr->type_ != parser::node_t::function_call_expr)
+                    return nullptr;
+                return &static_cast<const parser::function_call_expr&>(*call_expr);
+            };
+
+            if (auto* fce = get_call_expr(ns.fresh_stmt)) {
+                if (fce->call_) {
+                    // Collect positional and named arg exprs from the new AST.
+                    std::vector<parser::expr_ptr> pos_arg_exprs;
+                    std::unordered_map<std::string, parser::expr_ptr> named_arg_exprs;
+                    for (const auto& arg : fce->call_->arguments_) {
+                        if (!arg) continue;
+                        if (arg->name_.empty()) pos_arg_exprs.push_back(arg->value_);
+                        else named_arg_exprs[arg->name_] = arg->value_;
+                    }
+
+                    // Look up function definition for its parameter order.
+                    uint32_t fn_id = env_.intern(old_seg.def_name);
+                    std::shared_ptr<const parser::function_definition> fdef;
+                    {
+                        std::shared_lock lock(defs_mutex_);
+                        auto dit = function_defs_.find(fn_id);
+                        if (dit != function_defs_.end()) fdef = dit->second;
+                    }
+
+                    if (fdef) {
+                        auto& pexprs = instance_param_exprs_[old_seg.instance_id];
+                        size_t pos_idx = 0;
+                        for (const auto& param_ptr : fdef->parameters_) {
+                            if (!param_ptr) continue;
+                            const auto& pname = param_ptr->name_;
+
+                            parser::expr_ptr src_expr;
+                            auto nit = named_arg_exprs.find(pname);
+                            if (nit != named_arg_exprs.end()) {
+                                src_expr = nit->second;
+                            } else if (pos_idx < pos_arg_exprs.size()) {
+                                src_expr = pos_arg_exprs[pos_idx++];
+                            }
+
+                            if (pname == "dt") continue; // handled by dt block above
+
+                            // Only update pexprs — tick_instance picks up the new
+                            // values on the very next tick under eval_mutex_.
+                            // Eagerly writing inst->params_ here without holding
+                            // eval_mutex_ races with the scheduler thread and can
+                            // corrupt the value struct, causing NaN propagation.
+                            if (src_expr) {
+                                pexprs[pname] = src_expr;
+                            } else {
+                                // Param dropped from new call — clear its dynamic expr
+                                // so tick_instance doesn't keep re-evaluating the old one.
+                                pexprs.erase(pname);
+                            }
+                        }
+                    }
+                }
             }
         }
 

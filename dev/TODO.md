@@ -6,7 +6,6 @@ For live coding purposes (and some other cases), we should be able to hot reload
 This must be done in a smart way : 
 - It must not "reinit" the currently running stateful objects (keep running, with updated things)
 
-
 # TODO 
 
 - Serial read/write utility (in utilities)
@@ -19,6 +18,7 @@ This must be done in a smart way :
 - [issue] dynamic flows do not seem to work properly  : `flow dynamicmel(deg) = [ tune(c2, minor, deg, just), tune(d3, major, deg, just) ]` : the indexing is ok, the argument is taken, 
 but tune is not recomputed on each tick of deg
 
+- [issue] hot reload not changing the values I manually changed (in euclidian rhythm)
 - [issue] hot reloading restarting flow indexing 
 - [issue] stop primitive does not seem to kill process state
 - [todo] delay operator ' currently delays ticks (numbers). It should be able to delay ms, b etc (all temporal primitives). 
@@ -40,7 +40,6 @@ but tune is not recomputed on each tick of deg
 - [fixed] in tests/temporal/clock.idyl : tempo change ratio mismatch — scheduler now re-reads `dt_ms` after the tick callback so `update_dt()` from within the callback takes effect on the same reschedule
 - [fixed] in tests/temporal/local_function_update.idyl : prints 500 twice — closures defined in update blocks no longer push the stale `inst->current_` scope when called from within the same tick; `currently_ticking_inst_` tracks the active instance so env_ values (freshly updated in the tick) are used instead
 - [fixed] tests/temporal/proc_scheduling.idyl : bare `stop` in process catch handler now deactivates the owning instance via `proc_stop_ctx_`
-
 
 - [done] Ternary operator syntax change 
 ```idyl
@@ -108,7 +107,7 @@ This change needs to make sure that :
 
 For now, the syntax (grammar) is flexible enough to allow everything we need 
 
-```idyl```
+```idyl
 lib("stdlib")
 flow pattern(i) = [40+i 50+i 60+i]
 
