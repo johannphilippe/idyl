@@ -138,7 +138,10 @@ struct sys_clock_scheduler : idyl_scheduler {
         sub.dt_ms_       = dt_ms;
         sub.callback_    = std::move(callback);
         sub.active_      = true;
-        sub.process_tag_ = std::move(process_tag);
+        sub.process_tag_ = process_tag;
+
+        std::cerr << "[sched:subscribe] id=" << id
+                  << " dt=" << dt_ms << "ms tag='" << process_tag << "'\n";
 
         {
             std::lock_guard<std::mutex> lock(subs_mutex_);
@@ -175,8 +178,15 @@ struct sys_clock_scheduler : idyl_scheduler {
     void pause_process(const std::string& name) override {
         std::lock_guard<std::mutex> lock(subs_mutex_);
         for (auto& [id, sub] : subscriptions_) {
-            if (sub.process_tag_ == name && sub.active_ && !sub.paused_)
+            if (sub.process_tag_ == name && sub.active_ && !sub.paused_) {
                 sub.paused_ = true;
+                std::cerr << "[sched:pause] id=" << id
+                          << " dt=" << sub.dt_ms_ << "ms last_fire_at="
+                          << (sub.last_fire_at_ == time_point_t{} ? "never"
+                              : std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    sub.last_fire_at_ - origin_).count()) + "ms")
+                          << "\n";
+            }
         }
         paused_at_[name] = steady_clock_t::now();
     }
@@ -210,15 +220,21 @@ struct sys_clock_scheduler : idyl_scheduler {
 
                     time_point_t baseline;
                     if (sub.last_fire_at_ != time_point_t{}) {
-                        // Phase-preserving: fire at (last_fire_at_ + dt + pause_dur).
-                        // Because last_fire_at_ + dt = the next scheduled deadline
-                        // (drift-free), shifting by pause_dur maintains relative order
-                        // between subscriptions (e.g., each-loop before outer metro).
                         baseline = sub.last_fire_at_ + pause_dur;
                     } else {
-                        // Never ticked yet — fire at resume_at.
                         baseline = resume_at - dt_dur;
                     }
+
+                    auto fire_at_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        (baseline + dt_dur) - origin_).count();
+                    auto now_ms_val = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        resume_at - origin_).count();
+                    std::cerr << "[sched:resume] id=" << id
+                              << " dt=" << sub.dt_ms_ << "ms"
+                              << " fire_at=" << fire_at_ms << "ms"
+                              << " now=" << now_ms_val << "ms"
+                              << " gen=" << sub.armed_generation_ << "\n";
+
                     to_arm.emplace_back(id, baseline);
                 }
             }
@@ -292,6 +308,10 @@ private:
         //   3. If paused  → return nullopt (resume re-arms with immediate baseline)
         //                    (subscription stays in map; resume re-arms it).
         //   4. Normal tick → invoke callback, reschedule at next deadline.
+        std::cerr << "[sched:arm] id=" << id << " gen=" << gen
+                  << " fire_at=" << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         fire_at - origin_).count() << "ms\n";
+
         ev.member_callback = [this, dt_ms, fire_at, gen](tick_payload& payload) mutable
             -> std::optional<time_point_t>
         {
@@ -300,18 +320,26 @@ private:
             {
                 std::lock_guard<std::mutex> lock(subs_mutex_);
                 auto it = subscriptions_.find(payload.sub_id);
-                if (it == subscriptions_.end() || !it->second.active_)
+                if (it == subscriptions_.end() || !it->second.active_) {
+                    std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen << " → inactive\n";
                     return std::nullopt;
+                }
 
                 // Stale lambda: a newer arm superseded us (e.g. resume re-arm).
-                if (it->second.armed_generation_ != gen)
+                if (it->second.armed_generation_ != gen) {
+                    std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen
+                              << " → stale (armed_gen=" << it->second.armed_generation_ << ")\n";
                     return std::nullopt;
+                }
 
                 // Paused: save the deadline we would have fired at and leave
                 // the engine queue (subscription stays alive in the map).
                 if (it->second.paused_) {
+                    std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen << " → paused\n";
                     return std::nullopt;
                 }
+
+                std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen << " → FIRE\n";
 
                 // Record the deadline of this successful tick so resume_process
                 // can compute expected_next = last_fire_at_ + dt even when the

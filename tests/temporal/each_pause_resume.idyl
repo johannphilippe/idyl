@@ -1,0 +1,17 @@
+// Reproduce duplicate-note issue on pause/resume with each-loop.
+// Self-pauses at 3s, resumes at 5s, stops at 9s.
+// Expected: notes print exactly once per metro cycle, no duplicates after resume.
+
+process ptest: {
+    clk = clock(120bpm)
+    on metro(clk(4*0.5b)): {
+        print("--- metro ---")
+        each n in 4, dt= clk(0.5b): {
+            print("note", n)
+        }
+    }
+
+    @(3000ms): { pause }
+    @(5000ms): { resume }
+    @(9000ms): { stop }
+}

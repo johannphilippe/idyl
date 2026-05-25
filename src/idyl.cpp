@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
     std::string process_filter;
     bool listen_mode   = false;
     int  listen_port   = 9000;
-    bool audio_clock   = false;
+    bool audio_clock   = true;
     unsigned int audio_sample_rate = 48000;
     uint32_t     audio_buffer_size = 32;
 
@@ -107,6 +107,8 @@ int main(int argc, char** argv) {
         std::string arg = argv[i];
         if (arg == "--trace") {
             trace = true;
+        } else if (arg == "--system-clock" || arg == "-sc") {
+            audio_clock = false;
         } else if (arg == "--audio-clock" || arg == "-ac") { 
             audio_clock = true;
         } else if (arg == "--audio-sample-rate" || arg == "-asr") {

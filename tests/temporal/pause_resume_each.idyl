@@ -1,0 +1,17 @@
+// Minimal pause/resume + each-loop test (no audio).
+// Run with: idyl tests/temporal/pause_resume_each.idyl -l
+// Then send OSC:
+//   /idyl/process/start ptest
+//   /idyl/process/pause ptest
+//   /idyl/process/resume ptest
+// Watch for duplicate "note" prints.
+
+process ptest: {
+    clk = clock(120bpm)
+    on metro(clk(4*0.5b)): {
+        print("metro")
+        each n in 4, dt= clk(0.5b): {
+            print("note", n)
+        }
+    }
+}

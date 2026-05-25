@@ -105,11 +105,26 @@ process test5: {
 			print(arp.degree)
 			//arp2 = arps[-n] 
 			//print("arp", n)
-			cs_note(cs, "sine", 10s, ff, tune(base, melodic_minor, arp.degree, just), arp.chn)
-			//cs_note(cs, "sine", 10s, 0.3, tune(base, melodic_minor, arp2.degree, just), arp2.chn)
+			cs_note(cs, "sine", 1s, ff, tune(base, melodic_minor, arp.degree, just), arp.chn)
+			//cs_note(cs, "sine", 10s, 0.3, tune(base, melodic_minor, mel.degree, just), arp2.chn)
 
 		}
 	}
+	@(3s): {
+		pause
+	} 
+
+	@(5s): {
+		resume
+	}
+	@(6s): {
+
+		pause
+	}
+
+	@(7s): {
+		resume
+	}	
 
 
 }
@@ -136,4 +151,18 @@ process test7: {
 	m = metro(0.5s)
 	print(cnt[metro(0.5s)])
 	print(cnt[metro(0.5s)], cnt[m])
+}
+
+
+process tempotest: {
+	a = metro(1b) 
+	on(a): {
+		cs_note(cs, "sine", 10s, f, tune(c4, melodic_minor, 0, just), 2)
+	}
+}
+process tempotest2: {
+	a = metro(1b) 
+	on(a): {
+		cs_note(cs, "sine", 10s, f, tune(c4, melodic_minor, 3, just), 1)
+	}
 }
