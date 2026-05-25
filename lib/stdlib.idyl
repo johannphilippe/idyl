@@ -17,60 +17,63 @@ tri_shape(phase, amplitude=1) = amplitude * (4 * abs(phase - 0.5) - 1)
 square_shape(phase, amplitude=1) = amplitude * (2 * floor(2 * phase) - 1) * -1
 saw_shape(phase, amplitude=1) = amplitude * (2 * phase - 1)
 
-// Phasor — rising ramp 0→1 at given frequency. Foundation for all oscillators.
-phasor(freq, dt=10ms) = phase |> {
+// Free-running phasor — rising ramp 0→1, phase accumulated from start time.
+// Use this when you want an LFO independent of any clock (e.g. per-voice modulation).
+// For clock-synchronized output use the builtin: phasor(clk, period) or phasor(period).
+free_phasor(freq, dt=10ms) = phase |> {
     init: { phase = 0 }
     phase = fmod(phase + dt / freq, 1)
 }
 
 // Sine — bipolar (-1…+1) low-frequency oscillator.
-sine(freq, amplitude=1, dt=10ms) = out |> {
+// phase_in >= 0: use external phasor (e.g. from phasor(clk, N)) instead of internal accumulation.
+sine(freq, amplitude=1, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = amplitude * sin(phase * tau)
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = amplitude * sin(phase * tau)
 }
 
 // Cosine — bipolar (-1…+1), 90° ahead of sine.
-cosine(freq, amplitude=1, dt=10ms) = out |> {
+cosine(freq, amplitude=1, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = amplitude * cos(phase * tau)
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = amplitude * cos(phase * tau)
 }
 
 // Triangle — bipolar (-1…+1), linear slopes.
-tri(freq, amplitude=1, dt=10ms) = out |> {
+tri(freq, amplitude=1, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = amplitude * (4 * abs(phase - 0.5) - 1)
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = amplitude * (4 * abs(phase - 0.5) - 1)
 }
 
 // Square — bipolar (-1…+1), 50 % duty cycle.
-square(freq, amplitude=1, dt=10ms) = out |> {
+square(freq, amplitude=1, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = amplitude * (2 * floor(2 * phase) - 1) * -1
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = amplitude * (2 * floor(2 * phase) - 1) * -1
 }
 
 // Pulse — bipolar, variable duty cycle (width 0…1).
-pulse(freq, width=0.5, amplitude=1, dt=10ms) = out |> {
+pulse(freq, width=0.5, amplitude=1, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = amplitude * (2 * floor(phase + 1 - width) - 1) * -1
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = amplitude * (2 * floor(phase + 1 - width) - 1) * -1
 }
 
 // Saw — rising ramp -1…+1.
-saw(freq, amplitude=1, dt=10ms) = out |> {
+saw(freq, amplitude=1, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = amplitude * (2 * phase - 1)
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = amplitude * (2 * phase - 1)
 }
 
 // LFO — multi-waveform oscillator. waveform: 0=sine 1=tri 2=square 3=saw.
-// Uses pure shape functions so first-class function dispatch works correctly.
-lfo(freq, amplitude=1, waveform=0, dt=10ms) = out |> {
+// phase_in >= 0: drive with an external phasor for clock-synchronized output.
+lfo(freq, amplitude=1, waveform=0, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = (waveform) ? sine_shape(phase, amplitude); tri_shape(phase, amplitude); square_shape(phase, amplitude); saw_shape(phase, amplitude)
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = (waveform) ? sine_shape(phase, amplitude); tri_shape(phase, amplitude); square_shape(phase, amplitude); saw_shape(phase, amplitude)
 }
 wav_sin     = 0
 wav_tri     = 1
@@ -78,10 +81,10 @@ wav_square  = 2
 wav_saw     = 3
 
 // Ramp — alias for saw.
-ramp(freq, amplitude=1, dt=10ms) = out |> {
+ramp(freq, amplitude=1, dt=10ms, phase_in=-1) = out |> {
     init: { phase = 0 }
-    out = amplitude * (2 * phase - 1)
-    phase = fmod(phase + dt / freq, 1)
+    phase = (phase_in >= 0) ? fmod(phase + dt / freq, 1); phase_in
+    out   = amplitude * (2 * phase - 1)
 }
 
 
@@ -114,17 +117,21 @@ clkdiv(input, n) = trig |> {
 }
 
 // Euclidean rhythm — distribute `hits` triggers over `steps` slots.
-// Outputs a trigger when the current step is an onset.
-euclid(hits, steps, dt=10ms) = trig |> {
+// phase_in >= 0: sync to an external phasor (e.g. phasor(clk, 4b)).
+// rotation: shift all onsets by this many steps (integer).
+euclid(hits, steps, dt=10ms, phase_in=-1, rotation=0) = trig |> {
     init: {
-        phase = 0
-        trig = _
+        prev_step  = -1
+        trig       = _
+        auto_phase = 0
     }
-    prev = int(phase * steps)
-    phase = fmod(phase + dt / (steps * dt), 1)
-    curr = int(phase * steps)
-    onset = fmod(curr * hits, steps) < hits
-    trig = trigger( (curr != prev) * onset)
+    ph         = (phase_in >= 0) ? fmod(auto_phase + dt / (steps * dt), 1); phase_in
+    auto_phase = (phase_in >= 0) ? ph; auto_phase
+    curr_step  = int(ph * steps)
+    rot_step   = int(fmod(curr_step + rotation, steps))
+    onset      = fmod(rot_step * hits, steps) < hits
+    trig       = trigger((curr_step != prev_step) * onset)
+    prev_step  = curr_step
 }
 
 // Coin — trigger that fires with probability `p` (0…1) on each tick.

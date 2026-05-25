@@ -1,0 +1,23 @@
+import("stdlib")
+
+// phasor(clk, N) and synced oscillator test.
+// Two processes start at different times but use a shared clock phasor.
+// Their sine outputs should be in phase (same value at same engine time).
+
+process proc_a: {
+    clk = clock(120bpm)
+    // phasor(clk, 4b) = one ramp 0→1 per 4 beats, engine-time-locked.
+    ph = phasor(clk, 4b)
+    // lfo driven by external phasor — bypasses internal phase accumulation.
+    osc = sine(2hz, phase_in=ph)
+    on sync(clk, 4b): { print("A osc=", osc, " ph=", ph) }
+    @(8000ms): { stop proc_a }
+}
+
+process proc_b: {
+    clk = clock(120bpm)
+    ph = phasor(clk, 4b)
+    osc = sine(2hz, phase_in=ph)
+    on sync(clk, 4b): { print("B osc=", osc, " ph=", ph) }
+    @(8000ms): { stop proc_b }
+}

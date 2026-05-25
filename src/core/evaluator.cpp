@@ -465,7 +465,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                                 }
                             }
                             return true;
-                        }, current_process_name_);
+                        }, current_process_name_, anon_inst->first_fire_ms_);
                 }
             }
         }
@@ -686,7 +686,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                         }
 
                         return !should_end;
-                    }, proc.name_);
+                    }, proc.name_, inst->first_fire_ms_);
             }
         }
 
@@ -1456,7 +1456,10 @@ double evaluator::parse_time_to_ms(const std::string& val, const std::string& un
     if (unit == "s")   return v * 1000.0;
     if (unit == "hz")  return (v > 0.0) ? (1000.0 / v) : 0.0;
     if (unit == "bpm") return (v > 0.0) ? (60000.0 / v) : 0.0;
-    if (unit == "b")   return v * (60000.0 / main_clock_bpm()); // beat duration from main clock
+    if (unit == "b") {
+        double bpm = (context_clock_bpm_ > 0.0) ? context_clock_bpm_ : main_clock_bpm();
+        return v * (60000.0 / bpm);
+    }
     return v;
 }
 
@@ -1670,6 +1673,27 @@ value evaluator::eval_call(const parser::function_call& call) {
         }
     }
 
+    // For sync/phasor: peek at first positional arg before evaluating all args.
+    // If it's an identifier that holds a clock handle, set context_clock_bpm_ so
+    // that beat literals ("4b") in subsequent args use the clock's BPM, not main.
+    if ((fn_name == "sync" || fn_name == "phasor") && !call.arguments_.empty()) {
+        const auto& first_arg = call.arguments_[0];
+        if (first_arg && first_arg->name_.empty() && first_arg->value_
+                && first_arg->value_->type_ == parser::node_t::identifier_expr) {
+            auto& id_node = static_cast<const parser::identifier_expr&>(*first_arg->value_);
+            if (id_node.identifier_) {
+                uint32_t iid = id_node.identifier_->name_id_;
+                if (iid == 0) iid = env_.intern(id_node.identifier_->name_);
+                if (auto* var = env_.lookup(iid)) {
+                    if (var->type_ == value_t::handle) {
+                        uint64_t cid = static_cast<uint64_t>(var->as_handle());
+                        context_clock_bpm_ = clocks_.bpm(cid);
+                    }
+                }
+            }
+        }
+    }
+
     // Evaluate arguments — split positional from named.
     // Also keep the raw AST expressions for dynamic parameter re-evaluation.
     std::vector<value> args;
@@ -1689,6 +1713,7 @@ value evaluator::eval_call(const parser::function_call& call) {
             }
         }
     }
+    context_clock_bpm_ = 0.0; // reset after arg evaluation
 
     // ── Clock handle callable ───────────────────────────────────────────────
     // If fn_name resolves to a clock handle in the environment, treat the call
@@ -1728,10 +1753,11 @@ value evaluator::eval_call(const parser::function_call& call) {
     // These need access to named args and evaluator state, so they are
     // handled before generic builtin dispatch.
     if (fn_name == "clock") {
-        // clock(bpm_value)  or  clock(bpm_value, parent=handle)
+        // clock()            → return main clock handle
+        // clock(bpm_value)   → create a new clock at bpm_value
+        // clock(bpm, parent=handle) → create child clock
         if (args.empty()) {
-            warn(call.line_, call.column_, "clock() requires a BPM argument (e.g. clock(120bpm))");
-            return value::nil();
+            return value::handle(static_cast<intptr_t>(clocks_.main_id_));
         }
         double period_ms = args[0].as_number();  // bpm literal → period in ms
         double bpm = (period_ms > 0.0) ? (60000.0 / period_ms) : 120.0;
@@ -1781,6 +1807,168 @@ value evaluator::eval_call(const parser::function_call& call) {
         }
         uint64_t clock_id = static_cast<uint64_t>(args[0].as_handle());
         return value::number(clocks_.bpm(clock_id));
+    }
+
+    if (fn_name == "scheduler_time") {
+        return value::number(scheduler_ ? scheduler_->now_ms() : 0.0);
+    }
+
+    if (fn_name == "sync") {
+        // sync(period_ms)        — phase-locked trigger using the main clock grid.
+        // sync(clk, period_ms)   — same, explicitly referencing clk's grid.
+        //
+        // Fires every period_ms, first fire snapped to the next multiple of
+        // period_ms after the scheduler origin — so two processes calling
+        // sync(clk, clk(4b)) at different times both fire on the same beat-grid.
+        //
+        // Retick guard: during a scheduler callback the binding expression is
+        // re-evaluated; return the existing instance output without creating a new one.
+        if (retick_instance_ && retick_instance_->def_name_ == "sync")
+            return retick_instance_->read_output();
+        for (auto* p : retick_pool_) {
+            if (p && p->def_name_ == "sync") return p->read_output();
+        }
+
+        if (args.empty()) {
+            warn(call.line_, call.column_, "sync() requires a period (e.g. sync(4b) or sync(clk, clk(4b)))");
+            return value::nil();
+        }
+        // 1-arg form: sync(period_ms)   — period is the only argument
+        // 2-arg form: sync(clk, period_ms) — clock handle is first, period second
+        double period_ms = (args.size() == 1) ? args[0].as_number() : args[1].as_number();
+        if (period_ms <= 0.0) {
+            warn(call.line_, call.column_, "sync() period must be positive");
+            return value::nil();
+        }
+
+        // Next multiple of period_ms strictly after now (relative to scheduler origin).
+        double now_val      = scheduler_ ? scheduler_->now_ms() : 0.0;
+        double first_fire   = std::ceil(now_val / period_ms) * period_ms;
+        if (first_fire <= now_val + 0.5)   // guard against floating-point ties
+            first_fire += period_ms;
+
+        auto inst             = std::make_shared<function_instance>();
+        inst->id_             = next_instance_id_++;
+        inst->active_         = true;
+        inst->def_name_       = "sync";
+        inst->dt_ms_          = period_ms;
+        inst->first_fire_ms_  = first_fire;
+        inst->native_update_  = [](const core::native_state_t&,
+                                   core::native_state_t&,
+                                   core::native_state_t&,
+                                   value& output) {
+            output = value::trigger(true);
+        };
+        // Initial output is a rest so the on-block does NOT fire during process
+        // setup — the first real fire happens at the phase-locked first_fire_ms.
+        inst->write_output(value::trigger(false));
+
+        instances_[inst->id_] = inst;
+        last_instantiated_    = inst;
+        return inst->read_output();
+    }
+
+    // phasor(clk, period, dt=10ms) — 2-arg form with a clock handle.
+    // phasor(period, dt=10ms)      — 1-arg form, uses main clock.
+    //
+    // Both forms compute phase anchored at t=0, so two processes calling
+    // phasor with the same clock and period always produce identical phase values.
+    // BPM changes are handled by re-anchoring: when the clock BPM changes, the
+    // current phase is frozen and continued with the new period, keeping it smooth.
+    if (fn_name == "phasor" && !args.empty()) {
+        bool has_clk = (args[0].type_ == value_t::handle);
+        // 2-arg form: phasor(clk_handle, period_ms)
+        bool intercept_2arg = has_clk && args.size() >= 2;
+        // 1-arg form: phasor(period_ms) where period is a time or plain number
+        bool intercept_1arg = !has_clk
+            && (args[0].type_ == value_t::time
+                || args[0].type_ == value_t::number);
+
+        if (intercept_2arg || intercept_1arg) {
+            if (retick_instance_ && retick_instance_->def_name_ == "phasor")
+                return retick_instance_->read_output();
+            for (auto* p : retick_pool_)
+                if (p && p->def_name_ == "phasor") return p->read_output();
+
+            uint64_t clock_id = has_clk
+                ? static_cast<uint64_t>(args[0].as_handle())
+                : clocks_.main_id_;
+            double period_ms = has_clk ? args[1].as_number() : args[0].as_number();
+
+            if (period_ms <= 0.0) {
+                warn(call.line_, call.column_, "phasor() period must be positive");
+                return value::nil();
+            }
+
+            double dt_ms = 10.0;
+            {
+                auto dit = named.find("dt");
+                if (dit != named.end())
+                    dt_ms = dit->second.as_number();
+                else if (!has_clk && args.size() >= 2)
+                    dt_ms = args[1].as_number(); // positional dt: phasor(period, dt)
+            }
+
+            // n_beats: period in beats of this clock, so we can recompute
+            // period_ms when BPM changes.
+            double creation_bpm = clocks_.bpm(clock_id);
+            double n_beats = (creation_bpm > 0.0)
+                ? (period_ms * creation_bpm / 60000.0) : 0.0;
+
+            auto inst = std::make_shared<function_instance>();
+            inst->id_       = next_instance_id_++;
+            inst->active_   = true;
+            inst->def_name_ = "phasor";
+            inst->dt_ms_    = dt_ms;
+
+            // Anchor at (phase=0, t=0) — globally consistent with sync() grid.
+            inst->current_["__phase_anchor"] = value::number(0.0);
+            inst->current_["__time_anchor"]  = value::number(0.0);
+            inst->current_["__last_bpm"]     = value::number(creation_bpm);
+
+            auto* sched   = scheduler_;
+            auto* clk_reg = &clocks_;
+
+            inst->native_update_ = [clock_id, n_beats, sched, clk_reg](
+                const native_state_t& /*params*/,
+                native_state_t& state,
+                native_state_t& /*emitted*/,
+                value& output)
+            {
+                double now      = sched ? sched->now_ms() : 0.0;
+                double curr_bpm = clk_reg->bpm(clock_id);
+                double last_bpm = state.at("__last_bpm").as_number();
+
+                if (curr_bpm != last_bpm && n_beats > 0.0 && last_bpm > 0.0) {
+                    // BPM changed: freeze phase at this moment, continue with new rate.
+                    double old_period = n_beats * (60000.0 / last_bpm);
+                    double pa = state.at("__phase_anchor").as_number();
+                    double ta = state.at("__time_anchor").as_number();
+                    double curr_phase = std::fmod(pa + (now - ta) / old_period, 1.0);
+                    if (curr_phase < 0.0) curr_phase += 1.0;
+
+                    state["__phase_anchor"] = value::number(curr_phase);
+                    state["__time_anchor"]  = value::number(now);
+                    state["__last_bpm"]     = value::number(curr_bpm);
+                }
+
+                double period = (curr_bpm > 0.0 && n_beats > 0.0)
+                              ? n_beats * (60000.0 / curr_bpm) : 0.0;
+                double phase  = 0.0;
+                if (period > 0.0) {
+                    double pa = state.at("__phase_anchor").as_number();
+                    double ta = state.at("__time_anchor").as_number();
+                    phase = std::fmod(pa + (now - ta) / period, 1.0);
+                    if (phase < 0.0) phase += 1.0;
+                }
+                output = value::number(phase);
+            };
+
+            inst->write_output(value::number(0.0));
+            instances_[inst->id_] = inst;
+            last_instantiated_    = inst;
+            return inst->read_output();
+        }
     }
 
     // ── Check builtins first ───────────────────────────────────────────────

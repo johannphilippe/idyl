@@ -143,6 +143,14 @@ int main(int argc, char** argv) {
                     // Not a number — leave default port, don't consume arg
                 }
             }
+        } else if(arg == "--midi-devices" || arg == "-md") {
+            #ifdef IDYL_MODULE_MIDI
+            std::cout << "Use midi_ports_in() and midi_ports_out() from an idyl program to list MIDI devices.\n";
+            return 0;
+            #else
+            std::cerr << "Error: MIDI module not available in this build\n";
+            return 1;
+            #endif
         } else if (arg == "-" ) {
             // stdin marker — handled below
         } else if (arg[0] == '-') {

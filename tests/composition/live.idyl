@@ -1,13 +1,47 @@
 import("stdlib")
 import("music")
 module("csound")
+module("midi")
 
 cs = cs_open("main.csd")
+fh = midi_out(2)
+
+
+flow dynamicmel(deg) = [ tune(c2, minor, deg, just), tune(d3, major, deg, just) ]
+
+
+fh2_note(spike!, ch, note, vel) = midi_note_on(fh, ch, midinote, vel)
+|> {
+	pb = (note - int(note)) * 256 
+	midinote = int(note) 
+	midi_pitch_bend(fh, ch, pb)
+	
+}
+
+process miditest: {
+	a = metro(.5b)
+	mel = melody[a] 
+
+	change = counter(3b)
+	print(change)
+	note = dynamicmel(mel.note)[change]
+	on(mel.rhythm): {
+		print(note)
+		//print(mel.note)
+		//midi_note_on(fh, 1, note, 100) 
+		fh2_note(!, 1, note, 100)
+	}	
+}
+
+process pr: {
+	m = melody[metro(1b)] 
+	print(m.note)
+}
 
 flow melody = {
-	rhythm: [ ! , ! , _ ]
+	rhythm: [ ! , ! , ! ]
 	chn: [1, 2]
-	note on rhythm: [0, 1, 2, 3, 4, 5, 6, 7]
+	note: [0, 1, 2, 3, 4, 5, 6, 7]
 }
 
 flow stuff = {
@@ -154,15 +188,40 @@ process test7: {
 }
 
 
+clk = clock(120bpm)
+
 process tempotest: {
-	a = metro(1b) 
+	a = sync(clk, clk(2b) ) 
 	on(a): {
-		cs_note(cs, "sine", 10s, f, tune(c4, melodic_minor, 0, just), 2)
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 0, just), 2)
 	}
 }
 process tempotest2: {
-	a = metro(1b) 
+	a = sync(clk, clk(1b) )
 	on(a): {
-		cs_note(cs, "sine", 10s, f, tune(c4, melodic_minor, 3, just), 1)
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 3, just), 1)
+	}
+}
+
+process tempotest3: {
+	a = metro(1b) //sync(clk, clk(1b) )
+	on(a): {
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 3, just), 1)
+	}
+}
+
+process euclidtest: {
+	phase = phasor(clk, 1b) 
+	a = euclid(3, 8, phase_in = phase)
+	on(a): {
+		cs_note(cs, "sine", 1s, fff, tune(c4, melodic_minor, 0, just), 2)
+	}
+}
+
+process euclid2: {
+	phase = phasor(clk, 1b) 
+	b = euclid(3, 8, phase_in=phase)
+	on(b): {
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 3, just), 1)
 	}
 }

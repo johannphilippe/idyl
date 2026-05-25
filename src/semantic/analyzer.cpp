@@ -187,6 +187,9 @@ namespace idyl::semantic {
                         if (!def_ptr->has_parens_ && def_ptr->parameters_.empty()
                                 && !def_ptr->lambda_block_ && def_ptr->body_) {
                             func_info->inferred_type_ = infer_expr_type(def_ptr->body_);
+                            // Mark as constant binding: the value may be a callable handle
+                            // (e.g. clock handle) so arity checks are skipped for call sites.
+                            func_info->is_constant_binding_ = true;
                         } else {
                             func_info->inferred_type_ = inferred_t::function;
                         }
@@ -1151,9 +1154,12 @@ namespace idyl::semantic {
 
         // Builtins and indirect calls (local variables / parameters) don't
         // have param_info_ populated — skip detailed arity checks.
+        // Constant bindings (e.g. clk = clock(120bpm)) may hold callable runtime
+        // values such as clock handles, so arity checks are skipped for them too.
         if (callee_info.type_ == symbol_t::builtin ||
             callee_info.type_ == symbol_t::local_variable ||
-            callee_info.type_ == symbol_t::parameter) return;
+            callee_info.type_ == symbol_t::parameter ||
+            callee_info.is_constant_binding_) return;
 
         auto call = std::static_pointer_cast<parser::function_call>(call_node);
         const auto& args = call->arguments_;

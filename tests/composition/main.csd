@@ -1,16 +1,20 @@
 <CsoundSynthesizer>
 <CsOptions>
--odac 
+-odac:null
+-iadc:null
+-+rtaudio=jack
 </CsOptions>
 ; ==============================================
 <CsInstruments>
 
 sr	=	48000
 ksmps	=	32
-nchnls	=	2
+nchnls	=	24
+nchnls_i= 	10
 0dbfs	=	1
 
 
+gioffset = 16
 
 gkgain init 0.5
 gamaster[] init 2 
@@ -22,8 +26,8 @@ instr master
 	gamaster[0] = 0
 	gamaster[1] = 0
 
-	outch(1, asigL)
-	outch(2, asigR)
+	outch(1+gioffset, asigL)
+	outch(2+gioffset, asigR)
 endin
 
 
@@ -35,6 +39,16 @@ instr sine
 
 	ao = vco2(iamp, mtof:i(inote) ) * expseg:a(1, p3, 0.001)
 	gamaster[ich - 1] = gamaster[ich - 1] + ao
+
+endin
+
+
+
+instr direct 
+	ain = inch(1)  * 0.4
+	kin = k(ain) 
+	printk2(kin)
+	outch(17, ain)
 endin
 
 </CsInstruments>
@@ -44,6 +58,7 @@ f 0 z
 
 i "master" 0 -1
 
+i "direct" 0 -1
 
 
 </CsScore>

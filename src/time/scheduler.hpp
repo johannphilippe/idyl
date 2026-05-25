@@ -69,7 +69,8 @@ struct idyl_scheduler {
     virtual bool            is_running()   const noexcept                        = 0;
 
     virtual subscription_id subscribe(double dt_ms, tick_fn callback,
-                                      std::string process_tag = "")              = 0;
+                                      std::string process_tag = "",
+                                      double first_fire_ms = 0.0)               = 0;
     virtual void            unsubscribe(subscription_id id)                      = 0;
     virtual void            update_dt(subscription_id id, double new_dt_ms)      = 0;
 
@@ -130,7 +131,8 @@ struct sys_clock_scheduler : idyl_scheduler {
     // process_tag, if non-empty, associates this subscription with a named
     // process so that pause_process() / resume_process() can target it.
     subscription_id subscribe(double dt_ms, tick_fn callback,
-                              std::string process_tag = "") override {
+                              std::string process_tag = "",
+                              double first_fire_ms = 0.0) override {
         subscription_id id = next_id_++;
 
         subscription sub;
@@ -140,15 +142,25 @@ struct sys_clock_scheduler : idyl_scheduler {
         sub.active_      = true;
         sub.process_tag_ = process_tag;
 
-        std::cerr << "[sched:subscribe] id=" << id
-                  << " dt=" << dt_ms << "ms tag='" << process_tag << "'\n";
-
         {
             std::lock_guard<std::mutex> lock(subs_mutex_);
             subscriptions_[id] = std::move(sub);
         }
 
-        arm_subscription_(id, steady_clock_t::now());
+        // Phase-locked start: baseline = first_fire_point - dt so that
+        // arm_subscription_'s (baseline + dt) == first_fire_point.
+        time_point_t baseline;
+        if (first_fire_ms > 0.0) {
+            auto dt_dur  = std::chrono::duration_cast<duration_t>(
+                std::chrono::duration<double, std::milli>(dt_ms));
+            auto ff_dur  = std::chrono::duration_cast<duration_t>(
+                std::chrono::duration<double, std::milli>(first_fire_ms));
+            baseline = origin_ + ff_dur - dt_dur;
+        } else {
+            baseline = steady_clock_t::now();
+        }
+
+        arm_subscription_(id, baseline);
         return id;
     }
 
@@ -178,15 +190,8 @@ struct sys_clock_scheduler : idyl_scheduler {
     void pause_process(const std::string& name) override {
         std::lock_guard<std::mutex> lock(subs_mutex_);
         for (auto& [id, sub] : subscriptions_) {
-            if (sub.process_tag_ == name && sub.active_ && !sub.paused_) {
+            if (sub.process_tag_ == name && sub.active_ && !sub.paused_)
                 sub.paused_ = true;
-                std::cerr << "[sched:pause] id=" << id
-                          << " dt=" << sub.dt_ms_ << "ms last_fire_at="
-                          << (sub.last_fire_at_ == time_point_t{} ? "never"
-                              : std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                    sub.last_fire_at_ - origin_).count()) + "ms")
-                          << "\n";
-            }
         }
         paused_at_[name] = steady_clock_t::now();
     }
@@ -224,16 +229,6 @@ struct sys_clock_scheduler : idyl_scheduler {
                     } else {
                         baseline = resume_at - dt_dur;
                     }
-
-                    auto fire_at_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        (baseline + dt_dur) - origin_).count();
-                    auto now_ms_val = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        resume_at - origin_).count();
-                    std::cerr << "[sched:resume] id=" << id
-                              << " dt=" << sub.dt_ms_ << "ms"
-                              << " fire_at=" << fire_at_ms << "ms"
-                              << " now=" << now_ms_val << "ms"
-                              << " gen=" << sub.armed_generation_ << "\n";
 
                     to_arm.emplace_back(id, baseline);
                 }
@@ -305,13 +300,8 @@ private:
         // On each fire:
         //   1. If inactive → erase and return nullopt.
         //   2. If generation mismatch → stale lambda (superseded by resume re-arm) → exit.
-        //   3. If paused  → return nullopt (resume re-arms with immediate baseline)
-        //                    (subscription stays in map; resume re-arms it).
+        //   3. If paused  → return nullopt (subscription stays in map; resume re-arms it).
         //   4. Normal tick → invoke callback, reschedule at next deadline.
-        std::cerr << "[sched:arm] id=" << id << " gen=" << gen
-                  << " fire_at=" << std::chrono::duration_cast<std::chrono::milliseconds>(
-                         fire_at - origin_).count() << "ms\n";
-
         ev.member_callback = [this, dt_ms, fire_at, gen](tick_payload& payload) mutable
             -> std::optional<time_point_t>
         {
@@ -320,26 +310,16 @@ private:
             {
                 std::lock_guard<std::mutex> lock(subs_mutex_);
                 auto it = subscriptions_.find(payload.sub_id);
-                if (it == subscriptions_.end() || !it->second.active_) {
-                    std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen << " → inactive\n";
+                if (it == subscriptions_.end() || !it->second.active_)
                     return std::nullopt;
-                }
 
                 // Stale lambda: a newer arm superseded us (e.g. resume re-arm).
-                if (it->second.armed_generation_ != gen) {
-                    std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen
-                              << " → stale (armed_gen=" << it->second.armed_generation_ << ")\n";
+                if (it->second.armed_generation_ != gen)
                     return std::nullopt;
-                }
 
-                // Paused: save the deadline we would have fired at and leave
-                // the engine queue (subscription stays alive in the map).
-                if (it->second.paused_) {
-                    std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen << " → paused\n";
+                // Paused: subscription stays in map; resume re-arms it.
+                if (it->second.paused_)
                     return std::nullopt;
-                }
-
-                std::cerr << "[sched:lambda] id=" << payload.sub_id << " gen=" << gen << " → FIRE\n";
 
                 // Record the deadline of this successful tick so resume_process
                 // can compute expected_next = last_fire_at_ + dt even when the

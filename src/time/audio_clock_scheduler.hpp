@@ -113,14 +113,15 @@ struct audio_clock_scheduler : idyl_scheduler {
     // ── Subscribe / unsubscribe ────────────────────────────────────────────────
 
     subscription_id subscribe(double dt_ms, tick_fn callback,
-                              std::string process_tag = "") override {
+                              std::string process_tag = "",
+                              double first_fire_ms = 0.0) override {
         subscription_id id = next_id_++;
 
         subs_entry e;
         e.id_           = id;
         e.dt_ms_        = dt_ms;
         e.callback_     = std::move(callback);
-        e.next_fire_ms_ = now_ms() + dt_ms;
+        e.next_fire_ms_ = (first_fire_ms > 0.0) ? first_fire_ms : now_ms() + dt_ms;
         e.active_       = true;
         e.process_tag_  = std::move(process_tag);
 

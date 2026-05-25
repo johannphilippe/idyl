@@ -274,6 +274,11 @@ namespace idyl::core {
         // Elapsed time accumulator: 0 on tick 0, incremented by dt_ms_ after each tick
         double age_ms_ = 0.0;
 
+        // Phase-locked first fire time (ms since scheduler origin).
+        // 0 = fire at now + dt (default).  Set by sync() to snap to the next
+        // grid boundary of the requested period.
+        double first_fire_ms_ = 0.0;
+
         // Scheduler subscription handle (0 → not subscribed)
         uint64_t subscription_id_ = 0;
 

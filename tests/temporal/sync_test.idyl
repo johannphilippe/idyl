@@ -1,0 +1,22 @@
+// sync() grid-alignment test.
+// proc_a and proc_b subscribe to sync(clk, clk(2b)) — 1000ms at 120bpm.
+// They should fire on identical beat-grid timestamps.
+// Correct output: "sync A" and "sync B" always appear in adjacent pairs.
+
+process proc_a: {
+    clk = clock(120bpm)
+    m = sync(clk, clk(2b))
+    on m: {
+        print("sync A")
+    }
+    @(6000ms): { stop proc_a }
+}
+
+process proc_b: {
+    clk = clock(120bpm)
+    m = sync(clk, clk(2b))
+    on m: {
+        print("sync B")
+    }
+    @(6000ms): { stop proc_b }
+}

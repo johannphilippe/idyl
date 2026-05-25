@@ -1,0 +1,94 @@
+<!DOCTYPE patchbay>
+<patchbay name="patch" version="0.9.13">
+ <output-sockets>
+  <socket type="jack-audio" name="ES\-8\ Pro 1" client="ES\-8\ Pro" exclusive="off">
+   <plug>capture_AUX0</plug>
+   <plug>capture_AUX1</plug>
+   <plug>capture_AUX2</plug>
+   <plug>capture_AUX3</plug>
+   <plug>capture_AUX4</plug>
+   <plug>capture_AUX5</plug>
+   <plug>capture_AUX6</plug>
+   <plug>capture_AUX7</plug>
+   <plug>capture_AUX8</plug>
+   <plug>capture_AUX9</plug>
+  </socket>
+  <socket type="jack-audio" name="csound 1" client="csound6" exclusive="off">
+   <plug>output1</plug>
+   <plug>output2</plug>
+   <plug>output3</plug>
+   <plug>output4</plug>
+   <plug>output5</plug>
+   <plug>output6</plug>
+   <plug>output7</plug>
+   <plug>output8</plug>
+   <plug>output9</plug>
+   <plug>output10</plug>
+   <plug>output11</plug>
+   <plug>output12</plug>
+   <plug>output13</plug>
+   <plug>output14</plug>
+   <plug>output15</plug>
+   <plug>output16</plug>
+  </socket>
+  <socket type="jack-audio" name="csound 2" client="csound6" exclusive="off">
+   <plug>output17</plug>
+   <plug>output18</plug>
+   <plug>output19</plug>
+   <plug>output20</plug>
+   <plug>output21</plug>
+   <plug>output22</plug>
+   <plug>output23</plug>
+   <plug>output24</plug>
+  </socket>
+ </output-sockets>
+ <input-sockets>
+  <socket type="jack-audio" name="csound 1" client="csound6" exclusive="off">
+   <plug>input1</plug>
+   <plug>input2</plug>
+   <plug>input3</plug>
+   <plug>input4</plug>
+   <plug>input5</plug>
+   <plug>input6</plug>
+   <plug>input7</plug>
+   <plug>input8</plug>
+   <plug>input9</plug>
+   <plug>input10</plug>
+  </socket>
+  <socket type="jack-audio" name="ES\-8\ Pro 1" client="ES\-8\ Pro" exclusive="off">
+   <plug>playback_AUX0</plug>
+   <plug>playback_AUX1</plug>
+   <plug>playback_AUX2</plug>
+   <plug>playback_AUX3</plug>
+   <plug>playback_AUX4</plug>
+   <plug>playback_AUX5</plug>
+   <plug>playback_AUX6</plug>
+   <plug>playback_AUX7</plug>
+   <plug>playback_AUX8</plug>
+   <plug>playback_AUX9</plug>
+   <plug>playback_AUX10</plug>
+   <plug>playback_AUX11</plug>
+   <plug>playback_AUX12</plug>
+   <plug>playback_AUX13</plug>
+   <plug>playback_AUX14</plug>
+   <plug>playback_AUX15</plug>
+  </socket>
+  <socket type="jack-audio" name="Scarlett\ 18i20\ USB\ Multichannel 1" client="Scarlett\ 18i20\ USB\ Multichannel" exclusive="off">
+   <plug>playback_AUX0</plug>
+   <plug>playback_AUX1</plug>
+   <plug>playback_AUX2</plug>
+   <plug>playback_AUX3</plug>
+   <plug>playback_AUX4</plug>
+   <plug>playback_AUX5</plug>
+   <plug>playback_AUX6</plug>
+   <plug>playback_AUX7</plug>
+  </socket>
+ </input-sockets>
+ <slots/>
+ <cables>
+  <cable type="jack-audio" output="csound 1" input="ES\-8\ Pro 1"/>
+  <cable type="jack-audio" output="csound 2" input="Scarlett\ 18i20\ USB\ Multichannel 1"/>
+  <cable type="jack-audio" output="ES\-8\ Pro 1" input="csound 1"/>
+ </cables>
+</patchbay>
+

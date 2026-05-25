@@ -280,6 +280,11 @@ namespace idyl::core {
         // run().  `clock()` creates child clocks; `tempo()` sets BPM with
         // propagation.  All clocks bind to main unless parent= overrides.
         clock_registry clocks_;
+
+        // Transient context clock BPM for beat-unit evaluation inside sync/phasor.
+        // Non-zero while evaluating arguments to sync(clk, ...) or phasor(clk, ...).
+        // parse_time_to_ms uses this instead of main_clock_bpm() for "b" units.
+        double context_clock_bpm_ = 0.0;
         
         // ── Delay memories  ────────────────────────────────────────────────────
         // For memory ops (e.g. delay, feedback), maps expression pointer to a

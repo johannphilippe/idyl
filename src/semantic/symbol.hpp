@@ -55,6 +55,11 @@ namespace idyl::semantic {
         // For flows: names of declared members (e.g. {kick: ..., snare: ...})
         std::vector<std::string> member_names_;
 
+        // True for constant bindings: `name = expr` (no parens, no params, no lambda).
+        // Such bindings may hold callable runtime values (e.g. clock handles, closures)
+        // so arity checks are skipped when they are called with arguments.
+        bool is_constant_binding_ = false;
+
         // For unused-parameter detection: set to true when the symbol is referenced
         bool referenced_ = false;
     };
