@@ -179,6 +179,10 @@ namespace idyl::core {
             // Compiled bytecode for the reaction lists (nullptr = use AST walker fallback)
             std::unique_ptr<vm::bytecode_fn> compiled_reactions;
             std::unique_ptr<vm::bytecode_fn> compiled_shared_reactions;
+            // Per-site trigger cursors for compiled reactions. Index i corresponds
+            // to the cursor_id embedded in FLOW_INDEX instruction field a.
+            // Persists between ticks so flows cycle through elements correctly.
+            std::vector<int> flow_cursors_;
             // Set by stop_process() so the epoch flush skips stale deferred reactions
             // from the last tick of a stopped process (prevents double-firing on restart).
             std::atomic<bool>              cancelled{false};

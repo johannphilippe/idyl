@@ -42,6 +42,14 @@ struct compiler {
         const std::unordered_map<uint32_t,
             std::shared_ptr<parser::function_definition>>& fn_defs);
 
+    // Access nodes for each cursor slot assigned during compile_reaction_list().
+    // cursor_site_keys()[i] is the flow_access* (as parser::node*) whose FLOW_INDEX
+    // instruction got cursor_id == i.  Use this to sync VM cursors with
+    // flow_site_cursors_ after setup execution.
+    const std::vector<const parser::node*>& cursor_site_keys() const {
+        return cursor_site_keys_;
+    }
+
 private:
     bytecode_fn*  chunk_         = nullptr;
     bool          failed_        = false;
@@ -49,7 +57,12 @@ private:
 
     // Parameter / local slot map (name → slot index).
     std::unordered_map<std::string, uint16_t> slots_;
-    uint16_t next_slot_ = 0;
+    uint16_t next_slot_      = 0;
+
+    // Per-site flow cursor tracking (reaction mode).
+    // cursor_id assigned in FLOW_INDEX instructions → access_node* for syncing.
+    uint16_t next_cursor_id_  = 0;
+    std::vector<const parser::node*> cursor_site_keys_;
 
     // Back-pointer to the fn_defs table and environment (set during compile()).
     const std::unordered_map<uint32_t,

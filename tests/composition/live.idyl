@@ -204,17 +204,17 @@ process tempotest2: {
 }
 
 process tempotest3: {
-	a = metro(1b) //sync(clk, clk(1b) )
+	a = sync(clk, 2b) //sync(clk, clk(1b) )
 	on(a): {
 		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 3, just), 1)
 	}
 }
 
 process euclidtest: {
-	phase = phasor(clk, 1b) 
-	a = euclid(3, 8, phase_in = phase)
+	phase = free_phasor(600ms)//phasor(clk, 1b) 
+a = euclid(1, 8, phase_in = phase)
 	on(a): {
-		cs_note(cs, "sine", 1s, fff, tune(c4, melodic_minor, 0, just), 2)
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 7, just), 2)
 	}
 }
 
@@ -222,6 +222,6 @@ process euclid2: {
 	phase = phasor(clk, 1b) 
 	b = euclid(3, 8, phase_in=phase)
 	on(b): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 3, just), 1)
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 4, just), 1)
 	}
 }

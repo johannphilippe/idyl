@@ -11,9 +11,10 @@ namespace idyl::vm {
 // One compiled function — the unit of bytecode execution.
 struct bytecode_fn {
     std::string  name_;
-    uint32_t     name_id_     = 0; // interned name ID (matches function_defs_ key)
-    uint16_t     param_count_ = 0; // number of positional parameters
-    uint16_t     local_count_ = 0; // total slot count (params + block locals)
+    uint32_t     name_id_          = 0; // interned name ID (matches function_defs_ key)
+    uint16_t     param_count_      = 0; // number of positional parameters
+    uint16_t     local_count_      = 0; // total slot count (params + block locals)
+    uint16_t     num_flow_cursors_ = 0; // reaction chunks: per-site trigger-cursor count
 
     std::vector<instruction>  code_;
     std::vector<core::value>  constants_; // constant pool

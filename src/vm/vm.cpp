@@ -29,7 +29,7 @@ core::value vm::call_native(uint16_t b_idx, uint16_t argc) {
 // it never touches stack_ or frames_ — safe to call from the scheduler thread
 // while the main stack is idle or actively used by the main thread.
 
-void vm::run_reactions(const bytecode_fn* fn) {
+void vm::run_reactions(const bytecode_fn* fn, std::vector<int>& flow_cursors) {
     if (!fn) return;
 
     // Local execution stack. Block-local slot variables sit at [0..local_count).
@@ -175,16 +175,30 @@ void vm::run_reactions(const bytecode_fn* fn) {
         }
 
         case opcode::FLOW_INDEX: {
-            double idx_d = stk.back().as_number(); stk.pop_back();
+            core::value idx_val = std::move(stk.back()); stk.pop_back();
             core::value flow = std::move(stk.back()); stk.pop_back();
-            if (flow.type_ == core::value_t::flow && flow.payload_) {
-                const auto& elems = flow.flow().members_[0].elements_;
-                int n = static_cast<int>(elems.size());
-                if (n > 0) {
-                    int i = static_cast<int>(std::floor(idx_d));
-                    i = ((i % n) + n) % n;
-                    stk.push_back(elems[i]);
-                    break;
+            if (flow.type_ == core::value_t::flow && flow.payload_
+                    && !flow.flow().members_.empty()) {
+                const auto& m = flow.flow().members_[0];
+                int phys_n = m.physical_length();
+                if (phys_n > 0) {
+                    if (idx_val.type_ == core::value_t::trigger) {
+                        uint16_t cur_id = instr.a;
+                        if (cur_id < static_cast<uint16_t>(flow_cursors.size())) {
+                            int& cur    = flow_cursors[cur_id];
+                            int logical = m.physical_to_logical(cur % phys_n);
+                            if (idx_val.trigger_)
+                                cur = (cur + 1) % phys_n;
+                            stk.push_back(m.elements_[logical]);
+                            break;
+                        }
+                    } else {
+                        double v = idx_val.as_number();
+                        int i = static_cast<int>(std::floor(v));
+                        i = ((i % phys_n) + phys_n) % phys_n;
+                        stk.push_back(m.elements_[m.physical_to_logical(i)]);
+                        break;
+                    }
                 }
             }
             stk.push_back(core::value::number(0.0));

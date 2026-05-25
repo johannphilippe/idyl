@@ -18,7 +18,7 @@ This must be done in a smart way :
 - [issue] dynamic flows do not seem to work properly  : `flow dynamicmel(deg) = [ tune(c2, minor, deg, just), tune(d3, major, deg, just) ]` : the indexing is ok, the argument is taken, 
 but tune is not recomputed on each tick of deg
 
-- [issue] hot reload not changing the values I manually changed (in euclidian rhythm)
+- [fixes] hot reload not changing the values I manually changed (in euclidian rhythm)
 - [issue] hot reloading restarting flow indexing 
 - [issue] stop primitive does not seem to kill process state
 - [todo] delay operator ' currently delays ticks (numbers). It should be able to delay ms, b etc (all temporal primitives). 

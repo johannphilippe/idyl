@@ -291,7 +291,11 @@ void compiler::compile_expr(const parser::expr_ptr& expr) {
         if (failed_) return;
         compile_expr(fae.access_->index_);
         if (failed_) return;
-        emit({opcode::FLOW_INDEX});
+        {
+            uint16_t cursor_id = next_cursor_id_++;
+            cursor_site_keys_.push_back(fae.access_.get());
+            emit({opcode::FLOW_INDEX, cursor_id});
+        }
         break;
     }
 
@@ -358,9 +362,11 @@ std::unique_ptr<bytecode_fn> compiler::compile(
     if (def.lambda_block_)  return nullptr; // temporal — not compilable
 
     // Reset compiler state
-    failed_    = false;
+    failed_           = false;
     slots_.clear();
-    next_slot_ = 0;
+    next_slot_        = 0;
+    next_cursor_id_   = 0;
+    cursor_site_keys_.clear();
     fn_defs_   = &fn_defs;
     env_       = &env;
 
@@ -406,10 +412,12 @@ std::unique_ptr<bytecode_fn> compiler::compile_reaction_list(
     if (stmts.empty()) return nullptr;
 
     // Reset compiler state
-    failed_        = false;
-    reaction_mode_ = true;
+    failed_           = false;
+    reaction_mode_    = true;
     slots_.clear();
-    next_slot_ = 0;
+    next_slot_        = 0;
+    next_cursor_id_   = 0;
+    cursor_site_keys_.clear();
     fn_defs_   = &fn_defs;
     env_       = &env;
 
@@ -452,7 +460,8 @@ std::unique_ptr<bytecode_fn> compiler::compile_reaction_list(
 
     if (failed_) { chunk_ = nullptr; return nullptr; }
 
-    fn->local_count_ = next_slot_; // block-local slots, if any
+    fn->local_count_      = next_slot_; // block-local slots, if any
+    fn->num_flow_cursors_ = next_cursor_id_;
     emit({opcode::LOAD_NIL});
     emit({opcode::RETURN});
     chunk_ = nullptr;

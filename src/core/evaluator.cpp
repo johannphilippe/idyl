@@ -164,6 +164,62 @@ static void collect_stmt_ids(const parser::stmt_ptr& stmt,
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// Flow access node collection — used to reset per-site cursors on process restart
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Recursively collect all flow_access* (as node*) from an expression tree.
+static void collect_flow_access_nodes(const parser::expr_ptr& expr,
+                                       std::vector<const parser::node*>& out) {
+    if (!expr) return;
+    switch (expr->type_) {
+    case parser::node_t::flow_access_expr: {
+        auto& e = static_cast<const parser::flow_access_expr&>(*expr);
+        if (e.access_) {
+            out.push_back(e.access_.get());
+            collect_flow_access_nodes(e.access_->flow_,  out);
+            collect_flow_access_nodes(e.access_->index_, out);
+        }
+        break;
+    }
+    case parser::node_t::binary_op_expr: {
+        auto& e = static_cast<const parser::binary_op_expr&>(*expr);
+        if (e.op_) {
+            collect_flow_access_nodes(e.op_->left_,  out);
+            collect_flow_access_nodes(e.op_->right_, out);
+        }
+        break;
+    }
+    case parser::node_t::unary_op_expr: {
+        auto& e = static_cast<const parser::unary_op_expr&>(*expr);
+        if (e.op_) collect_flow_access_nodes(e.op_->operand_, out);
+        break;
+    }
+    case parser::node_t::ternary_op_expr: {
+        auto& e = static_cast<const parser::ternary_op_expr&>(*expr);
+        if (e.op_) {
+            collect_flow_access_nodes(e.op_->condition_, out);
+            for (const auto& opt : e.op_->options_)
+                collect_flow_access_nodes(opt, out);
+        }
+        break;
+    }
+    case parser::node_t::function_call_expr: {
+        auto& e = static_cast<const parser::function_call_expr&>(*expr);
+        if (e.call_)
+            for (const auto& arg : e.call_->arguments_)
+                if (arg) collect_flow_access_nodes(arg->value_, out);
+        break;
+    }
+    case parser::node_t::parenthesized_expr: {
+        auto& e = static_cast<const parser::parenthesized_expr&>(*expr);
+        collect_flow_access_nodes(e.expr_, out);
+        break;
+    }
+    default: break;
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // Top-level entry: walk program statements
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -179,6 +235,24 @@ void evaluator::try_compile(const parser::function_definition& def, uint32_t fn_
 void evaluator::try_compile_reactions(reaction_set& rxn) {
     vm::compiler c;
     rxn.compiled_reactions = c.compile_reaction_list(rxn.reactions, env_, function_defs_);
+    if (rxn.compiled_reactions) {
+        int n = static_cast<int>(rxn.compiled_reactions->num_flow_cursors_);
+        rxn.flow_cursors_.assign(n, 0);
+        // Sync initial cursor positions from AST-walker cursors established during
+        // setup execution, so the VM path continues from where the setup left off.
+        const auto& keys = c.cursor_site_keys();
+        for (int i = 0; i < n && i < static_cast<int>(keys.size()); ++i) {
+            auto it = flow_site_cursors_.find(keys[i]);
+            if (it == flow_site_cursors_.end() || !it->second) continue;
+            // Single-member unnamed flows use "" as the member-name key.
+            auto cur_it = it->second->find("");
+            if (cur_it != it->second->end()) {
+                rxn.flow_cursors_[i] = cur_it->second;
+            } else if (!it->second->empty()) {
+                rxn.flow_cursors_[i] = it->second->begin()->second;
+            }
+        }
+    }
     // shared_reactions are deferred/dedup'd by AST ptr — not compiled for now
 }
 
@@ -606,7 +680,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
                         // Run segment-local reactions — compiled path if available.
                         if (compiled_rxn && !reactions_snap.empty()) {
-                            vm_.run_reactions(compiled_rxn);
+                            vm_.run_reactions(compiled_rxn, rxn->flow_cursors_);
                         } else {
                             for (const auto& r : reactions_snap) exec_stmt(r);
                         }
@@ -3213,6 +3287,35 @@ bool evaluator::start_process(const std::string& name) {
     // the setup pass.  Native temporals (counter, metro, etc.) are instantiated
     // normally — only module functions without is_native_temporal_ are gated.
     if (is_restart) speculative_exec_ = true;
+
+    // Reset flow_site_cursors_ entries for all flow access sites in this process
+    // so each fresh start begins from element 0 rather than inheriting state
+    // from a previous run (AST node pointers are reused across restarts).
+    if (it->second && it->second->body_) {
+        std::vector<const parser::node*> access_nodes;
+        for (const auto& stmt : it->second->body_->statements_) {
+            if (!stmt) continue;
+            switch (stmt->type_) {
+            case parser::node_t::function_definition: {
+                auto& def = static_cast<const parser::function_definition&>(*stmt);
+                collect_flow_access_nodes(def.body_, access_nodes);
+                break;
+            }
+            case parser::node_t::assignment: {
+                auto& a = static_cast<const parser::assignment&>(*stmt);
+                collect_flow_access_nodes(a.value_, access_nodes);
+                break;
+            }
+            case parser::node_t::expression_stmt: {
+                auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+                collect_flow_access_nodes(es.expression_, access_nodes);
+                break;
+            }
+            default: break;
+            }
+        }
+        for (auto* n : access_nodes) flow_site_cursors_.erase(n);
+    }
 
     std::cout << "Starting process '" << name << "'.\n";
     exec_stmt(std::static_pointer_cast<parser::statement>(it->second));

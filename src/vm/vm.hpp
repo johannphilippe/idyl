@@ -56,7 +56,8 @@ struct vm {
     // Execute a reaction chunk (no params, all variable access via env).
     // Uses a local stack (independent of the main VM stack) so it does not
     // interfere with concurrent pure-function calls on the main stack.
-    void run_reactions(const bytecode_fn* fn);
+    // flow_cursors: per-site trigger cursors — mutated in place each tick.
+    void run_reactions(const bytecode_fn* fn, std::vector<int>& flow_cursors);
 
 private:
     // Dispatch a CALL_NATIVE instruction: call builtins[b_idx] with `argc`
