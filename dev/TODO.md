@@ -15,11 +15,12 @@ This must be done in a smart way :
 ## Known bugs (unsolved)
 
 - [todo] make an audit of every situation where dt reaction wouldn't cause update (like reactions of reactions)
-- [issue] dynamic flows do not seem to work properly  : `flow dynamicmel(deg) = [ tune(c2, minor, deg, just), tune(d3, major, deg, just) ]` : the indexing is ok, the argument is taken, 
+- [fixed] dynamic flows do not seem to work properly  : `flow dynamicmel(deg) = [ tune(c2, minor, deg, just), tune(d3, major, deg, just) ]` : the indexing is ok, the argument is taken, 
 but tune is not recomputed on each tick of deg
+- [question]  ternary operator simple expression does not work so well when not assigned to an output (result)
 
-- [fixes] hot reload not changing the values I manually changed (in euclidian rhythm)
-- [issue] hot reloading restarting flow indexing 
+- [fixed] hot reload not changing the values I manually changed (in euclidian rhythm)
+- [fixed] hot reloading restarting flow indexing 
 - [issue] stop primitive does not seem to kill process state
 - [todo] delay operator ' currently delays ticks (numbers). It should be able to delay ms, b etc (all temporal primitives). 
 - [bug] : pause/resume in system clock scheduler (each arpeggio inside an on block) causes duplicates of a few events. Working fine in audio clock.

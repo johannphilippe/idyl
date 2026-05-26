@@ -42,13 +42,21 @@ instr sine
 
 endin
 
-
-
 instr direct 
-	ain = inch(1)  * 0.4
-	kin = k(ain) 
+	print(p4)
+	print(p5)
+	ich init p4 
+	ioch init p5 + gioffset 
+	ain = inch(ich) * 0.4
+	kin = k(ain)
 	printk2(kin)
-	outch(17, ain)
+	outch(ioch, ain)
+endin
+
+instr dusk
+	Sinstrname init p4
+	turnoff2(nstrnum(Sinstrname), 0, 1)
+	turnoff
 endin
 
 </CsInstruments>
@@ -58,8 +66,7 @@ f 0 z
 
 i "master" 0 -1
 
-i "direct" 0 -1
-
+i "direct" 0 -1 1 1
 
 </CsScore>
 </CsoundSynthesizer>

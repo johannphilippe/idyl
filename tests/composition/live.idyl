@@ -5,7 +5,40 @@ module("midi")
 
 cs = cs_open("main.csd")
 fh = midi_out(2)
+matrix = midi_out(3) 
 
+
+process choose_outputs: {
+	cs_note(cs, "dusk", 0.1)
+	each i in 10: {
+		chan = int(rnd(1, 2.99))
+		//chan = int(rnd(1, 8.99))
+		cond = rnd(0, 1)
+		print(i, chan, cond)
+		r = (cond > 0.5) ? _ ; cs_note(cs, "direct", -1, i + 1, chan)
+	}
+	stop
+}
+
+
+process scramble_mat: {
+	each x in 16: {
+		each y in 16: {
+			r = (rnd(0, 1) > 0.9) ? midi_note_off(matrix, 2, x, y) ; midi_note_on(matrix, 2, x, y) 
+		}
+	}
+	stop
+	
+}
+
+process reset_mat: {
+	each x in 16: {
+		each y in 16: {
+			midi_note_off(matrix, 2, x, y)
+		}
+	}
+	stop 
+}
 
 flow dynamicmel(deg) = [ tune(c2, minor, deg, just), tune(d3, major, deg, just) ]
 
@@ -21,7 +54,6 @@ fh2_note(spike!, ch, note, vel) = midi_note_on(fh, ch, midinote, vel)
 process miditest: {
 	a = metro(.5b)
 	mel = melody[a] 
-
 	change = counter(3b)
 	print(change)
 	note = dynamicmel(mel.note)[change]

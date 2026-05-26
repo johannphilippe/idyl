@@ -75,13 +75,14 @@ static void collect_expr_ids(const parser::expr_ptr& expr,
             auto& e = static_cast<const parser::flow_access_expr&>(*expr);
             if (e.access_) {
                 if (e.access_->index_) {
-                    // Index access: the accessor drives the evaluation rate.
-                    // Only collect IDs from the index so that temporal variables
-                    // inside the flow expression (e.g. `mod` in `f(i+mod)[cnt]`)
-                    // do not pull the reaction onto a faster segment — the flow
-                    // contents are sampled at the accessor's rate, not recomputed
-                    // independently for every dependency change.
+                    // Index access: collect from both the index and the flow
+                    // expression so that parametric flows (e.g. `dyn(mel.note)[m]`)
+                    // fire on the fastest of their dependencies.  When the flow
+                    // argument changes (e.g. mel.note on every metro tick), the
+                    // reaction re-runs and the dynamic flow is rebuilt with the
+                    // fresh argument → tune / other pure computations recompute.
                     collect_expr_ids(e.access_->index_, out);
+                    collect_expr_ids(e.access_->flow_,  out);
                 } else {
                     // Member access (`flow.member`): no accessor expression;
                     // timing is driven by the flow itself.
@@ -2331,7 +2332,6 @@ value evaluator::eval_user_function(const parser::function_definition& def,
         }
 
         // Evaluate body
-        std::cerr << "[TRIGGER_FN] " << def.name_ << " firing\n";
         value result = def.body_ ? eval_expr(def.body_) : value::rest();
         env_.pop_scope();
         return result;
@@ -2361,8 +2361,6 @@ value evaluator::eval_user_function(const parser::function_definition& def,
         uint32_t fn_id = env_.intern(key);
         if (vm_.has_compiled(fn_id)) {
             return vm_.run(fn_id, args);
-        } else {
-            std::cout << "No compiled chunk for function '" << key << "'; falling back to AST evaluation\n" << std::endl;
         }
     }
 
