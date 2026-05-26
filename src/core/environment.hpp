@@ -53,6 +53,21 @@ namespace idyl::core {
         // Scope chain: back() is innermost (current) scope
         std::vector<scope_frame> scopes_;
 
+        // ── Scope pinning for process callbacks ────────────────────────────────
+        // When a scheduler callback fires for a process, these two fields isolate
+        // that process's scope from sibling processes that share the scope stack.
+        //
+        // scope_pin_:   index of the active process's scope frame (0 = no pin).
+        // scope_start_: number of scopes at the start of the callback, so that
+        //               scopes pushed DURING the callback (for user function calls)
+        //               are recognized as local rather than sibling-process scopes.
+        //
+        // With these set, lookup() skips scopes at indices in (scope_pin_, scope_start_)
+        // (those are sibling-process scopes), and define() writes to scope_pin_ rather
+        // than scopes_.back() when no local sub-scope has been pushed yet.
+        size_t scope_pin_   = 0;
+        size_t scope_start_ = 0;
+
         // Intern table — shared across the entire evaluator lifetime.
         string_intern intern_;
 
@@ -99,19 +114,26 @@ namespace idyl::core {
         // ── Variable binding (string key — interns on first call) ──────────────
         void define(const std::string& name, value val) {
             uint32_t id = intern_.intern(name);
-            scopes_.back().bindings_[id] = std::move(val);
+            scopes_[define_target_()].bindings_[id] = std::move(val);
         }
 
         // ── Variable binding (pre-interned key — zero extra hashing) ──────────
         void define(uint32_t id, value val) {
-            scopes_.back().bindings_[id] = std::move(val);
+            scopes_[define_target_()].bindings_[id] = std::move(val);
         }
 
         // ── Lookup by pre-interned ID (fast path) ─────────────────────────────
         value* lookup(uint32_t id) {
-            for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
-                auto found = it->bindings_.find(id);
-                if (found != it->bindings_.end()) return &found->second;
+            for (int i = static_cast<int>(scopes_.size()) - 1; i >= 0; --i) {
+                // When pinned, skip sibling-process scopes: those are frames above
+                // scope_pin_ that existed before this callback started (i.e. indices
+                // in the open interval (scope_pin_, scope_start_)).
+                if (scope_pin_ > 0
+                        && static_cast<size_t>(i) > scope_pin_
+                        && static_cast<size_t>(i) < scope_start_)
+                    continue;
+                auto found = scopes_[i].bindings_.find(id);
+                if (found != scopes_[i].bindings_.end()) return &found->second;
             }
             return nullptr;
         }
@@ -142,6 +164,19 @@ namespace idyl::core {
                 return module_registry_->lookup(name);
             }
             return nullptr;
+        }
+
+    private:
+        // When pinned with no local sub-scopes yet (scopes_.size() == scope_start_),
+        // write to the process scope (scope_pin_) rather than the innermost frame,
+        // which would be a sibling-process scope.  Once sub-scopes are pushed during
+        // a callback (scopes_.size() > scope_start_), write to the innermost as usual.
+        size_t define_target_() const {
+            if (scope_pin_ > 0 && scope_start_ > 0
+                    && scopes_.size() == scope_start_
+                    && scope_pin_ < scopes_.size())
+                return scope_pin_;
+            return scopes_.size() - 1;
         }
     };
 

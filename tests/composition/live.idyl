@@ -8,14 +8,23 @@ fh = midi_out(2)
 matrix = midi_out(3) 
 
 
+flow mf = [1, 2, 3, 4, 5]
+
+process checkflow: {
+	a = mf[metro(0.5s)] 
+	print(a) 
+}
+
 process choose_outputs: {
-	cs_note(cs, "dusk", 0.1)
-	each i in 10: {
+	r = cs_note(cs, "dusk", 0, 888 )
+
+	each i in 4: {
 		chan = int(rnd(1, 2.99))
 		//chan = int(rnd(1, 8.99))
 		cond = rnd(0, 1)
 		print(i, chan, cond)
-		r = (cond > 0.5) ? _ ; cs_note(cs, "direct", -1, i + 1, chan)
+		r = (cond > 0.75) ? _ ; cs_note(cs, 888 , -1s, i + 1, chan)
+		print(r)
 	}
 	stop
 }
@@ -149,15 +158,12 @@ process test4: {
 			print(arp.degree)
 			arp2 = arps[-n] 
 			//print("arp", n)
-			cs_note(cs, "sine", 1s, 0.3, tune(base, melodic_minor, arp.degree, just), arp.chn)
+			cs_note(cs, "sine", 1s, fff, tune(base, melodic_minor, arp.degree, just), arp.chn)
 			//cs_note(cs, "sine", 10s, 0.3, tune(base, melodic_minor, arp2.degree, just), arp2.chn)
 
 		}
 	}
 
-	@(3s): {
-		stop test4
-	} 
 }
 
 
@@ -220,10 +226,10 @@ process test7: {
 }
 
 
-clk = clock(120bpm)
+clk = clock(160bpm)
 
 process tempotest: {
-	a = sync(clk, clk(2b) ) 
+	a = sync(clk,  1b ) 
 	on(a): {
 		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 0, just), 2)
 	}
@@ -243,17 +249,25 @@ process tempotest3: {
 }
 
 process euclidtest: {
-	phase = free_phasor(600ms)//phasor(clk, 1b) 
-a = euclid(1, 8, phase_in = phase)
+	phase = phasor(clk, 2b) 
+	a = euclid(3, 8, phase_in = phase)
 	on(a): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 7, just), 2)
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 5, just), 2)
 	}
 }
 
 process euclid2: {
-	phase = phasor(clk, 1b) 
-	b = euclid(3, 8, phase_in=phase)
+	phase = phasor(clk, 2b) 
+	b = euclid(5, 8, phase_in=phase)
 	on(b): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 4, just), 1)
+		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 2, just), 1)
+	}
+}
+
+process euc: {
+	phase = phasor(clk, 4b) 
+	c = euclid(3, 8, phase_in=phase)
+	on(c): {
+		cs_note(cs, "sine", 1s, fff, tune(c2, melodic_minor, -4, just), int(rnd(1, 2.99)))
 	}
 }

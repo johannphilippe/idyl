@@ -13,7 +13,6 @@ nchnls	=	24
 nchnls_i= 	10
 0dbfs	=	1
 
-
 gioffset = 16
 
 gkgain init 0.5
@@ -42,20 +41,22 @@ instr sine
 
 endin
 
-instr direct 
+instr 888 ; direct output 
 	print(p4)
 	print(p5)
 	ich init p4 
 	ioch init p5 + gioffset 
+	icheck init p5 
 	ain = inch(ich) * 0.4
 	kin = k(ain)
-	printk2(kin)
 	outch(ioch, ain)
+	outch(icheck, ain)
 endin
 
 instr dusk
-	Sinstrname init p4
-	turnoff2(nstrnum(Sinstrname), 0, 1)
+	prints(">>>>>> dusk started\n")
+	print(p4)
+	turnoff2_i(p4, 0, 1)
 	turnoff
 endin
 
@@ -66,7 +67,6 @@ f 0 z
 
 i "master" 0 -1
 
-i "direct" 0 -1 1 1
 
 </CsScore>
 </CsoundSynthesizer>

@@ -263,7 +263,7 @@ private:
         }
 
         csoundSetOption(cs, "-d");   // suppress console output; remove for debug
-        csoundSetOption(cs, "-m 16");   // suppress console output; remove for debug
+        //csoundSetOption(cs, "-m 16");   // suppress console output; remove for debug
 
         const char* argv[] = { "csound", path.c_str() };
         int ret = csoundCompile(cs, 2, argv);
@@ -325,29 +325,25 @@ private:
         CSOUND* cs = inst->get();
         if (!cs) return core::value::trigger(false);
 
-        if (args[1].type_ == core::value_t::string) {
-            // Named instrument: build a score string and feed it via csoundReadScore.
-            // Format: i "name" 0 dur_s [p4 p5 ...]
-            std::string score = "i \"" + args[1].as_string() + "\" 0 "
-                                + std::to_string(dur_s);
-            for (size_t i = 3; i < args.size_; ++i)
+        // Build a score line and send via csoundReadScoreAsync — works reliably
+        // for both named (i "name" ...) and numeric (i 888 ...) instruments.
+        // csoundScoreEventAsync had inconsistent p-field indexing across Csound
+        // versions and produced p1=0 errors; the score-string path is stable.
+        std::string score;
+        if (args[1].type_ == core::value_t::string)
+            score = "i \"" + args[1].as_string() + "\" 0 ";
+        else
+            score = "i " + std::to_string(static_cast<long>(args[1].as_number())) + " 0 ";
+
+        score += std::to_string(dur_s);
+        for (size_t i = 3; i < args.size_; ++i) {
+            if (args[i].type_ == core::value_t::string)
+                score += " \"" + args[i].as_string() + "\"";
+            else
                 score += " " + std::to_string(args[i].as_number());
-            score += "\n";
-            csoundReadScoreAsync(cs, score.c_str());
-
-        } else {
-            // Numeric instrument: use csoundScoreEvent for efficiency.
-            // p-field layout: p1=instr, p2=0 (now), p3=dur_s, p4+...
-            std::vector<MYFLT> pf;
-            pf.reserve(3 + args.size_ - 3);
-            pf.push_back(static_cast<MYFLT>(args[1].as_number())); // p1
-            pf.push_back(0.0);                                       // p2 = now
-            pf.push_back(static_cast<MYFLT>(dur_s));                 // p3
-            for (size_t i = 3; i < args.size_; ++i)
-                pf.push_back(static_cast<MYFLT>(args[i].as_number()));
-
-            csoundScoreEventAsync(cs, 'i', pf.data(), static_cast<long>(pf.size()));
         }
+        score += "\n";
+        csoundReadScoreAsync(cs, score.c_str());
         return core::value::trigger(true);
 #else
         return core::value::trigger(false);

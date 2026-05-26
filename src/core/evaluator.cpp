@@ -359,6 +359,9 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
         ++process_count_;
         env_.push_scope();
+        // Record this process's scope index so scheduler callbacks can pin the
+        // environment to this scope and avoid sibling-process scope pollution.
+        const size_t proc_scope_idx = env_.scopes_.size() - 1;
 
         auto saved_proc_name = current_process_name_;
         current_process_name_ = proc.name_;
@@ -517,11 +520,18 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                     }
                     auto weak_anon = std::weak_ptr<function_instance>(anon_inst);
                     anon_inst->subscription_id_ = scheduler_->subscribe(anon_inst->dt_ms_,
-                        [this, def_ptr, weak_anon, rxn]
+                        [this, def_ptr, weak_anon, rxn, proc_scope_idx]
                         (double, double) -> bool {
                             std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                             auto si = weak_anon.lock();
                             if (!si || !si->active_) return false;
+
+                            const size_t old_pin   = env_.scope_pin_;
+                            const size_t old_start = env_.scope_start_;
+                            if (proc_scope_idx > 0 && proc_scope_idx < env_.scopes_.size()) {
+                                env_.scope_pin_   = proc_scope_idx;
+                                env_.scope_start_ = env_.scopes_.size();
+                            }
 
                             tick_instance(si, def_ptr.get());
 
@@ -536,9 +546,13 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                                 if (live) {
                                     c.fired = true;
                                     for (const auto& h : c.handler) exec_stmt(h);
+                                    env_.scope_pin_   = old_pin;
+                                    env_.scope_start_ = old_start;
                                     return false; // one-shot
                                 }
                             }
+                            env_.scope_pin_   = old_pin;
+                            env_.scope_start_ = old_start;
                             return true;
                         }, current_process_name_, anon_inst->first_fire_ms_);
                 }
@@ -615,7 +629,7 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                 inst->subscription_id_ = scheduler_->subscribe(inst->dt_ms_,
                     [this, def_ptr, weak_inst, var, rxn, all_ids,
                      dur_ms, start_t = scheduler_->now_ms(),
-                     proc_name = proc.name_]
+                     proc_name = proc.name_, proc_scope_idx]
                     (double t, double /*dt*/) -> bool {
                         std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
                         // ── Duration check ─────────────────────────────────
@@ -627,6 +641,16 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
                         auto si = weak_inst.lock();
                         if (!si || !si->active_) return false;
+
+                        // Pin the scope so that lookup/define in this callback
+                        // only see [global … process_scope] and any local scopes
+                        // pushed during this callback — never sibling-process scopes.
+                        const size_t old_pin   = env_.scope_pin_;
+                        const size_t old_start = env_.scope_start_;
+                        if (proc_scope_idx > 0 && proc_scope_idx < env_.scopes_.size()) {
+                            env_.scope_pin_   = proc_scope_idx;
+                            env_.scope_start_ = env_.scopes_.size();
+                        }
 
                         // (epoch-transition flush removed — see epoch_flush below)
 
@@ -759,6 +783,10 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                                 return false;
                             });
                         }
+
+                        // Restore scope isolation state.
+                        env_.scope_pin_   = old_pin;
+                        env_.scope_start_ = old_start;
 
                         return !should_end;
                     }, proc.name_, inst->first_fire_ms_);
@@ -1547,7 +1575,21 @@ value evaluator::eval_memory_op(const parser::memory_op_expr* moe) {
     size_t size = 1;
     if (moe->op_->delay_count_) {
         value count_val = eval_expr(moe->op_->delay_count_);
-        size = std::max(size_t(1), static_cast<size_t>(std::round(count_val.as_number())));
+        if (count_val.type_ == value_t::time) {
+            // Time-based delay: convert ms to ticks using the current tick period.
+            // proc_stop_ctx_ is the driving instance during reaction execution;
+            // currently_ticking_inst_ covers eval inside tick_instance itself.
+            double dt_ms = 0.0;
+            if (proc_stop_ctx_ && proc_stop_ctx_->dt_ms_ > 0.0)
+                dt_ms = proc_stop_ctx_->dt_ms_;
+            else if (currently_ticking_inst_ && currently_ticking_inst_->dt_ms_ > 0.0)
+                dt_ms = currently_ticking_inst_->dt_ms_;
+            if (dt_ms > 0.0)
+                size = std::max(size_t(1),
+                    static_cast<size_t>(std::round(count_val.number_ / dt_ms)));
+        } else {
+            size = std::max(size_t(1), static_cast<size_t>(std::round(count_val.as_number())));
+        }
     }
 
     // Initialize buffer if missing or size changed
@@ -1997,19 +2039,24 @@ value evaluator::eval_call(const parser::function_call& call) {
             inst->dt_ms_    = dt_ms;
 
             // Anchor at (phase=0, t=0) — globally consistent with sync() grid.
+            // __n_beats stored in state so hot-reload can update it without recreation.
+            // __clock_id stored so pass-1 hot-reload can look up the current BPM.
             inst->current_["__phase_anchor"] = value::number(0.0);
             inst->current_["__time_anchor"]  = value::number(0.0);
             inst->current_["__last_bpm"]     = value::number(creation_bpm);
+            inst->current_["__n_beats"]      = value::number(n_beats);
+            inst->current_["__clock_id"]     = value::number(static_cast<double>(clock_id));
 
             auto* sched   = scheduler_;
             auto* clk_reg = &clocks_;
 
-            inst->native_update_ = [clock_id, n_beats, sched, clk_reg](
+            inst->native_update_ = [clock_id, sched, clk_reg](
                 const native_state_t& /*params*/,
                 native_state_t& state,
                 native_state_t& /*emitted*/,
                 value& output)
             {
+                double n_beats  = state.at("__n_beats").as_number();
                 double now      = sched ? sched->now_ms() : 0.0;
                 double curr_bpm = clk_reg->bpm(clock_id);
                 double last_bpm = state.at("__last_bpm").as_number();
@@ -3833,8 +3880,39 @@ void evaluator::diff_and_apply(live_process& lp,
                         return first_pos;
                     };
 
+                    // Helper: for functions whose first positional arg is a clock handle
+                    // (sync, phasor), return the period expression (second positional
+                    // when first evaluates to a handle, else first positional).
+                    auto extract_clock_period = [this, &s]() -> parser::expr_ptr {
+                        parser::expr_ptr call_expr;
+                        if (s->type_ == parser::node_t::assignment)
+                            call_expr = static_cast<const parser::assignment&>(*s).value_;
+                        else if (s->type_ == parser::node_t::function_definition) {
+                            auto& fd = static_cast<const parser::function_definition&>(*s);
+                            if (!fd.lambda_block_) call_expr = fd.body_;
+                        }
+                        if (!call_expr || call_expr->type_ != parser::node_t::function_call_expr)
+                            return nullptr;
+                        const auto& fce = static_cast<const parser::function_call_expr&>(*call_expr);
+                        if (!fce.call_) return nullptr;
+                        std::vector<parser::expr_ptr> pos_args;
+                        for (const auto& arg : fce.call_->arguments_) {
+                            if (arg && arg->name_.empty()) pos_args.push_back(arg->value_);
+                        }
+                        if (pos_args.empty()) return nullptr;
+                        if (pos_args.size() == 1) return pos_args[0];
+                        value first = eval_expr(pos_args[0]);
+                        return (first.type_ == value_t::handle) ? pos_args[1] : pos_args[0];
+                    };
+
                     double new_dt = oldseg.dt_ms;
-                    if (auto dt_expr = extract_dt_arg(s)) {
+                    if (oldseg.def_name == "sync") {
+                        // sync(clk, period) or sync(period): dt_ms IS the period.
+                        if (auto period_expr = extract_clock_period()) {
+                            value period_val = eval_expr(period_expr);
+                            if (period_val.number_ > 0.0) new_dt = period_val.number_;
+                        }
+                    } else if (auto dt_expr = extract_dt_arg(s)) {
                         value dt_val = eval_expr(dt_expr);
                         if (dt_val.number_ > 0.0) new_dt = dt_val.number_;
                     }
@@ -4055,6 +4133,53 @@ void evaluator::diff_and_apply(live_process& lp,
                     pexprs["dt"] = new_dt_expr;
                 else
                     pexprs.erase("dt");
+            }
+        }
+
+        // ── phasor: update __n_beats in instance state on period change ──────
+        // phasor stores its period as __n_beats in instance state (not closure
+        // capture) so hot-reload can update it here without instance recreation.
+        if (old_seg.def_name == "phasor" && ns.fresh_stmt) {
+            auto inst_it = instances_.find(old_seg.instance_id);
+            if (inst_it != instances_.end()) {
+                auto& inst = inst_it->second;
+                // Extract period from new call: second positional if first is a
+                // clock handle (phasor(clk, period)), else first positional.
+                auto get_period_expr = [this](const parser::stmt_ptr& stmt) -> parser::expr_ptr {
+                    parser::expr_ptr call_expr;
+                    if (stmt->type_ == parser::node_t::assignment)
+                        call_expr = static_cast<const parser::assignment&>(*stmt).value_;
+                    else if (stmt->type_ == parser::node_t::function_definition) {
+                        auto& fd = static_cast<const parser::function_definition&>(*stmt);
+                        if (!fd.lambda_block_) call_expr = fd.body_;
+                    }
+                    if (!call_expr || call_expr->type_ != parser::node_t::function_call_expr)
+                        return nullptr;
+                    const auto& fce = static_cast<const parser::function_call_expr&>(*call_expr);
+                    if (!fce.call_) return nullptr;
+                    std::vector<parser::expr_ptr> pos_args;
+                    for (const auto& arg : fce.call_->arguments_) {
+                        if (arg && arg->name_.empty()) pos_args.push_back(arg->value_);
+                    }
+                    if (pos_args.empty()) return nullptr;
+                    if (pos_args.size() == 1) return pos_args[0];
+                    value first = eval_expr(pos_args[0]);
+                    return (first.type_ == value_t::handle) ? pos_args[1] : pos_args[0];
+                };
+                if (auto period_expr = get_period_expr(ns.fresh_stmt)) {
+                    value period_val = eval_expr(period_expr);
+                    double period_ms = period_val.number_;
+                    if (period_ms > 0.0) {
+                        auto cid_it = inst->current_.find("__clock_id");
+                        if (cid_it != inst->current_.end()) {
+                            uint64_t cid = static_cast<uint64_t>(cid_it->second.as_number());
+                            double curr_bpm = clocks_.bpm(cid);
+                            double new_n_beats = (curr_bpm > 0.0)
+                                ? (period_ms * curr_bpm / 60000.0) : 0.0;
+                            inst->current_["__n_beats"] = value::number(new_n_beats);
+                        }
+                    }
+                }
             }
         }
 

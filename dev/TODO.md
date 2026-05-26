@@ -14,17 +14,32 @@ This must be done in a smart way :
 
 ## Known bugs (unsolved)
 
+
+- [issue] hot reload : starting an already running process causes duplicates 
+- [issue] changing any global clock tempo value doesn't work at runtime
+- [issue] three different processes using same clock : starting or stopping a process affects others behavior (speed) : I suspect variables are shared ... 
+
 - [todo] make an audit of every situation where dt reaction wouldn't cause update (like reactions of reactions)
 - [fixed] dynamic flows do not seem to work properly  : `flow dynamicmel(deg) = [ tune(c2, minor, deg, just), tune(d3, major, deg, just) ]` : the indexing is ok, the argument is taken, 
 but tune is not recomputed on each tick of deg
 - [question]  ternary operator simple expression does not work so well when not assigned to an output (result)
+Also, consecutive ternary without assignment don't parse. 
+`(condition) ? fire_something(blabla) ; fire_something_else(blublu) // this doesn't work well`
+`res = (condition) ? fire_something(blabla) ; fire_something_else(blublu) // this works well`
+
+`
+// Consecutive : doesn't parse 
+(condition) ? fire_something(blabla) ; fire_something_else(blublu) 
+(condition) ? fire_something(blabla) ; fire_something_else(blublu) 
+
+`
 
 - [fixed] hot reload not changing the values I manually changed (in euclidian rhythm)
 - [fixed] hot reloading restarting flow indexing 
-- [issue] stop primitive does not seem to kill process state
-- [todo] delay operator ' currently delays ticks (numbers). It should be able to delay ms, b etc (all temporal primitives). 
+- [fixed] stop primitive does not seem to kill process state
+- [done] delay operator ' currently delays ticks (numbers). It should be able to delay ms, b etc (all temporal primitives). 
 - [bug] : pause/resume in system clock scheduler (each arpeggio inside an on block) causes duplicates of a few events. Working fine in audio clock.
-- [issue_or_question] tests/temporal/trigger_and_stop.idyl : several consecutive ternary do not parse . Also, behavior of trigger as conditions is unclear.
+- [for_later] tests/temporal/trigger_and_stop.idyl : several consecutive ternary do not parse . Also, behavior of trigger as conditions is unclear.
 - [done] : loops in flows (generators) and loops in `each` do no share syntax (`each n in 1..4` against `n = 1..4`) 
 - [crash] Some issues make the vm crash : this should be avoided ! 
 
