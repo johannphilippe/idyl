@@ -8,6 +8,17 @@ fh = midi_out(2)
 matrix = midi_out(3) 
 
 
+deepkick(spike!, amp = mp) = cs_note(cs, "deepkick", 1s, amp, 500, 20, 0.05)
+dirtykick(spike!, amp=mp) = cs_note(cs, "dirtykick", 1s, amp, 300, 20, 12)
+
+process kick: {
+	tempo(120bpm)
+	deepkick(sync(4b), amp=fff) 
+	ph = phasor(.4b)
+	dirtykick(euclid(3, 8, phase_in=ph), amp=fff)
+}
+
+
 flow mf = [1, 2, 3, 4, 5]
 
 process checkflow: {
@@ -226,48 +237,50 @@ process test7: {
 }
 
 
-clk = clock(160bpm)
+clk = clock(100bpm)
 
 process tempotest: {
 	a = sync(clk,  1b ) 
 	on(a): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 0, just), 2)
+		cs_note(cs, "sine", .2s, f, tune(c4, melodic_minor, 0, just), 2)
 	}
 }
 process tempotest2: {
 	a = sync(clk, clk(1b) )
 	on(a): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 3, just), 1)
+		cs_note(cs, "sine", .1s, f, tune(c4, melodic_minor, 3, just), 1)
 	}
 }
 
 process tempotest3: {
-	a = sync(clk, 2b) //sync(clk, clk(1b) )
+	tempo(480bpm)
+	a = metro(1b) // sync(1b) //sync(clk, clk(1b) )
 	on(a): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 3, just), 1)
+		cs_note(cs, "sine", .1s, f, tune(c4, melodic_minor, 2, just), 1)
 	}
 }
 
 process euclidtest: {
-	phase = phasor(clk, 2b) 
-	a = euclid(3, 8, phase_in = phase)
+	phase = phasor(clk, 4b) 
+	a = euclid(5, 8, phase_in = phase)
 	on(a): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 5, just), 2)
+		cs_note(cs, "sine", .5s, fff, tune(c4, melodic_minor, 3, just), 2)
 	}
 }
 
 process euclid2: {
-	phase = phasor(clk, 2b) 
+	phase = phasor(clk, 4b) 
 	b = euclid(5, 8, phase_in=phase)
 	on(b): {
-		cs_note(cs, "sine", 1s, f, tune(c4, melodic_minor, 2, just), 1)
+		cs_note(cs, "sine", .5s, f, tune(c4, melodic_minor, -2, just), 1)
 	}
 }
 
 process euc: {
+	tempo(clk, 120bpm)
 	phase = phasor(clk, 4b) 
-	c = euclid(3, 8, phase_in=phase)
+	c = euclid(5, 8, phase_in=phase)
 	on(c): {
-		cs_note(cs, "sine", 1s, fff, tune(c2, melodic_minor, -4, just), int(rnd(1, 2.99)))
+		cs_note(cs, "sine", .5s, fff, tune(c2, melodic_minor, -4, just), int(rnd(1, 2.99)))
 	}
 }

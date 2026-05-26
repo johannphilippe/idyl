@@ -15,6 +15,8 @@ This must be done in a smart way :
 ## Known bugs (unsolved)
 
 
+- [issue] when "starting" a process that is synced, it might create an extra note still (that is not synced)
+
 - [issue] hot reload : starting an already running process causes duplicates 
 - [issue] changing any global clock tempo value doesn't work at runtime
 - [issue] three different processes using same clock : starting or stopping a process affects others behavior (speed) : I suspect variables are shared ... 

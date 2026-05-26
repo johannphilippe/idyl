@@ -381,34 +381,52 @@ namespace idyl::core {
         uint64_t    parent_id_ = 0;      // 0 = no parent (free-running)
         double      ratio_     = 1.0;    // this.bpm / parent.bpm at bind time
         std::vector<uint64_t> children_;
+
+        // Phase timeline: the clock accumulates beats over wall-clock time.
+        // epoch_ms_ is the wall-clock time of the last BPM change (or creation).
+        // beat_offset_ is the cumulative beat count at epoch_ms_.
+        // current_beat(now) = beat_offset_ + (now - epoch_ms_) * bpm_ / 60000.
+        double epoch_ms_     = 0.0;
+        double beat_offset_  = 0.0;
     };
 
     // ── Clock registry ─────────────────────────────────────────────────────────
     // Manages the global clock hierarchy.  A default "main" clock is created
     // at startup.  All new clocks bind to main unless parent= is specified.
+    //
+    // Each clock tracks a continuous beat timeline (epoch + beat_offset) so
+    // that phasors can compute a globally synchronized phase at any point in
+    // time without per-phasor anchor bookkeeping.  BPM changes freeze the beat
+    // position at the change time, then continue at the new rate — all phasors
+    // observing this clock automatically see the smooth, coherent phase.
     struct clock_registry {
         std::unordered_map<uint64_t, clock_node> clocks_;
         uint64_t next_id_ = 1;
         uint64_t main_id_ = 0;
 
-        // Initialise with a main clock at the given BPM (default 120)
-        void init(double bpm = 120.0) {
+        // Initialise with a main clock at the given BPM (default 120).
+        // now_ms should be the scheduler's current time (0 if not yet started).
+        void init(double bpm = 120.0, double now_ms = 0.0) {
             clock_node main_clk;
-            main_clk.id_  = next_id_++;
-            main_clk.bpm_ = bpm;
-            main_clk.parent_id_ = 0;  // no parent
-            main_clk.ratio_      = 1.0;
+            main_clk.id_          = next_id_++;
+            main_clk.bpm_         = bpm;
+            main_clk.parent_id_   = 0;
+            main_clk.ratio_       = 1.0;
+            main_clk.epoch_ms_    = now_ms;
+            main_clk.beat_offset_ = 0.0;
             main_id_ = main_clk.id_;
             clocks_[main_clk.id_] = std::move(main_clk);
         }
 
         // Create a new clock.  parent_id=0 means free-running.
-        // When parent_id > 0 the ratio child/parent is computed and stored.
-        uint64_t create(double bpm, uint64_t parent_id) {
+        // now_ms anchors the clock's beat 0 to this wall-clock time.
+        uint64_t create(double bpm, uint64_t parent_id, double now_ms = 0.0) {
             clock_node clk;
-            clk.id_  = next_id_++;
-            clk.bpm_ = bpm;
-            clk.parent_id_ = parent_id;
+            clk.id_          = next_id_++;
+            clk.bpm_         = bpm;
+            clk.parent_id_   = parent_id;
+            clk.epoch_ms_    = now_ms;
+            clk.beat_offset_ = 0.0;
             if (parent_id != 0) {
                 auto pit = clocks_.find(parent_id);
                 if (pit != clocks_.end() && pit->second.bpm_ > 0.0) {
@@ -422,14 +440,19 @@ namespace idyl::core {
         }
 
         // Set BPM on a clock and recursively propagate to children.
-        void set_bpm(uint64_t id, double new_bpm) {
+        // now_ms must be the current wall-clock time so beat continuity is preserved.
+        void set_bpm(uint64_t id, double new_bpm, double now_ms = 0.0) {
             auto it = clocks_.find(id);
             if (it == clocks_.end()) return;
-            it->second.bpm_ = new_bpm;
-            for (uint64_t child_id : it->second.children_) {
+            auto& clk = it->second;
+            // Freeze the accumulated beat count at now before switching rate.
+            clk.beat_offset_ += (now_ms - clk.epoch_ms_) * clk.bpm_ / 60000.0;
+            clk.epoch_ms_     = now_ms;
+            clk.bpm_          = new_bpm;
+            for (uint64_t child_id : clk.children_) {
                 auto cit = clocks_.find(child_id);
                 if (cit != clocks_.end()) {
-                    set_bpm(child_id, new_bpm * cit->second.ratio_);
+                    set_bpm(child_id, new_bpm * cit->second.ratio_, now_ms);
                 }
             }
         }
@@ -442,6 +465,23 @@ namespace idyl::core {
 
         // Main clock BPM shorthand.
         double main_bpm() const { return bpm(main_id_); }
+
+        // Cumulative beat count at the given wall-clock time.
+        double current_beat_at(uint64_t id, double now_ms) const {
+            auto it = clocks_.find(id);
+            if (it == clocks_.end()) return 0.0;
+            const auto& clk = it->second;
+            return clk.beat_offset_ + (now_ms - clk.epoch_ms_) * clk.bpm_ / 60000.0;
+        }
+
+        // Phase within an n_beats cycle at the given wall-clock time [0, 1).
+        // All phasors sharing this clock and the same n_beats return the same
+        // value regardless of when they were created — phase is global.
+        double phase_at(uint64_t id, double n_beats, double now_ms) const {
+            if (n_beats <= 0.0) return 0.0;
+            double ph = std::fmod(current_beat_at(id, now_ms) / n_beats, 1.0);
+            return (ph < 0.0) ? ph + 1.0 : ph;
+        }
     };
 
 } // --- idyl::core ---

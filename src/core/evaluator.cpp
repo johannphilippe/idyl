@@ -1887,7 +1887,8 @@ value evaluator::eval_call(const parser::function_call& call) {
             parent_id = (h > 0) ? static_cast<uint64_t>(h) : 0;  // 0 = free
         }
 
-        uint64_t id = clocks_.create(bpm, parent_id);
+        double now_ms = scheduler_ ? scheduler_->now_ms() : 0.0;
+        uint64_t id = clocks_.create(bpm, parent_id, now_ms);
         return value::handle(static_cast<intptr_t>(id));
     }
 
@@ -1896,6 +1897,7 @@ value evaluator::eval_call(const parser::function_call& call) {
         // tempo(handle)        → return BPM of a specific clock
         // tempo(bpm)           → set main clock BPM, propagate
         // tempo(handle, bpm)   → set specific clock BPM, propagate
+        double now_ms = scheduler_ ? scheduler_->now_ms() : 0.0;
         if (args.empty()) {
             return value::number(clocks_.main_bpm());
         } else if (args.size() == 1) {
@@ -1906,13 +1908,13 @@ value evaluator::eval_call(const parser::function_call& call) {
             }
             double period_ms = args[0].as_number();
             double bpm = (period_ms > 0.0) ? (60000.0 / period_ms) : 120.0;
-            clocks_.set_bpm(clocks_.main_id_, bpm);
+            clocks_.set_bpm(clocks_.main_id_, bpm, now_ms);
             return value::number(bpm);
         } else {
             uint64_t clock_id = static_cast<uint64_t>(args[0].as_handle());
             double period_ms = args[1].as_number();
             double bpm = (period_ms > 0.0) ? (60000.0 / period_ms) : 120.0;
-            clocks_.set_bpm(clock_id, bpm);
+            clocks_.set_bpm(clock_id, bpm, now_ms);
             return value::number(bpm);
         }
     }
@@ -1990,8 +1992,11 @@ value evaluator::eval_call(const parser::function_call& call) {
     //
     // Both forms compute phase anchored at t=0, so two processes calling
     // phasor with the same clock and period always produce identical phase values.
-    // BPM changes are handled by re-anchoring: when the clock BPM changes, the
-    // current phase is frozen and continued with the new period, keeping it smooth.
+    // The phasor computes its phase from the global clock timeline maintained in
+    // clock_registry.  BPM changes update the clock's beat_offset_ atomically,
+    // so ALL phasors sharing the clock see a coherent, glitch-free phase without
+    // any per-phasor anchor bookkeeping.  New phasors also start at the correct
+    // clock phase, eliminating the extra-note-at-start problem on process restart.
     if (fn_name == "phasor" && !args.empty()) {
         bool has_clk = (args[0].type_ == value_t::handle);
         // 2-arg form: phasor(clk_handle, period_ms)
@@ -2026,8 +2031,8 @@ value evaluator::eval_call(const parser::function_call& call) {
                     dt_ms = args[1].as_number(); // positional dt: phasor(period, dt)
             }
 
-            // n_beats: period in beats of this clock, so we can recompute
-            // period_ms when BPM changes.
+            // n_beats: period expressed in beats of this clock.
+            // Stored in state so hot-reload can update it when the period expr changes.
             double creation_bpm = clocks_.bpm(clock_id);
             double n_beats = (creation_bpm > 0.0)
                 ? (period_ms * creation_bpm / 60000.0) : 0.0;
@@ -2038,14 +2043,10 @@ value evaluator::eval_call(const parser::function_call& call) {
             inst->def_name_ = "phasor";
             inst->dt_ms_    = dt_ms;
 
-            // Anchor at (phase=0, t=0) — globally consistent with sync() grid.
-            // __n_beats stored in state so hot-reload can update it without recreation.
-            // __clock_id stored so pass-1 hot-reload can look up the current BPM.
-            inst->current_["__phase_anchor"] = value::number(0.0);
-            inst->current_["__time_anchor"]  = value::number(0.0);
-            inst->current_["__last_bpm"]     = value::number(creation_bpm);
-            inst->current_["__n_beats"]      = value::number(n_beats);
-            inst->current_["__clock_id"]     = value::number(static_cast<double>(clock_id));
+            // Only __n_beats and __clock_id are needed; phase is derived from the
+            // global clock timeline on every tick (no per-phasor anchor state).
+            inst->current_["__n_beats"]  = value::number(n_beats);
+            inst->current_["__clock_id"] = value::number(static_cast<double>(clock_id));
 
             auto* sched   = scheduler_;
             auto* clk_reg = &clocks_;
@@ -2056,37 +2057,17 @@ value evaluator::eval_call(const parser::function_call& call) {
                 native_state_t& /*emitted*/,
                 value& output)
             {
-                double n_beats  = state.at("__n_beats").as_number();
-                double now      = sched ? sched->now_ms() : 0.0;
-                double curr_bpm = clk_reg->bpm(clock_id);
-                double last_bpm = state.at("__last_bpm").as_number();
-
-                if (curr_bpm != last_bpm && n_beats > 0.0 && last_bpm > 0.0) {
-                    // BPM changed: freeze phase at this moment, continue with new rate.
-                    double old_period = n_beats * (60000.0 / last_bpm);
-                    double pa = state.at("__phase_anchor").as_number();
-                    double ta = state.at("__time_anchor").as_number();
-                    double curr_phase = std::fmod(pa + (now - ta) / old_period, 1.0);
-                    if (curr_phase < 0.0) curr_phase += 1.0;
-
-                    state["__phase_anchor"] = value::number(curr_phase);
-                    state["__time_anchor"]  = value::number(now);
-                    state["__last_bpm"]     = value::number(curr_bpm);
-                }
-
-                double period = (curr_bpm > 0.0 && n_beats > 0.0)
-                              ? n_beats * (60000.0 / curr_bpm) : 0.0;
-                double phase  = 0.0;
-                if (period > 0.0) {
-                    double pa = state.at("__phase_anchor").as_number();
-                    double ta = state.at("__time_anchor").as_number();
-                    phase = std::fmod(pa + (now - ta) / period, 1.0);
-                    if (phase < 0.0) phase += 1.0;
-                }
-                output = value::number(phase);
+                double n_beats = state.at("__n_beats").as_number();
+                double now     = sched ? sched->now_ms() : 0.0;
+                output = value::number(clk_reg->phase_at(clock_id, n_beats, now));
             };
 
-            inst->write_output(value::number(0.0));
+            // Start at the current global clock phase so the phasor is immediately
+            // in sync with any other phasor sharing the same clock and period.
+            double initial_phase = clocks_.phase_at(
+                clock_id, n_beats,
+                scheduler_ ? scheduler_->now_ms() : 0.0);
+            inst->write_output(value::number(initial_phase));
             instances_[inst->id_] = inst;
             last_instantiated_    = inst;
             return inst->read_output();
@@ -3299,39 +3280,27 @@ bool evaluator::start_process(const std::string& name) {
         return false;
     }
 
-    // Smart start: if paused → resume (no fresh instantiation).
+    // Smart start based on current process state.
     {
         auto lp_it = live_processes_.find(name);
-        if (lp_it != live_processes_.end() &&
-            lp_it->second.state == process_state::paused) {
-            std::cout << "Resuming paused process '" << name << "'.\n";
-            return resume_process(name);
+        if (lp_it != live_processes_.end()) {
+            if (lp_it->second.state == process_state::running) {
+                // Already running — silently ignore to avoid drift/interruption.
+                // Use hot_reload to update a running process instead.
+                return true;
+            }
+            if (lp_it->second.state == process_state::paused) {
+                std::cout << "Resuming paused process '" << name << "'.\n";
+                return resume_process(name);
+            }
         }
-    }
-
-    // If already running, stop first.
-    // Track whether this is a restart so we can suppress module side-effects
-    // (cs_note etc.) during the setup exec_stmt below.  Without suppression,
-    // the old process's last scheduler tick fires a note right before we take
-    // eval_mutex_, then the setup fires another note milliseconds later →
-    // audible double note.  On restart we let the first real scheduler tick
-    // (e.g. 300 ms after setup for a 300 ms counter) fire the first new note.
-    bool is_restart = active_process_instances_.count(name) > 0;
-    if (is_restart) {
-        std::cout << "Process '" << name << "' is already running, restarting it.\n";
-        stop_process(name);
     }
 
     // Temporarily disable listen mode so exec_stmt actually runs the block
     auto saved_filter = process_filter_;
     auto saved_listen = listen_mode_;
-    auto saved_spec   = speculative_exec_;
     process_filter_ = name;
     listen_mode_    = false;
-    // On restart: suppress module side-effects so cs_note doesn't fire during
-    // the setup pass.  Native temporals (counter, metro, etc.) are instantiated
-    // normally — only module functions without is_native_temporal_ are gated.
-    if (is_restart) speculative_exec_ = true;
 
     // Reset flow_site_cursors_ entries for all flow access sites in this process
     // so each fresh start begins from element 0 rather than inheriting state
@@ -3370,9 +3339,8 @@ bool evaluator::start_process(const std::string& name) {
     if (lp_it != live_processes_.end())
         lp_it->second.state = process_state::running;
 
-    process_filter_  = saved_filter;
-    listen_mode_     = saved_listen;
-    speculative_exec_ = saved_spec;
+    process_filter_ = saved_filter;
+    listen_mode_    = saved_listen;
     return true;
 }
 
@@ -3731,10 +3699,26 @@ void evaluator::diff_and_apply(live_process& lp,
         }
     };
 
-    // Unnamed binding statements: on_block with a function-call trigger creates
-    // a temporal instance and becomes an unnamed live_segment (bound_var == "").
-    // Collect them in source order so they can be matched positionally in pass 1.
+    // Unnamed binding statements: on_block with a function-call trigger, or an
+    // expression_stmt that contains a temporal call (e.g. deepkick(sync(1b), amp)),
+    // creates an unnamed live_segment (bound_var == "").
+    // Collect them in source order so they can be matched positionally in pass 0.5.
     std::vector<parser::stmt_ptr> new_unnamed_binding_stmts;
+
+    // Build the list of outer function names for old unnamed segments whose binding
+    // statement is an expression_stmt.  Used below to distinguish temporal driver
+    // expression_stmts (e.g. deepkick(sync(1b), amp)) from pre-segment side-effect
+    // expression_stmts (e.g. tempo(120bpm)) during hot-reload.
+    std::vector<std::string> old_unnamed_expr_names;
+    for (const auto& seg : lp.segments) {
+        if (!seg.bound_var.empty() || !seg.rxn) continue;
+        parser::stmt_ptr bstmt;
+        { std::lock_guard<std::mutex> lk(seg.rxn->mutex); bstmt = seg.rxn->binding_stmt; }
+        if (!bstmt || bstmt->type_ != parser::node_t::expression_stmt) continue;
+        auto& es = static_cast<const parser::expression_stmt&>(*bstmt);
+        old_unnamed_expr_names.push_back(extract_fn_name(extract_fn_name, es.expression_));
+    }
+    size_t old_expr_drv_idx = 0;
 
     {
         new_seg_info* cur = nullptr;
@@ -3779,6 +3763,22 @@ void evaluator::diff_and_apply(live_process& lp,
                     if (ob.trigger_expr_ &&
                         ob.trigger_expr_->type_ == parser::node_t::function_call_expr)
                         is_unnamed_driver = true;
+                } else if (s->type_ == parser::node_t::expression_stmt) {
+                    // expression_stmt: if the old process had an unnamed segment whose
+                    // binding was an expression_stmt calling the same outer function,
+                    // this is a temporal driver (e.g. dirtykick(metro(.5b), amp) or
+                    // deepkick(sync(1b), amp)), NOT a reaction or side-effect.
+                    // The `!cur` guard is intentionally absent: drivers can appear
+                    // anywhere in the process body, including after named bindings.
+                    if (old_expr_drv_idx < old_unnamed_expr_names.size()) {
+                        auto& es = static_cast<const parser::expression_stmt&>(*s);
+                        std::string new_fn = extract_fn_name(extract_fn_name, es.expression_);
+                        if (!new_fn.empty()
+                                && new_fn == old_unnamed_expr_names[old_expr_drv_idx]) {
+                            is_unnamed_driver = true;
+                            ++old_expr_drv_idx;
+                        }
+                    }
                 }
                 if (is_unnamed_driver) {
                     new_unnamed_binding_stmts.push_back(s);
@@ -4049,19 +4049,200 @@ void evaluator::diff_and_apply(live_process& lp,
     // These have bound_var == "" and can't be looked up by name. Match positionally.
     // Track explicitly killed instance IDs so the remove_if below can erase them.
     std::unordered_set<uint64_t> killed_unnamed_ids;
+    std::vector<live_segment> new_unnamed_segs; // function-change recreations
     {
+        // Helper: extract the inner temporal function_call_expr from an
+        // expression_stmt like `dirtykick(metro(.5b), fff)`.  Searches the
+        // outermost call's positional arguments left-to-right for the first
+        // function_call_expr argument; returns nullptr if none found.
+        auto find_inner_temporal_call =
+            [&extract_fn_name](const parser::stmt_ptr& stmt)
+            -> std::pair<std::string, const parser::function_call_expr*>
+        {
+            if (!stmt || stmt->type_ != parser::node_t::expression_stmt)
+                return {"", nullptr};
+            auto& es = static_cast<const parser::expression_stmt&>(*stmt);
+            if (!es.expression_ ||
+                    es.expression_->type_ != parser::node_t::function_call_expr)
+                return {"", nullptr};
+            auto& outer = static_cast<const parser::function_call_expr&>(*es.expression_);
+            if (!outer.call_) return {"", nullptr};
+            for (const auto& arg : outer.call_->arguments_) {
+                if (!arg || !arg->value_) continue;
+                if (arg->value_->type_ != parser::node_t::function_call_expr) continue;
+                std::string name = extract_fn_name(extract_fn_name, arg->value_);
+                if (!name.empty())
+                    return {name, &static_cast<const parser::function_call_expr&>(*arg->value_)};
+            }
+            return {"", nullptr};
+        };
+
         int uidx = 0;
         for (auto& old_seg : lp.segments) {
             if (!old_seg.bound_var.empty()) continue;
-            if (uidx < (int)new_unnamed_binding_stmts.size()) {
-                std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
-                old_seg.rxn->binding_stmt = new_unnamed_binding_stmts[uidx];
-            } else {
+
+            if (uidx >= (int)new_unnamed_binding_stmts.size()) {
                 kill_instance(old_seg.instance_id);
                 killed_unnamed_ids.insert(old_seg.instance_id);
+                ++uidx;
+                continue;
             }
+
+            const auto& new_stmt = new_unnamed_binding_stmts[uidx];
             ++uidx;
+
+            // For non-expression_stmt drivers (e.g. on_block), just update stmt.
+            if (new_stmt->type_ != parser::node_t::expression_stmt) {
+                std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
+                old_seg.rxn->binding_stmt = new_stmt;
+                continue;
+            }
+
+            auto [new_inner_fn, inner_fce] = find_inner_temporal_call(new_stmt);
+
+            if (!new_inner_fn.empty() && new_inner_fn != old_seg.def_name) {
+                // Inner temporal function changed (e.g. metro → euclid).
+                // Kill old instance and re-instantiate from the new statement.
+                kill_instance(old_seg.instance_id);
+                killed_unnamed_ids.insert(old_seg.instance_id);
+
+                uint64_t id_before = next_instance_id_;
+                exec_stmt(new_stmt);
+
+                if (next_instance_id_ > id_before) {
+                    uint64_t new_inst_id =
+                        (last_instantiated_ && last_instantiated_->id_ >= id_before)
+                        ? last_instantiated_->id_
+                        : next_instance_id_ - 1;
+                    auto inst_it = instances_.find(new_inst_id);
+                    if (inst_it != instances_.end()) {
+                        auto inst = inst_it->second;
+
+                        auto rxn_new = std::make_shared<reaction_set>();
+                        rxn_new->binding_stmt = new_stmt;
+
+                        live_segment ns;
+                        ns.instance_id      = new_inst_id;
+                        ns.all_instance_ids = {new_inst_id};
+                        ns.bound_var        = "";
+                        ns.def_name         = inst->def_name_;
+                        ns.dt_ms            = inst->dt_ms_;
+                        ns.rxn              = rxn_new;
+
+                        if (scheduler_ && inst->dt_ms_ > 0.0) {
+                            std::shared_ptr<parser::function_definition> def_ptr;
+                            if (!inst->native_update_) {
+                                def_ptr = inst->local_def_;
+                                if (!def_ptr) {
+                                    std::shared_lock lock(defs_mutex_);
+                                    auto dit = function_defs_.find(
+                                        env_.intern(inst->def_name_));
+                                    if (dit != function_defs_.end())
+                                        def_ptr = dit->second;
+                                }
+                            }
+                            auto weak_inst = std::weak_ptr<function_instance>(inst);
+                            size_t psi = lp.scope_depth;
+
+                            inst->subscription_id_ = scheduler_->subscribe(
+                                inst->dt_ms_,
+                                [this, def_ptr, weak_inst, rxn_new, psi,
+                                 proc_name = lp.name]
+                                (double, double) -> bool {
+                                    std::lock_guard<std::recursive_mutex> lk(eval_mutex_);
+                                    auto si = weak_inst.lock();
+                                    if (!si || !si->active_) return false;
+
+                                    const size_t op = env_.scope_pin_;
+                                    const size_t os = env_.scope_start_;
+                                    if (psi > 0 && psi < env_.scopes_.size()) {
+                                        env_.scope_pin_   = psi;
+                                        env_.scope_start_ = env_.scopes_.size();
+                                    }
+
+                                    tick_instance(si, def_ptr.get());
+
+                                    parser::stmt_ptr bsnap;
+                                    std::vector<parser::stmt_ptr> rsnap;
+                                    {
+                                        std::lock_guard<std::mutex> ml(rxn_new->mutex);
+                                        bsnap = rxn_new->binding_stmt;
+                                        rsnap = rxn_new->reactions;
+                                    }
+
+                                    current_process_name_ = proc_name;
+                                    retick_instance_ = si.get();
+                                    if (bsnap) exec_stmt(bsnap);
+                                    retick_instance_ = nullptr;
+                                    for (const auto& r : rsnap) exec_stmt(r);
+                                    current_process_name_ = "";
+
+                                    env_.scope_pin_   = op;
+                                    env_.scope_start_ = os;
+                                    return true;
+                                }, lp.name);
+                        }
+
+                        active_process_instances_[lp.name].push_back(new_inst_id);
+                        new_unnamed_segs.push_back(std::move(ns));
+                    }
+                }
+            } else {
+                // Same function (or couldn't determine inner temporal).
+                // Update binding_stmt; also update dt if period changed.
+                if (!new_inner_fn.empty() && inner_fce && inner_fce->call_ && scheduler_) {
+                    // Extract new dt: prefer named "dt" arg; for metro/sync fall
+                    // back to first non-handle positional.
+                    double new_dt = 0.0;
+                    parser::expr_ptr first_pos;
+                    bool first_is_handle = false;
+                    parser::expr_ptr second_pos;
+
+                    for (const auto& arg : inner_fce->call_->arguments_) {
+                        if (!arg || !arg->value_) continue;
+                        if (arg->name_ == "dt") {
+                            value v = eval_expr(arg->value_);
+                            if (v.number_ > 0.0) { new_dt = v.number_; break; }
+                        }
+                        if (arg->name_.empty()) {
+                            if (!first_pos) {
+                                first_pos = arg->value_;
+                            } else if (!second_pos) {
+                                second_pos = arg->value_;
+                            }
+                        }
+                    }
+
+                    if (new_dt == 0.0 && first_pos &&
+                            (new_inner_fn == "metro" || new_inner_fn == "sync")) {
+                        value fv = eval_expr(first_pos);
+                        if (fv.type_ == value_t::handle && second_pos) {
+                            value sv = eval_expr(second_pos);
+                            if (sv.number_ > 0.0) new_dt = sv.number_;
+                        } else if (fv.number_ > 0.0) {
+                            new_dt = fv.number_;
+                        }
+                    }
+
+                    if (new_dt > 0.0 && std::abs(new_dt - old_seg.dt_ms) > 0.01) {
+                        auto inst_it = instances_.find(old_seg.instance_id);
+                        if (inst_it != instances_.end()) {
+                            scheduler_->update_dt(
+                                inst_it->second->subscription_id_, new_dt);
+                            inst_it->second->dt_ms_ = new_dt;
+                            old_seg.dt_ms = new_dt;
+                        }
+                    }
+                }
+
+                std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
+                old_seg.rxn->binding_stmt = new_stmt;
+            }
         }
+
+        // Append segments created by function-change re-instantiation.
+        for (auto& ns : new_unnamed_segs)
+            lp.segments.push_back(std::move(ns));
     }
 
     // ── Pass 1: update or remove existing named segments ───────────────────

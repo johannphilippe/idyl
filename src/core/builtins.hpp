@@ -136,6 +136,12 @@ namespace idyl::core {
             }, 1, 1
         },
         {
+            "frac", [](span<const value> args) -> value {
+                double x = args[0].as_number();
+                return value::number(x - std::floor(x));
+            }, 1, 1
+        },
+        {
             "fmod", [](span<const value> args) -> value {
                 return value::number(idyl::math::fmod(args[0].as_number(), args[1].as_number()));
             }, 2, 2
@@ -198,6 +204,28 @@ namespace idyl::core {
                 }
                 return value::number(static_cast<double>(rand()) / RAND_MAX);
             }, 0, 3
+        },
+        {
+            // integer random 
+            "rndi", [](span<const value> args) -> value {
+                if (args.size_ == 0) {
+                    return value::number(rand() % 100); // default range [0, 100)
+                } else if (args.size_ == 2) {
+                    int64_t lo = static_cast<int64_t>(args[0].as_number());
+                    int64_t hi = static_cast<int64_t>(args[1].as_number());
+                    if (hi <= lo) return value::number(static_cast<double>(lo));
+                    return value::number(lo + rand() % (hi - lo)); // range [lo, hi)
+                } else if (args.size_ == 3) {
+                    int64_t lo = static_cast<int64_t>(args[0].as_number());
+                    int64_t hi = static_cast<int64_t>(args[1].as_number());
+                    int64_t step = static_cast<int64_t>(args[2].as_number());
+                    if (hi <= lo || step <= 0) return value::number(static_cast<double>(lo));
+                    int64_t range = hi - lo;
+                    int64_t steps = range / step;
+                    return value::number(lo + (rand() % steps) * step); // range [lo, hi) with step
+                }
+                return value::number(rand() % 100);
+            }, 0, 2
         },
         {
             "seed", [](span<const value> args) -> value {

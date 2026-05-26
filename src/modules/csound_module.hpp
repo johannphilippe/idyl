@@ -263,7 +263,7 @@ private:
         }
 
         csoundSetOption(cs, "-d");   // suppress console output; remove for debug
-        //csoundSetOption(cs, "-m 16");   // suppress console output; remove for debug
+        csoundSetOption(cs, "-m 16");   // suppress console output; remove for debug
 
         const char* argv[] = { "csound", path.c_str() };
         int ret = csoundCompile(cs, 2, argv);
