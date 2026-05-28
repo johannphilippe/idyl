@@ -38,6 +38,7 @@ In `settings.json`:
 ```bash
 python3 build_vsix.py --install
 ```
+matrix = midi_out(3) 
 
 Or manually:
 

@@ -53,6 +53,7 @@ static void print_usage(const char* prog) {
               << "    --trace                               Enable parser/lexer debug tracing\n"
               << "    --process || -p <name>                Run only the named process block\n"
               << "    --listen || -l [port]                 Listen mode: receive OSC on port (default 9000)\n"
+              << "    --system-clock || -sc                  Use system clock as master clock (default)\n"
 #ifdef IDYL_AUDIO_CLOCK
               << "    --audio-clock || -ac                  Use audio device as master clock\n"
               << "    --audio-sample-rate || -asr <rate>    Sample rate in Hz (default 48000)\n"

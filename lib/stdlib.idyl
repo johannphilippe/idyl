@@ -121,9 +121,10 @@ clkdiv(input, n) = trig |> {
 // rotation: shift all onsets by this many steps (integer).
 euclid(hits, steps, dt=10ms, phase_in=-1, rotation=0) = trig |> {
     init: {
-        prev_step  = -1
-        trig       = _
         auto_phase = 0
+        _ph0       = (phase_in >= 0) ? fmod(dt / (steps * dt), 1); phase_in
+        prev_step  = int(_ph0 * steps)
+        trig       = _
     }
     ph         = (phase_in >= 0) ? fmod(auto_phase + dt / (steps * dt), 1); phase_in
     auto_phase = (phase_in >= 0) ? ph; auto_phase

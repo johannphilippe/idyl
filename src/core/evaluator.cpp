@@ -3638,6 +3638,7 @@ void evaluator::redistribute_reactions(std::vector<live_segment>& segments) {
 void evaluator::kill_instance(uint64_t id) {
     auto it = instances_.find(id);
     if (it == instances_.end()) return;
+    std::cerr << "[kill_instance] id=" << id << " def_name='" << it->second->def_name_ << "'\n";
     it->second->active_ = false;
     if (scheduler_ && it->second->subscription_id_ != 0) {
         scheduler_->unsubscribe(it->second->subscription_id_);
@@ -3835,7 +3836,7 @@ void evaluator::diff_and_apply(live_process& lp,
                         auto dit = function_defs_.find(fn_id);
                         if (dit != function_defs_.end()) dt_fdef = dit->second;
                     }
-                    auto extract_dt_arg = [&dt_fdef](const parser::stmt_ptr& stmt) -> parser::expr_ptr {
+                    auto extract_dt_arg = [&dt_fdef, &oldseg](const parser::stmt_ptr& stmt) -> parser::expr_ptr {
                         parser::expr_ptr call_expr;
                         if (stmt->type_ == parser::node_t::assignment)
                             call_expr = static_cast<const parser::assignment&>(*stmt).value_;
@@ -3870,13 +3871,16 @@ void evaluator::diff_and_apply(live_process& lp,
                         // whose first param is something else (e.g. free_phasor(freq,…)
                         // or euclid(hits, steps,…)), fall back to the old dt so the
                         // scheduler interval is not wrongly updated on hot-reload.
-                        // Native temporals (no fdef) keep the old heuristic.
                         if (first_pos && dt_fdef && !dt_fdef->parameters_.empty()
                                 && dt_fdef->parameters_[0]) {
                             const auto& p0 = *dt_fdef->parameters_[0];
                             if (p0.name_ != "dt" && !p0.has_default_time_)
                                 return nullptr;
                         }
+                        // phasor(period_ms): first positional is the period, not dt.
+                        // Treating it as dt would set the subscription interval to the
+                        // tempo period instead of the intended 10ms update rate.
+                        if (!dt_fdef && oldseg.def_name == "phasor") return nullptr;
                         return first_pos;
                     };
 
@@ -4048,8 +4052,9 @@ void evaluator::diff_and_apply(live_process& lp,
     // ── Pass 0.5: update unnamed segments (on_block with function-call trigger) ─
     // These have bound_var == "" and can't be looked up by name. Match positionally.
     // Track explicitly killed instance IDs so the remove_if below can erase them.
+    // NOTE: function-change hot-reloads update old_seg IN-PLACE to preserve
+    // positional order; only segments that fall off the end (count mismatch) go here.
     std::unordered_set<uint64_t> killed_unnamed_ids;
-    std::vector<live_segment> new_unnamed_segs; // function-change recreations
     {
         // Helper: extract the inner temporal function_call_expr from an
         // expression_stmt like `dirtykick(metro(.5b), fff)`.  Searches the
@@ -4103,8 +4108,11 @@ void evaluator::diff_and_apply(live_process& lp,
             if (!new_inner_fn.empty() && new_inner_fn != old_seg.def_name) {
                 // Inner temporal function changed (e.g. metro → euclid).
                 // Kill old instance and re-instantiate from the new statement.
+                // Update old_seg IN-PLACE so positional order in lp.segments
+                // is preserved across subsequent hot-reloads.
                 kill_instance(old_seg.instance_id);
-                killed_unnamed_ids.insert(old_seg.instance_id);
+                // Do NOT add to killed_unnamed_ids yet: we intend to reuse the
+                // slot in-place.  Only fall back to erasing if instantiation fails.
 
                 uint64_t id_before = next_instance_id_;
                 exec_stmt(new_stmt);
@@ -4121,13 +4129,12 @@ void evaluator::diff_and_apply(live_process& lp,
                         auto rxn_new = std::make_shared<reaction_set>();
                         rxn_new->binding_stmt = new_stmt;
 
-                        live_segment ns;
-                        ns.instance_id      = new_inst_id;
-                        ns.all_instance_ids = {new_inst_id};
-                        ns.bound_var        = "";
-                        ns.def_name         = inst->def_name_;
-                        ns.dt_ms            = inst->dt_ms_;
-                        ns.rxn              = rxn_new;
+                        // Update old_seg in-place: preserve positional order.
+                        old_seg.instance_id      = new_inst_id;
+                        old_seg.all_instance_ids = {new_inst_id};
+                        old_seg.def_name         = inst->def_name_;
+                        old_seg.dt_ms            = inst->dt_ms_;
+                        old_seg.rxn              = rxn_new;
 
                         if (scheduler_ && inst->dt_ms_ > 0.0) {
                             std::shared_ptr<parser::function_definition> def_ptr;
@@ -4184,8 +4191,14 @@ void evaluator::diff_and_apply(live_process& lp,
                         }
 
                         active_process_instances_[lp.name].push_back(new_inst_id);
-                        new_unnamed_segs.push_back(std::move(ns));
+                    } else {
+                        // Instance found in id range but not in instances_ map —
+                        // fall back to erasing the stale slot.
+                        killed_unnamed_ids.insert(old_seg.instance_id);
                     }
+                } else {
+                    // exec_stmt didn't create a new instance; erase the dead slot.
+                    killed_unnamed_ids.insert(old_seg.instance_id);
                 }
             } else {
                 // Same function (or couldn't determine inner temporal).
@@ -4235,14 +4248,49 @@ void evaluator::diff_and_apply(live_process& lp,
                     }
                 }
 
+                // Update instance_param_exprs_ for the inner temporal so tick_instance
+                // picks up changed argument expressions (e.g. phase_in=phasor(8b) →
+                // phase_in=phasor(4b)) on the very next tick without stop/restart.
+                if (!new_inner_fn.empty() && inner_fce && inner_fce->call_) {
+                    uint32_t fn_id = env_.intern(new_inner_fn);
+                    std::shared_ptr<const parser::function_definition> fdef;
+                    {
+                        std::shared_lock lock(defs_mutex_);
+                        auto dit = function_defs_.find(fn_id);
+                        if (dit != function_defs_.end()) fdef = dit->second;
+                    }
+                    if (fdef) {
+                        std::vector<parser::expr_ptr> pos_arg_exprs;
+                        std::unordered_map<std::string, parser::expr_ptr> named_arg_exprs;
+                        for (const auto& arg : inner_fce->call_->arguments_) {
+                            if (!arg) continue;
+                            if (arg->name_.empty()) pos_arg_exprs.push_back(arg->value_);
+                            else named_arg_exprs[arg->name_] = arg->value_;
+                        }
+                        auto& pexprs = instance_param_exprs_[old_seg.instance_id];
+                        size_t pos_idx = 0;
+                        for (const auto& param_ptr : fdef->parameters_) {
+                            if (!param_ptr) continue;
+                            const auto& pname = param_ptr->name_;
+                            if (pname == "dt") continue;  // dt handled in block above
+                            parser::expr_ptr src_expr;
+                            auto nit = named_arg_exprs.find(pname);
+                            if (nit != named_arg_exprs.end()) {
+                                src_expr = nit->second;
+                            } else if (pos_idx < pos_arg_exprs.size()) {
+                                src_expr = pos_arg_exprs[pos_idx++];
+                            }
+                            if (src_expr) pexprs[pname] = src_expr;
+                            else pexprs.erase(pname);
+                        }
+                    }
+                }
+
                 std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
                 old_seg.rxn->binding_stmt = new_stmt;
             }
         }
 
-        // Append segments created by function-change re-instantiation.
-        for (auto& ns : new_unnamed_segs)
-            lp.segments.push_back(std::move(ns));
     }
 
     // ── Pass 1: update or remove existing named segments ───────────────────
@@ -4661,6 +4709,10 @@ void evaluator::hot_reload(const std::string& source) {
         std::cerr << "[hot_reload] parse failed\n";
         return;
     }
+
+    // Hold eval_mutex_ for the entire update so scheduler callbacks cannot
+    // run concurrently while we mutate instances_, lp.segments, env_, etc.
+    std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
 
     for (const auto& stmt : prog->statements_) {
         if (!stmt) continue;

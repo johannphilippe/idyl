@@ -96,7 +96,7 @@ struct endpoint {
     ::sockaddr_in to_sockaddr() const {
         ::sockaddr_in addr{};
         addr.sin_family = AF_INET;
-        addr.sin_port   = ::htons(member_port);
+        addr.sin_port   = htons(member_port);
         if (::inet_pton(AF_INET, member_host.c_str(), &addr.sin_addr) != 1)
             throw std::runtime_error("Invalid IPv4 address: " + member_host);
         return addr;
@@ -106,7 +106,7 @@ struct endpoint {
     static endpoint from_sockaddr(const ::sockaddr_in& addr) {
         char buf[INET_ADDRSTRLEN]{};
         ::inet_ntop(AF_INET, &addr.sin_addr, buf, sizeof(buf));
-        return { buf, ::ntohs(addr.sin_port) };
+        return { buf, ntohs(addr.sin_port) };
     }
 };
  
@@ -223,7 +223,7 @@ struct udp_receiver {
  
         ::sockaddr_in local{};
         local.sin_family = AF_INET;
-        local.sin_port   = ::htons(port);
+        local.sin_port   = htons(port);
         if (::inet_pton(AF_INET, std::string(bind_host).c_str(),
                         &local.sin_addr) != 1)
             throw std::runtime_error("udp_receiver: invalid bind address");

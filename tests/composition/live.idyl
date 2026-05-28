@@ -9,12 +9,12 @@ matrix = midi_out(3)
 
 
 deepkick(spike!, amp = mp) = cs_note(cs, "deepkick", 1s, amp, 500, 20, 0.05)
-dirtykick(spike!, amp=mp) = cs_note(cs, "dirtykick", 1s, amp, 300, 20, 12)
+dirtykick(spike!, amp=mp) = cs_note(cs, "dirtykick", 1s, amp, 300, 20, 8)
 
 process kick: {
 	tempo(120bpm)
 	deepkick(sync(4b), amp=fff) 
-	ph = phasor(.4b)
+	ph = phasor(8b)
 	dirtykick(euclid(3, 8, phase_in=ph), amp=fff)
 }
 
@@ -77,6 +77,7 @@ process miditest: {
 	change = counter(3b)
 	print(change)
 	note = dynamicmel(mel.note)[change]
+	cs_note(cs, 888,-1s,  1, 1)
 	on(mel.rhythm): {
 		print(note)
 		//print(mel.note)
@@ -91,9 +92,9 @@ process pr: {
 }
 
 flow melody = {
-	rhythm: [ ! , ! , ! ]
-	chn: [1, 2]
-	note: [0, 1, 2, 3, 4, 5, 6, 7]
+	rhythm: [ ! , ! , _ ]
+	chn on rhythm: [1, 2]
+	note on rhythm: [0, 1, 2, 3, 4, 5, 6, 7]
 }
 
 flow stuff = {
@@ -105,11 +106,11 @@ flow stuff = {
 rndt(rangemin, rangemax, dt = 500ms) = rnd(rangemin, rangemax)
 
 process test: {
-	mel = melody[metro(0.25b)]
+	mel = melody[metro(0.5b)]
 	scale = minor
 	on mel.rhythm: {
 		print("hello")
-		cs_note(cs, "sine", 5s, 0.1, tune(c4, scale, mel.note, meantone), mel.chn)
+		cs_note(cs, "sine", 0.5s ,fff, tune(c4, scale, mel.note, meantone), mel.chn)
 	}
 }
 
@@ -147,6 +148,7 @@ process test3: {
 
 
 flow arps = {
+	rhythm: [! , _ ,_ , !]
 	degree: [ 1, 2, 3 |3| , 13, 8]
 	chn: [1, 2]
 }
@@ -160,18 +162,16 @@ flow arps2 = {
 flow bases = [c3, g3, d3, f4] 
 
 process test4: {
-	clk = clock(120bpm)
+	clk = clock(60bpm)
+	rythm = sync(clk, 1b)
 	base = c3 //bases[metro(8b)] 
-	on metro(clk(7*0.5b) ): {
+	on sync(clk, 7*0.5b): {
 		print("metro >> ") 
-		each n in len(arps), dt= clk(0.5b): {
+		each n in len(arps.degree), dt= clk(0.5b): {
 			arp = arps[n] 
-			print(arp.degree)
+			print(len(arps.degree), arp.degree)
 			arp2 = arps[-n] 
-			//print("arp", n)
 			cs_note(cs, "sine", 1s, fff, tune(base, melodic_minor, arp.degree, just), arp.chn)
-			//cs_note(cs, "sine", 10s, 0.3, tune(base, melodic_minor, arp2.degree, just), arp2.chn)
-
 		}
 	}
 
@@ -240,13 +240,13 @@ process test7: {
 clk = clock(100bpm)
 
 process tempotest: {
-	a = sync(clk,  1b ) 
+	a = sync(clk,  2b ) 
 	on(a): {
 		cs_note(cs, "sine", .2s, f, tune(c4, melodic_minor, 0, just), 2)
 	}
 }
 process tempotest2: {
-	a = sync(clk, clk(1b) )
+	a = sync(clk, clk(3b) )
 	on(a): {
 		cs_note(cs, "sine", .1s, f, tune(c4, melodic_minor, 3, just), 1)
 	}
@@ -254,25 +254,26 @@ process tempotest2: {
 
 process tempotest3: {
 	tempo(480bpm)
-	a = metro(1b) // sync(1b) //sync(clk, clk(1b) )
+	a = metro(0.5b) // sync(1b) //sync(clk, clk(1b) )
 	on(a): {
 		cs_note(cs, "sine", .1s, f, tune(c4, melodic_minor, 2, just), 1)
 	}
 }
 
+
 process euclidtest: {
 	phase = phasor(clk, 4b) 
 	a = euclid(5, 8, phase_in = phase)
 	on(a): {
-		cs_note(cs, "sine", .5s, fff, tune(c4, melodic_minor, 3, just), 2)
+		cs_note(cs, "sine", .5s, f, tune(c4, melodic_minor, 2, just), 2)
 	}
 }
 
 process euclid2: {
 	phase = phasor(clk, 4b) 
-	b = euclid(5, 8, phase_in=phase)
+	b =  euclid(5, 8, phase_in=phase)
 	on(b): {
-		cs_note(cs, "sine", .5s, f, tune(c4, melodic_minor, -2, just), 1)
+		cs_note(cs, "sine", .5s, f, tune(c4, melodic_minor, 6, just), 1)
 	}
 }
 
@@ -281,6 +282,6 @@ process euc: {
 	phase = phasor(clk, 4b) 
 	c = euclid(5, 8, phase_in=phase)
 	on(c): {
-		cs_note(cs, "sine", .5s, fff, tune(c2, melodic_minor, -4, just), int(rnd(1, 2.99)))
+		cs_note(cs, "sine", .5s, fff, tune(c2, melodic_minor, 0, just), int(rnd(1, 2.99)))
 	}
 }

@@ -113,8 +113,13 @@ public:
 
 #if defined(IDYL_SERIAL_POSIX)
         // Check how many bytes are waiting
+        #ifdef APPLE
+        int cmd = FIONREAD;
+        #else
+        int cmd = TIOCINQ;
+        #endif
         int waiting = 0;
-        if (::ioctl(fd_, TIOCINQ, &waiting) < 0 || waiting <= 0)
+        if (::ioctl(fd_, cmd, &waiting) < 0 || waiting <= 0)
             return {};
 
         std::size_t to_read = std::min(static_cast<std::size_t>(waiting), max_bytes);

@@ -1,0 +1,11 @@
+import("stdlib")
+
+deepkick(spike!, amp) = print("deepkick", amp)
+dirtykick(spike!, amp) = print("dirtykick", amp)
+
+process kick: {
+	tempo(120bpm)
+	deepkick(sync(4b), amp=0.8)
+	ph = phasor(.4b)
+	dirtykick(euclid(3, 8, phase_in=ph), amp=0.5)
+}

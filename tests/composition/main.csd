@@ -165,6 +165,9 @@ endin
 f 0 z
 
 i "master" 0 -1
+i 888 0 -1 8 1 
+i 888 0 -1 10 2 
+
 
 
 </CsScore>

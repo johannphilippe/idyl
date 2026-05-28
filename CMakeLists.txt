@@ -42,7 +42,7 @@ else()
 endif()
 
 # Serial module — POSIX termios / Win32 serial port I/O (no external deps)
-option(IDYL_MODULE_SERIAL "Enable the built-in Serial module" ON)
+option(IDYL_MODULE_SERIAL "Enable the built-in Serial module" OFF)
 if(IDYL_MODULE_SERIAL)
     message(STATUS "Native module: Serial [enabled]")
 else()
@@ -65,6 +65,9 @@ endif()
 option(IDYL_MODULE_MIDI "Enable the built-in MIDI module (requires RtMidi)" ON)
 if(IDYL_MODULE_MIDI)
     include(FetchContent)
+    # Skip git fetch when the source is already cached (avoids hanging on reconfigure
+    # when the network is unavailable or slow).
+    set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
     FetchContent_Declare(
         rtmidi
         GIT_REPOSITORY https://github.com/thestk/rtmidi.git
