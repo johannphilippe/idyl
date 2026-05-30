@@ -271,18 +271,39 @@ The following functions are always available:
 
 These are handled specially by the evaluator (not plain builtins):
 
+#### Clock & tempo
+
 | Function | Description |
 |----------|-------------|
-| `clock(bpm)` | Create a child clock |
+| `clock()` | Return main clock handle |
+| `clock(bpm)` | Create a child clock bound to main |
 | `clock(bpm, parent=h)` | Create clock with specific parent |
+| `clock(bpm, parent=0)` | Create free-running clock |
 | `tempo()` | Query main clock BPM |
 | `tempo(handle)` | Query a specific clock's BPM |
-| `tempo(bpm)` | Set main clock BPM |
-| `tempo(handle, bpm)` | Set specific clock BPM |
+| `tempo(bpm)` | Set main clock BPM (propagates to children) |
+| `tempo(handle, bpm)` | Set specific clock BPM (propagates) |
+| `bpm()` | Alias for `tempo()` |
+| `bpm(handle)` | Alias for `tempo(handle)` |
+| `beat()` | 1 beat duration at main clock (ms) |
+| `beat(n)` | n beats duration at main clock (ms) |
+| `beat(clk, n)` | n beats duration at clock `clk` (ms) |
 | `handle(Nb)` | Duration of N beats at that clock's BPM |
-| `bpm(handle)` | Alias for `tempo(handle)` — query a clock's BPM |
+| `handle(ms)` | Pass-through ms value |
+| `handle()` | Duration of 1 beat at that clock's BPM |
 
-See [Chapter 8 — Clock & tempo](ch08_clock_tempo.md) for full details.
+#### Temporal primitives
+
+| Function | Output | Description |
+|----------|--------|-------------|
+| `sync(period)` | trigger | Phase-locked periodic trigger, grid-snapped to clock |
+| `sync(clk, period)` | trigger | Same, using a specific clock |
+| `phasor(period)` | number 0–1 | Clock-synchronized rising ramp |
+| `phasor(period, dt=X)` | number 0–1 | With explicit update interval |
+| `phasor(clk, period)` | number 0–1 | Using a specific clock |
+
+See [Chapter 4 — Temporal functions](ch04_temporal.md) for `sync` and `phasor` details.  
+See [Chapter 8 — Clock & tempo](ch08_clock_tempo.md) for clock and `beat()` details.
 
 ---
 

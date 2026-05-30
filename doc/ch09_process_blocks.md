@@ -99,6 +99,8 @@ idyl song.idyl -l 9090
 |-------------|-----------|--------|
 | `/idyl/process/start` | `name` (string) | Start the named process block |
 | `/idyl/process/stop` | `name` (string) | Stop the named process block |
+| `/idyl/process/pause` | `name` (string) | Pause the named process block |
+| `/idyl/process/resume` | `name` (string) | Resume a paused process block |
 | `/idyl/process/list` | *(none)* | Print all stored process block names |
 | `/idyl/eval` | source code (string) | Hot-reload: re-evaluate a definition or running process block |
 
@@ -233,13 +235,13 @@ process audio: {
 
 ---
 
-## `start` and `stop` — process control from within a process
+## Process control keywords
 
-A running process block can start or stop another named process block using the `start` and `stop` keywords.
+A running process block can control other named process blocks using `start`, `stop`, `pause`, and `resume`.
 
 ### `start name`
 
-Starts the named process block. The process must have been stored (either loaded in `--listen` mode, or defined as a named block in the same file).
+Starts the named process block. The process must be stored (defined as a named block in the same file, or loaded in `--listen` mode).
 
 ```idyl
 countdown(dt=500ms) = t |> {
@@ -282,7 +284,7 @@ process watchdog: {
 
 ### `stop` (no name)
 
-Used without a name, `stop` stops **all** currently running process blocks:
+Without a name, `stop` stops **all** currently running process blocks:
 
 ```idyl
 ticking(dt=100ms) = n |> {
@@ -300,12 +302,47 @@ process oneshot: {
 }
 ```
 
-### Notes
+### `pause name` and `resume name`
 
-- `start` and `stop` take effect immediately — the next scheduler tick of the target process will either fire (start) or not fire (stop).
+`pause` suspends a process without destroying its state. The scheduler stops firing its callbacks, but all temporal instances keep their current values. `resume` restores it to full operation from where it left off.
+
+```idyl
+process controller: {
+    m = metro(dt=1000ms)
+    on m: {
+        pause music     // freeze "music" every second
+    }
+}
+
+process music: {
+    tempo(120bpm)
+    ph = phasor(4b)
+    // ... playback logic
+}
+```
+
+Via OSC in listen mode:
+
+```bash
+oscsend localhost 9000 /idyl/process/pause  s "music"
+oscsend localhost 9000 /idyl/process/resume s "music"
+```
+
+### Summary table
+
+| Keyword | Target | Effect |
+|---------|--------|--------|
+| `start name` | Named process | Start (or restart) |
+| `stop name` | Named process | Stop, discard state |
+| `stop` | All running | Stop everything |
+| `pause name` | Named process | Suspend, keep state |
+| `resume name` | Named process | Resume from suspended state |
+
+**Notes**:
+- `start`/`stop`/`pause`/`resume` take effect immediately on the next scheduler tick.
 - Stopping a process that is not running is a no-op.
-- Starting a process that is already running starts a second independent instance.
-- These keywords are only valid inside process block bodies.
+- Starting a process that is already running creates a second independent instance.
+- These keywords are only valid inside process block bodies (and catch/reaction handlers).
 
 ---
 

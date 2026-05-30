@@ -350,6 +350,88 @@ Both forms work. The `stop` expression form is most useful inside ternary option
 
 ---
 
+---
+
+## Built-in temporal primitives
+
+These are native temporal functions provided directly by the evaluator. They do not require `import("stdlib")`.
+
+---
+
+### `sync` — phase-locked periodic trigger
+
+`sync(period)` fires a trigger on a global beat grid. Two processes calling `sync` with the same period will always fire on the same beat boundaries, regardless of when each process started.
+
+```idyl
+// Syntax
+s = sync(period_ms)          // uses main clock grid
+s = sync(clk, clk(period))   // uses a specific clock's grid
+```
+
+```idyl
+process: {
+    tempo(120bpm)
+
+    kick = sync(4b)      // fires every 4 beats, phase-locked to main clock
+    hat  = sync(0.5b)    // fires every half beat
+
+    on kick: print("kick")
+    on hat:  print("hat")
+}
+```
+
+- **Phase-locked**: the first fire snaps to the next whole multiple of the period after the scheduler starts. This means two patterns with `sync(4b)` always align — even if one process starts later.
+- **Contrast with `metro(dt=4b)`**: `metro` fires `dt` after the process starts, so different start times drift apart. `sync` always locks to the global grid.
+- When a named clock handle is used, pass the period through the clock handle to resolve beat literals at that clock's BPM: `sync(c, c(4b))`.
+
+---
+
+### `phasor` — clock-synchronized ramp
+
+`phasor(period)` outputs a rising ramp from 0 to 1, cycling every `period`. Unlike `free_phasor` (stdlib), it is **anchored to the global clock**: two phasors with the same period and clock always produce identical phase values, regardless of when they were created.
+
+```idyl
+// Syntax
+ph = phasor(period_ms)         // main clock, updates every 10ms
+ph = phasor(period_ms, dt=Xms) // explicit update interval
+ph = phasor(clk, period_ms)    // specific clock
+```
+
+```idyl
+process: {
+    tempo(120bpm)
+
+    ph = phasor(4b)      // ramp 0→1 over 4 beats, then wraps
+    print("phase:", ph)  // prints ~0.05/tick at 120bpm, dt=10ms
+}
+```
+
+The `phase_in` parameter of stdlib oscillators (`sine`, `lfo`, `euclid`, etc.) accepts phasor output directly:
+
+```idyl
+import("stdlib")
+
+process: {
+    tempo(120bpm)
+
+    ph = phasor(4b)                          // shared phase source
+    s  = sine(1hz, amplitude=0.8, phase_in=ph)
+    e  = euclid(3, 8, phase_in=ph)           // rhythm locked to same phase
+
+    on e: print("hit, sine:", s)
+}
+```
+
+**Named vs inline**: you can store the phasor in a variable (`ph = phasor(4b)`) or inline it directly into a function argument (`euclid(3, 8, phase_in=phasor(4b))`). Both work; the named form lets you share the same phase across multiple functions. Hot-reload updates the phasor's period in both forms without restarting.
+
+| Parameter | Description |
+|-----------|-------------|
+| `period_ms` | Full-cycle duration (any time literal: `4b`, `2000ms`, etc.) |
+| `dt=10ms` | Update interval (optional; default 10ms) |
+| `clk` | Clock handle (optional first arg; default: main clock) |
+
+---
+
 ## Summary
 
 | Aspect | Clock-driven | Trigger-driven | Hybrid |
@@ -357,6 +439,15 @@ Both forms work. The `stop` expression form is most useful inside ternary option
 | Time source | `dt=interval` | `param!` | Both |
 | Update rate | Periodic | On event | Both |
 | Use case | LFOs, counters, smoothers | Counters, sample-hold | Envelopes, duckers |
+
+### Built-in temporal primitives at a glance
+
+| Primitive | Output | Description |
+|-----------|--------|-------------|
+| `sync(period)` | trigger | Phase-locked periodic trigger, grid-snapped |
+| `phasor(period)` | number 0–1 | Clock-synchronized rising ramp |
+
+See also `metro`, `euclid`, `free_phasor` and the full oscillator suite in the standard library (`import("stdlib")`).
 
 ---
 

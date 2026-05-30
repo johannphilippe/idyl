@@ -66,7 +66,7 @@ namespace idyl::semantic {
 
             // Register evaluator intrinsics (clock/tempo) that are handled
             // specially in eval_call but still need to pass semantic analysis.
-            for (const auto& name : {"clock", "tempo", "bpm", "sync", "phasor", "scheduler_time"}) {
+            for (const auto& name : {"clock", "tempo", "bpm", "beat", "sync", "phasor", "scheduler_time"}) {
                 symbol_info si{symbol_t::builtin, name};
                 si.inferred_type_ = inferred_t::function;
                 define(name, std::move(si));

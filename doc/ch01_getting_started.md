@@ -117,6 +117,8 @@ The port argument is optional (defaults to 9000). Key OSC addresses:
 |---------|----------|--------|
 | `/idyl/process/start` | name | Start a process |
 | `/idyl/process/stop` | name | Stop a process |
+| `/idyl/process/pause` | name | Pause a process (keeps state) |
+| `/idyl/process/resume` | name | Resume a paused process |
 | `/idyl/eval` | source | Hot-reload a definition or running process |
 
 See [Chapter 9 — Process blocks](ch09_process_blocks.md) for the full listen mode protocol and hot-reload behaviour.

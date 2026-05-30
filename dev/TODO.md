@@ -15,8 +15,8 @@ This must be done in a smart way :
 ## Known bugs (unsolved)
 
 
-- [missing] query on specific beat duration of main clock (or missing in documentation)
-- []
+- [done] query on specific beat duration of main clock (or missing in documentation)
+
 
 
 - [issue] when "starting" a process that is synced, it might create an extra note still (that is not synced)

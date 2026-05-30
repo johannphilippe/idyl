@@ -143,6 +143,50 @@ This is the primary way to drive temporal functions from a specific clock: the b
 
 ---
 
+## `beat()` — main clock beat duration
+
+For user-defined clocks, the handle-callable `c(2b)` is the natural way to get a beat duration. For the **main clock**, `beat()` provides the same without an intermediate variable.
+
+```idyl
+process: {
+    tempo(120bpm)       // 1 beat = 500ms
+
+    print(beat())       // 500  — 1 beat
+    print(beat(2))      // 1000 — 2 beats
+    print(beat(0.5))    // 250  — half a beat
+
+    m = metro(dt=beat(0.25))    // fires every quarter-beat
+}
+```
+
+The `beat()` function is especially useful when you need a beat count as a `dt` value and don't want to compute `60000 / tempo()` manually.
+
+### With a clock handle
+
+`beat()` also accepts a clock handle, making it equivalent to the handle-callable syntax:
+
+```idyl
+process: {
+    c = clock(60bpm)      // 1 beat at c = 1000ms
+
+    print(beat(c))        // 1000 — equivalent to c()
+    print(beat(c, 2))     // 2000 — equivalent to c(2b)
+    print(beat(2, c))     // 2000 — alternative argument order
+}
+```
+
+### Signature summary
+
+| Call | Result |
+|------|--------|
+| `beat()` | 1 beat at main clock (ms) |
+| `beat(n)` | n beats at main clock (ms), n is a raw beat count |
+| `beat(clk)` | 1 beat at clock `clk` (ms) |
+| `beat(clk, n)` | n beats at clock `clk` (ms) |
+| `beat(n, clk)` | Same, alternative arg order |
+
+---
+
 ## Clock intrinsics
 
 | Function | Description |
@@ -150,10 +194,16 @@ This is the primary way to drive temporal functions from a specific clock: the b
 | `clock(bpm)` | Create clock bound to main |
 | `clock(bpm, parent=h)` | Create clock bound to parent `h` |
 | `clock(bpm, parent=0)` | Create free-running clock |
+| `clock()` | Return the main clock handle |
 | `tempo()` | Query main clock BPM |
 | `tempo(handle)` | Query a specific clock's BPM |
 | `tempo(bpm)` | Set main clock BPM (propagates) |
 | `tempo(handle, bpm)` | Set specific clock BPM (propagates) |
+| `bpm()` | Alias for `tempo()` — query main clock BPM |
+| `bpm(handle)` | Alias for `tempo(handle)` — query a clock's BPM |
+| `beat()` | 1 beat at main clock (ms) |
+| `beat(n)` | n beats at main clock (ms) |
+| `beat(clk, n)` | n beats at clock `clk` (ms) |
 | `handle(Nb)` | Duration of N beats at that clock's BPM |
 | `handle(ms)` | Pass-through: returns the ms value unchanged |
 | `handle()` | Duration of 1 beat at that clock's BPM |

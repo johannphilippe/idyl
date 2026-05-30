@@ -1928,6 +1928,84 @@ value evaluator::eval_call(const parser::function_call& call) {
         return value::number(clocks_.bpm(clock_id));
     }
 
+    if (fn_name == "beat") {
+        // beat()              → 1 beat duration at main clock (ms)
+        // beat(n)             → n beats duration at main clock (ms)
+        // beat(clk)           → 1 beat duration at clock clk (ms)
+        // beat(clk, n)        → n beats duration at clock clk (ms)
+        // beat(n, clk)        → same, alternative arg order
+        //
+        // For user-defined clocks, clk_handle(2b) already works.
+        // beat() / beat(n) provides the same for the main clock without
+        // an intermediate variable assignment.
+        //
+        // n is always a raw beat count (a plain number like 2 or 0.5).
+        // Time literals (2b, 500ms) are passed through unchanged since they
+        // are already in ms — though for the main clock beat(2b) == 2b.
+        // For clock-specific forms (beat(clk, n)) with a beat literal n,
+        // the literal is intercepted via pos_exprs to use the target clock's BPM.
+
+        // Helper: extract raw beat count from a positional argument.
+        // If the expression is a beat literal, grab the numeric value directly
+        // (before the evaluator converted it using the main clock BPM).
+        // Otherwise fall back to the already-evaluated numeric value.
+        auto raw_beats = [&](size_t pos_idx) -> double {
+            if (pos_idx < pos_exprs.size()) {
+                const auto* raw = pos_exprs[pos_idx].get();
+                if (raw && raw->type_ == parser::node_t::literal_expr) {
+                    const auto& le = static_cast<const parser::literal_expr&>(*raw);
+                    if (le.literal_ && le.literal_->type_ == parser::node_t::time_literal) {
+                        const auto& tl = static_cast<const parser::time_literal&>(*le.literal_);
+                        if (tl.unit_ == "b") return std::stod(tl.value_);
+                        // Non-beat time literal (ms, s, hz): arg is already in ms,
+                        // pass through as-is (return NaN to signal "use arg_ms").
+                        return std::numeric_limits<double>::quiet_NaN();
+                    }
+                }
+            }
+            // Plain number: treat as raw beat count.
+            return pos_idx < args.size() ? args[pos_idx].as_number() : 1.0;
+        };
+
+        uint64_t clock_id = clocks_.main_id_;
+        double n_beats    = 1.0;
+        bool   pass_ms    = false;  // set when arg is a concrete ms time (not a beat count)
+
+        if (args.size() == 1) {
+            if (args[0].type_ == value_t::handle) {
+                // beat(clk) → 1 beat at clk
+                clock_id = static_cast<uint64_t>(args[0].as_handle());
+            } else {
+                // beat(n) — plain number = raw beat count; time literal = pass through
+                double rb = raw_beats(0);
+                if (std::isnan(rb)) return value::number(args[0].as_number()); // pass ms
+                n_beats = rb;
+            }
+        } else if (args.size() >= 2) {
+            if (args[0].type_ == value_t::handle) {
+                // beat(clk, n)
+                clock_id = static_cast<uint64_t>(args[0].as_handle());
+                double rb = raw_beats(1);
+                if (std::isnan(rb)) pass_ms = true; // concrete time — convert back
+                else n_beats = rb;
+                if (pass_ms) {
+                    // Arg is a concrete ms value — pass through unchanged (e.g. beat(clk, 500ms))
+                    return value::number(args[1].as_number());
+                }
+            } else {
+                // beat(n, clk)
+                clock_id = static_cast<uint64_t>(args[1].as_handle());
+                double rb = raw_beats(0);
+                if (std::isnan(rb)) return value::number(args[0].as_number()); // pass ms
+                n_beats = rb;
+            }
+        }
+
+        double target_bpm    = clocks_.bpm(clock_id);
+        double target_beat_ms = (target_bpm > 0.0) ? (60000.0 / target_bpm) : 500.0;
+        return value::number(n_beats * target_beat_ms);
+    }
+
     if (fn_name == "scheduler_time") {
         return value::number(scheduler_ ? scheduler_->now_ms() : 0.0);
     }

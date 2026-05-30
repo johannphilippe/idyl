@@ -16,12 +16,12 @@ Idƴl is a functional, time-aware language for scheduling, composition, and reac
 
 2. [Language fundamentals](ch02_fundamentals.md) — comments, types, constants, time literals
 3. [Functions](ch03_functions.md) — pure functions, parameters, defaults, composition
-4. [Time & temporal functions](ch04_temporal.md) — lambda blocks, `dt`, triggers, state, the `|>` operator
+4. [Time & temporal functions](ch04_temporal.md) — lambda blocks, `dt`, triggers, state, `|>`, `sync`, `phasor`
 5. [Flows](ch05_flows.md) — sequences, generators, multi-member flows, access patterns
 6. [Control flow & operators](ch06_control_flow.md) — ternary selection, arithmetic, comparison, bitwise
 7. [Emit & catch](ch07_emit_catch.md) — side-channel output, the `::` accessor, event handling
-8. [Clock & tempo](ch08_clock_tempo.md) — clock hierarchy, tempo propagation, `bpm` literal
-9. [Process blocks](ch09_process_blocks.md) — entry points, naming, duration, listen mode
+8. [Clock & tempo](ch08_clock_tempo.md) — clock hierarchy, tempo propagation, `bpm` literal, `beat()`
+9. [Process blocks](ch09_process_blocks.md) — entry points, naming, duration, listen mode, `pause`/`resume`
 
 ### Integration
 
@@ -49,4 +49,4 @@ See [build_html.sh](build_html.sh) for details.
 
 ## Version
 
-This documentation covers Idƴl **pre-alpha v0.2** (April 2026).
+This documentation covers Idƴl **pre-alpha v0.2** (May 2026).
