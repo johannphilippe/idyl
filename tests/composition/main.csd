@@ -13,6 +13,7 @@ nchnls	=	24
 nchnls_i= 	10
 0dbfs	=	1
 
+
 gioffset = 16
 
 gkgain init 0.5
@@ -23,6 +24,9 @@ opcode mix_ch, 0, ai
 
 	gamaster[ich-1] = gamaster[ich-1] + asig
 endop
+
+
+#include "synth.orc"
 
 ; ─── Instrument 1 : Deep Bass Kick ────────────────────────────────────────────
 ; p4 = amplitude (e.g. 0.9)
@@ -158,6 +162,8 @@ instr dusk
 	turnoff2_i(p4, 0, 1)
 	turnoff
 endin
+
+#include "synth.orc"
 
 </CsInstruments>
 ; ==============================================

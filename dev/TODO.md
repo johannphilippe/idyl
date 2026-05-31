@@ -15,11 +15,102 @@ This must be done in a smart way :
 ## Known bugs (unsolved)
 
 
+- [potential_issue] : rcount does not reset when stopping / restarting a process (index is kept) 
+- [issue] in geneeral : issue with integer indexing for flows 
+
+- [question] let's say I add a simple instruction (not temporal) to a process then hot reload : should it be triggered ? 
+
 - [done] query on specific beat duration of main clock (or missing in documentation)
 
+- [issue] delay with triggers ? Not sure it works correctly 
+- [issue] Another example of hot reloading causing automatic stop  of process, even if there were no changes. 
+Also, the duree (rndt from stdlib) causes the instrument to fire, which should not happen since the duration parameter is not a trigger
+grainsharp(spike!, freq, duration=0.3s, amp=f, ch=1) =
+    cs_note(cs, "grainsharp", duration, amp, freq, ch)
+                                      
+// metalsharp — metallic, inharmonic FM ring
+metalsharp(spike!, freq, duration=0.5s, amp=f, ch=1) =
+    cs_note(cs, "metalsharp", duration, amp, freq, ch)
+        
 
+// Bon del de jouer avec la vitesse, durée, et random du multiplicateur
+process deltest: {                     
+        m = metro(.5b)                 
+        fl = superchord[rcounter(m, _) ]
+        v = fl.first * rnd(8, 64)      
+        print(v)                       
+        duree = rndt(500, 3000, dt=.25b)                                                                                                                                                      
+                                       
+        //deepkick(euclid(3, 8, phase_in=phasor(4b)), amp=fff)
+        //metalsharp(m, v, amp=rnd(mf, fff), ch=1, duration=duree)
+        //metalsharp('(m, 100ms), '(v, 2), amp=rnd(mf, fff), ch=2, duration=duree)
+        grainsharp(m, '(v, 200ms), amp=rnd(mf, fff), ch=1, duration=duree)
+        grainsharp('(m, 100ms), '(v, 1), amp=rnd(mf, fff), ch=2, duration=duree)
+                                       
+}     
 
-- [issue] when "starting" a process that is synced, it might create an extra note still (that is not synced)
+- [issue] : in some contexts of hot reload (live), changing a function call name or commenting it reloading actually stops the entire process . In this example, it is the two vapordream ...  
+process test: { 
+        tempo(120bpm)
+        //lushpad(!, 300, amp = fff)
+        a = sync(4b)
+        b = sync(2b)
+        c = sync(8b)
+        //purecut(a, mtof(tune(c5, minor, 8, just)), amp=fff, ch=2)
+        //purecut(b, mtof(tune(c7, minor, 2, just)), amp=fff, ch=1)
+        print("mf: ", mf)
+                
+        index = nodtrrcounter(sync(8b), _)
+        fl = superchord[index]
+        ph = phasor(2b)
+        //vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.second, just)), amp=fff, duration=.5s)
+        //vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.third, just)), amp=fff, duration=.5s)
+        print(fl.first, fl.second, fl.third) 
+        //lushpad(c, mtof(tune(f2, dorian, fl.first, just)), amp = fff, ch=rndi(1, NCH))
+        //lushpad(c, mtof(tune(f5, dorian, fl.second, just)), amp = f, ch = rndi(1, NCH))
+        //lushpad(c, mtof(tune(f6, dorian, fl.third, just)), amp = ppp, ch = rndi(1, NCH))
+        variation = pos(sine(0.1hz, dt=50ms))
+        grainsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
+        metalsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
+        purecut(dust(variation, dt=0.01s), rnd(20, 5000), amp=rnd(mf, fff), ch=rndi(1, 2))  
+        grainsharp(metro(1b), 500, amp=f, ch=rndi(1, 2))
+}        
+- [issue] hot reload can cause flow indexing to restart : 
+flow superchord = {
+        first: [1, 3, 7]                                          
+        second: [2, 6, 4, 1]                                      
+        third: [3, 5, 7, 2, 8]                                    
+}       
+        
+        
+process test: {
+        tempo(120bpm)
+        //lushpad(!, 300, amp = fff)
+        a = sync(4b)
+        b = sync(2b)
+        c = sync(8b)
+        //purecut(a, mtof(tune(c5, minor, 8, just)), amp=fff, ch=2)
+        //purecut(b, mtof(tune(c7, minor, 2, just)), amp=fff, ch=1)
+        print("mf: ", mf)
+        
+        fl = superchord[c]                                                                                                                                                                    
+        ph = phasor(2b)
+        vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.second, just)), amp=fff, duration=1s)
+        vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.third, just)), amp=fff, duration=1s)
+        print(fl.first, fl.second, fl.third) 
+        //lushpad(c, mtof(tune(f2, dorian, fl.first, just)), amp = fff, ch=rndi(1, 2))
+        //lushpad(c, mtof(tune(f5, dorian, fl.second, just)), amp = f, ch = rndi(1, 2))
+        //lushpad(c, mtof(tune(f6, dorian, fl.third, just)), amp = ppp, ch = rndi(1, 2))
+        variation = pos(sine(0.1hz), dt=50ms)
+        grainsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
+        metalsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
+        purecut(dust(variation, dt=0.01s), rnd(20, 5000), amp=rnd(mf, fff), ch=rndi(1, 2))  
+        grainsharp(metro(1b), 500, amp=f, ch=rndi(1, 2))
+}       
+
+The fl index is lost. Seems to only do this with trigger indexing. 
+
+- [fixed] when "starting" a process that is synced, it might create an extra note still (that is not synced)
 
 - [issue] hot reload : starting an already running process causes duplicates 
 - [issue] changing any global clock tempo value doesn't work at runtime

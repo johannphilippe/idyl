@@ -7,9 +7,132 @@ cs = cs_open("main.csd")
 fh = midi_out(2)
 matrix = midi_out(3) 
 
+NCH = 2
+
 
 deepkick(spike!, amp = mp) = cs_note(cs, "deepkick", 1s, amp, 500, 20, 0.05)
 dirtykick(spike!, amp=mp) = cs_note(cs, "dirtykick", 1s, amp, 300, 20, 8)
+
+// ── Smooth harmonic synth — long just-intonation chords ──────────────────────
+// lushpad(trig!, freq_hz, dur, amp, ch, brightness)
+// brightness: 0=dark/warm  0.5=neutral  1=open/bright
+lushpad(spike!, freq, duration=8s, amp=f, ch=1, bright=0.5) =
+    cs_note(cs, "lushpad", duration, amp, freq, ch, bright)
+
+// ── IDM sharp synthesizers ────────────────────────────────────────────────────
+// grainsharp — noisy, gritty, FM+noise
+grainsharp(spike!, freq, duration=0.3s, amp=f, ch=1) =
+    cs_note(cs, "grainsharp", duration, amp, freq, ch)
+
+// metalsharp — metallic, inharmonic FM ring
+metalsharp(spike!, freq, duration=0.5s, amp=f, ch=1) =
+    cs_note(cs, "metalsharp", duration, amp, freq, ch)
+
+// purecut — sine-ish, clean, very precise attack click
+purecut(spike!, freq, duration=0.3s, amp=f, ch=1) =
+    cs_note(cs, "purecut", duration, amp, freq, ch)
+
+// ── Vaporwave sounds — always stereo (outputs to ch 1+2) ─────────────────────
+// vaporpad — lush chorus pad, very slow attack, deep reverb
+vaporpad(spike!, freq, duration=12s, amp=f) =
+    cs_note(cs, "vaporpad", duration, amp, freq, 1)
+
+// vapordream — retro-piano attack into dreamy reverb sustain
+vapordream(spike!, freq, duration=10s, amp=f) =
+    cs_note(cs, "vapordream", duration, amp, freq, 1)
+
+
+flow superchord = {
+	first: [1, 2, 6]
+	second: [3, 4, 3, 1]
+	third: [5, 6, 7, 2, 8]
+}
+
+// Resettable counter — counts up on `incr`, resets to 0 on `reset`.
+rrcounter(incr!, reset!, dt=10ms) = count |> {
+    init: {count = 0}
+    count = (reset) ? count + 1; 0
+}
+
+// Resettable counter — counts up on `incr`, resets to 0 on `reset`.
+nodtrrcounter(incr!, reset!) = count |> {
+    init: {count = 0}
+    count = (reset) ? count + 1; 0
+}
+
+flow sc = [1, 2, 6]
+flow scc = {
+	first: [1, 2, 6]
+	second: [3, 4, 3, 1]
+	third: [5, 6, 7, 2, 8]
+}
+
+process lush: {
+	tempo(120bpm)
+	c = sync(8b)
+	print(c)
+	index = rcounter(sync(8b), _)
+	fl =  scc[index] //superchord[index]
+	print(index, fl)
+	//lushpad(c, mtof(tune(c2, dorian, sc[index], just)), amp=fff, ch=rndi(1, NCH))
+	lushpad(c, mtof(tune(f2, dorian, fl.first, just)), amp = fff, ch=rndi(1, NCH))
+	lushpad(c, mtof(tune(f5, dorian, fl.second, just)), amp = mf, ch = rndi(1, NCH))
+	lushpad(c, mtof(tune(f6, dorian, fl.third, just)), amp = mf, ch = rndi(1, NCH))
+}
+
+/*
+	Deux idées : 
+		- un process qui accompagne le "test" en faisant du montage de synthé modulaire 
+		- Quelque chose de numérique qui amplifie la dimension rythmique & montage
+
+	D'autres idées : 
+		- utiliser lushpad pour un drone fixé (avec potentiellement d'autres choses dessus) 
+	
+*/
+
+process test: {
+	tempo(120bpm)
+	//lushpad(!, 300, amp = fff)
+	a = sync(4b)
+	b = sync(2b)
+	c = sync(8b)
+	//purecut(a, mtof(tune(c5, minor, 8, just)), amp=fff, ch=2)
+	//purecut(b, mtof(tune(c7, minor, 2, just)), amp=fff, ch=1)
+	print("mf: ", mf)
+
+	index = nodtrrcounter(sync(8b), _)
+	fl = superchord[index]
+	ph = phasor(2b)
+	vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.second, just)), amp=fff, duration=.1s)
+	vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.third, just)), amp=fff, duration=.1s)
+	print(fl.first, fl.second, fl.third) 
+	//lushpad(c, mtof(tune(f2, dorian, fl.first, just)), amp = fff, ch=rndi(1, NCH))
+	//lushpad(c, mtof(tune(f5, dorian, fl.second, just)), amp = f, ch = rndi(1, NCH))
+	//lushpad(c, mtof(tune(f6, dorian, fl.third, just)), amp = ppp, ch = rndi(1, NCH))
+	variation = pos(sine(0.1hz, dt=50ms))
+	grainsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
+	metalsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
+	purecut(dust(variation, dt=0.01s), rnd(20, 5000), amp=rnd(mf, fff), ch=rndi(1, 2))  
+	m = metro(1b) 
+	grainsharp(m, 500, amp=f, ch=rndi(1, 2))
+	grainsharp('(m, 200ms), 500, amp=f, ch=rndi(1, 2))
+}
+
+// Bon del de jouer avec la vitesse, durée, et random du multiplicateur
+process deltest: {
+	m = metro(0.5b)
+	fl = superchord[rcounter(m, _) ]
+	v = fl.first * rnd(8, 64)
+	print(v)
+	duree = rndt(50, 3000, dt=4b)
+	
+	//deepkick(euclid(3, 8, phase_in=phasor(4b)), amp=fff)
+	metalsharp(m, v, amp=rnd(mf, fff), ch=1, duration=duree)
+	metalsharp('(m, 100ms), '(v, 2), amp=rnd(mf, fff), ch=2, duration=duree)
+	grainsharp(m, '(v, 200ms), amp=rnd(mf, fff), ch=1, duration=duree)
+	grainsharp('(m, 100ms), '(v, 1), amp=rnd(mf, fff), ch=2, duration=duree)
+
+}
 
 process kick: {
 	tempo(120bpm)
@@ -19,7 +142,7 @@ process kick: {
 }
 
 
-flow mf = [1, 2, 3, 4, 5]
+flow mff = [1, 2, 3, 4, 5]
 
 process checkflow: {
 	a = mf[metro(0.5s)] 
@@ -105,14 +228,6 @@ flow stuff = {
 
 rndt(rangemin, rangemax, dt = 500ms) = rnd(rangemin, rangemax)
 
-process test: {
-	mel = melody[metro(0.5b)]
-	scale = minor
-	on mel.rhythm: {
-		print("hello")
-		cs_note(cs, "sine", 0.5s ,fff, tune(c4, scale, mel.note, meantone), mel.chn)
-	}
-}
 
 process test2: {
 	mel = melody[metro(4b)]

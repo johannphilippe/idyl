@@ -66,8 +66,15 @@ static void collect_expr_ids(const parser::expr_ptr& expr,
             auto& e = static_cast<const parser::function_call_expr&>(*expr);
             if (e.call_) {
                 collect_expr_ids(e.call_->function_, out);
+                // Only positional arguments determine a reaction's temporal
+                // dependencies.  Named keyword arguments (e.g. duration=duree,
+                // amp=..., ch=...) are value parameters, not triggers — collecting
+                // their identifiers would wrongly accelerate the reaction to the
+                // rate of a fast value source (Bug 2b).  The trigger argument is
+                // conventionally positional, so positional-only collection keeps
+                // dependency detection correct.
                 for (const auto& arg : e.call_->arguments_)
-                    if (arg) collect_expr_ids(arg->value_, out);
+                    if (arg && arg->name_.empty()) collect_expr_ids(arg->value_, out);
             }
             break;
         }
@@ -1587,6 +1594,15 @@ value evaluator::eval_memory_op(const parser::memory_op_expr* moe) {
             if (dt_ms > 0.0)
                 size = std::max(size_t(1),
                     static_cast<size_t>(std::round(count_val.number_ / dt_ms)));
+            else {
+                // No driving instance in scope (e.g. the epoch-flush one-shot that
+                // fires shared reactions): the tick period is unknown here.  If a
+                // buffer already exists, keep its size — defaulting to 1 would reset
+                // and thrash the buffer on every flush, disabling the delay (Bug 4).
+                auto eit = delay_memories_.find(key);
+                if (eit != delay_memories_.end())
+                    size = eit->second.buffer.size();
+            }
         } else {
             size = std::max(size_t(1), static_cast<size_t>(std::round(count_val.as_number())));
         }
@@ -3781,23 +3797,50 @@ void evaluator::diff_and_apply(live_process& lp,
     // Unnamed binding statements: on_block with a function-call trigger, or an
     // expression_stmt that contains a temporal call (e.g. deepkick(sync(1b), amp)),
     // creates an unnamed live_segment (bound_var == "").
-    // Collect them in source order so they can be matched positionally in pass 0.5.
+    // Collect them in source order; pass 0.5 matches them to old unnamed segments.
     std::vector<parser::stmt_ptr> new_unnamed_binding_stmts;
 
-    // Build the list of outer function names for old unnamed segments whose binding
-    // statement is an expression_stmt.  Used below to distinguish temporal driver
-    // expression_stmts (e.g. deepkick(sync(1b), amp)) from pre-segment side-effect
-    // expression_stmts (e.g. tempo(120bpm)) during hot-reload.
-    std::vector<std::string> old_unnamed_expr_names;
-    for (const auto& seg : lp.segments) {
-        if (!seg.bound_var.empty() || !seg.rxn) continue;
-        parser::stmt_ptr bstmt;
-        { std::lock_guard<std::mutex> lk(seg.rxn->mutex); bstmt = seg.rxn->binding_stmt; }
-        if (!bstmt || bstmt->type_ != parser::node_t::expression_stmt) continue;
-        auto& es = static_cast<const parser::expression_stmt&>(*bstmt);
-        old_unnamed_expr_names.push_back(extract_fn_name(extract_fn_name, es.expression_));
-    }
-    size_t old_expr_drv_idx = 0;
+    // Is `name` a temporal function — one that creates a scheduler-driven instance?
+    // True for native temporals (sync, phasor) and for user functions that have a
+    // |> lambda block or a dt parameter (metro, euclid, dust, counter, …).
+    auto is_temporal_fn = [this](const std::string& name) -> bool {
+        if (name.empty()) return false;
+        if (name == "sync" || name == "phasor") return true;
+        std::shared_ptr<const parser::function_definition> fdef;
+        {
+            std::shared_lock lk(defs_mutex_);
+            auto it = function_defs_.find(env_.intern(name));
+            if (it != function_defs_.end()) fdef = it->second;
+        }
+        if (!fdef) return false;
+        if (fdef->lambda_block_) return true;
+        for (const auto& p : fdef->parameters_)
+            if (p && (p->name_ == "dt" || p->has_default_time_)) return true;
+        return false;
+    };
+
+    // Does an expression_stmt drive an unnamed temporal segment?  True iff one of
+    // its arguments is a call to a temporal function (the inner driver), e.g.
+    // vapordream(euclid(...), …) or dirtykick(metro(.5b), amp).  Pure reactions
+    // like cs_note(cs, tune(...)) or print(fl.first) have no temporal inner call.
+    // This is robust to adding / removing / reordering drivers (Bug 1) — unlike a
+    // positional match against the old segment list.
+    auto stmt_is_unnamed_driver = [&, this](const parser::stmt_ptr& s) -> bool {
+        if (!s || s->type_ != parser::node_t::expression_stmt) return false;
+        auto& es = static_cast<const parser::expression_stmt&>(*s);
+        if (!es.expression_ ||
+                es.expression_->type_ != parser::node_t::function_call_expr)
+            return false;
+        auto& outer = static_cast<const parser::function_call_expr&>(*es.expression_);
+        if (!outer.call_) return false;
+        for (const auto& arg : outer.call_->arguments_) {
+            if (!arg || !arg->value_) continue;
+            if (arg->value_->type_ != parser::node_t::function_call_expr) continue;
+            if (is_temporal_fn(extract_fn_name(extract_fn_name, arg->value_)))
+                return true;
+        }
+        return false;
+    };
 
     {
         new_seg_info* cur = nullptr;
@@ -3842,22 +3885,12 @@ void evaluator::diff_and_apply(live_process& lp,
                     if (ob.trigger_expr_ &&
                         ob.trigger_expr_->type_ == parser::node_t::function_call_expr)
                         is_unnamed_driver = true;
-                } else if (s->type_ == parser::node_t::expression_stmt) {
-                    // expression_stmt: if the old process had an unnamed segment whose
-                    // binding was an expression_stmt calling the same outer function,
-                    // this is a temporal driver (e.g. dirtykick(metro(.5b), amp) or
-                    // deepkick(sync(1b), amp)), NOT a reaction or side-effect.
-                    // The `!cur` guard is intentionally absent: drivers can appear
-                    // anywhere in the process body, including after named bindings.
-                    if (old_expr_drv_idx < old_unnamed_expr_names.size()) {
-                        auto& es = static_cast<const parser::expression_stmt&>(*s);
-                        std::string new_fn = extract_fn_name(extract_fn_name, es.expression_);
-                        if (!new_fn.empty()
-                                && new_fn == old_unnamed_expr_names[old_expr_drv_idx]) {
-                            is_unnamed_driver = true;
-                            ++old_expr_drv_idx;
-                        }
-                    }
+                } else if (stmt_is_unnamed_driver(s)) {
+                    // expression_stmt wrapping a temporal inner call (e.g.
+                    // dirtykick(metro(.5b), amp), vapordream(euclid(...))).
+                    // Detected semantically so removing/reordering a driver no
+                    // longer mis-classifies the others (Bug 1).
+                    is_unnamed_driver = true;
                 }
                 if (is_unnamed_driver) {
                     new_unnamed_binding_stmts.push_back(s);
@@ -4089,40 +4122,15 @@ void evaluator::diff_and_apply(live_process& lp,
         }
     }
 
-    // ── Pre-redistribute reactions ─────────────────────────────────────────
-    // Distribute reactions across new_segs before any hot-swap so that the
-    // very first tick after hot-reload uses correct segment assignments.
-    // Without this step, reactions end up in the "last segment before them"
-    // bucket (e.g. `mod` at 100ms) and fire at the wrong rate during the
-    // brief window between the pass-1 hot-swap and the final redistribution.
-    {
-        std::vector<live_segment> pre_segs;
-        pre_segs.reserve(new_order.size());
-        for (const auto& varname : new_order) {
-            auto nit = new_segs.find(varname);
-            if (nit == new_segs.end()) continue;
-            live_segment ps;
-            ps.bound_var   = varname;
-            ps.def_name    = nit->second.def_name;
-            ps.dt_ms       = nit->second.dt_ms;
-            ps.instance_id = 0;   // not used after redistribute_reactions patch
-            ps.rxn         = std::make_shared<reaction_set>();
-            ps.rxn->reactions = nit->second.reactions;
-            pre_segs.push_back(std::move(ps));
-        }
-
-        redistribute_reactions(pre_segs);
-
-        size_t idx = 0;
-        for (const auto& varname : new_order) {
-            auto nit = new_segs.find(varname);
-            if (nit == new_segs.end()) continue;
-            if (idx < pre_segs.size())
-                nit->second.reactions = pre_segs[idx].rxn->reactions;
-            ++idx;
-        }
-
-    }
+    // NOTE: no pre-redistribution here.  `hot_reload` holds eval_mutex_ for the
+    // whole update, so no scheduler tick can run until diff_and_apply returns,
+    // and the final `redistribute_reactions(lp.segments)` (pass 3) runs before
+    // that return.  An earlier pre-redistribute on a temporary `pre_segs` vector
+    // moved cross-segment reactions into `shared_reactions` but only copied
+    // `.reactions` back (empty), so pass 3 then cleared the stale shared set and
+    // silenced multi-segment reactions on every reload (Bug 2a).  Keeping the full
+    // reaction list on new_segs through pass 1/2 and redistributing exactly once
+    // at pass 3 is correct and avoids that loss.
 
     // Track which old segments survive, to avoid double-killing
     std::unordered_set<std::string> handled;
@@ -4174,10 +4182,66 @@ void evaluator::diff_and_apply(live_process& lp,
             const auto& new_stmt = new_unnamed_binding_stmts[uidx];
             ++uidx;
 
-            // For non-expression_stmt drivers (e.g. on_block), just update stmt.
+            // For non-expression_stmt drivers (e.g. on_block with function trigger).
+            // Update binding_stmt and, for on_blocks, extract a new dt from the
+            // trigger expression so `on metro(dt=250ms)` picks up the changed rate.
             if (new_stmt->type_ != parser::node_t::expression_stmt) {
-                std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
-                old_seg.rxn->binding_stmt = new_stmt;
+                if (new_stmt->type_ == parser::node_t::on_block) {
+                    const auto& ob = static_cast<const parser::on_block&>(*new_stmt);
+                    if (ob.trigger_expr_ &&
+                            ob.trigger_expr_->type_ == parser::node_t::function_call_expr) {
+                        const auto& fce =
+                            static_cast<const parser::function_call_expr&>(*ob.trigger_expr_);
+                        if (fce.call_ && scheduler_) {
+                            // Extract dt= named arg or first positional from trigger call.
+                            double new_dt = 0.0;
+                            parser::expr_ptr dt_expr;
+                            parser::expr_ptr first_pos;
+                            for (const auto& arg : fce.call_->arguments_) {
+                                if (!arg || !arg->value_) continue;
+                                if (arg->name_ == "dt") {
+                                    value v = eval_expr(arg->value_);
+                                    if (v.number_ > 0.0) {
+                                        new_dt   = v.number_;
+                                        dt_expr  = arg->value_;
+                                        break;
+                                    }
+                                }
+                                if (arg->name_.empty() && !first_pos)
+                                    first_pos = arg->value_;
+                            }
+                            // metro / sync: first positional IS the period / dt
+                            if (new_dt == 0.0 && first_pos) {
+                                value fv = eval_expr(first_pos);
+                                if (fv.number_ > 0.0) {
+                                    new_dt  = fv.number_;
+                                    dt_expr = first_pos;
+                                }
+                            }
+                            if (new_dt > 0.0 && std::abs(new_dt - old_seg.dt_ms) > 0.01) {
+                                auto inst_it = instances_.find(old_seg.instance_id);
+                                if (inst_it != instances_.end()) {
+                                    scheduler_->update_dt(
+                                        inst_it->second->subscription_id_, new_dt);
+                                    inst_it->second->dt_ms_ = new_dt;
+                                    old_seg.dt_ms = new_dt;
+                                    // Also update instance_param_exprs_ so tick_instance
+                                    // doesn't re-evaluate the old dt expr and revert.
+                                    if (dt_expr) {
+                                        instance_param_exprs_[old_seg.instance_id]["dt"]
+                                            = dt_expr;
+                                    } else {
+                                        instance_param_exprs_[old_seg.instance_id].erase("dt");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                {
+                    std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
+                    old_seg.rxn->binding_stmt = new_stmt;
+                }
                 continue;
             }
 
@@ -4588,7 +4652,13 @@ void evaluator::diff_and_apply(live_process& lp,
             old_seg.rxn->reactions    = std::move(ns.reactions);
             // Reset fired flags on catches so re-used catch names fire again.
             old_seg.rxn->catches.clear();
+            // Recompile reactions to bytecode so the VM path picks up any
+            // added or removed reaction statements. Without this the old
+            // compiled_reactions bytecode would run instead, making new
+            // reactions (e.g. newly uncommented lines) invisible.
+            old_seg.rxn->compiled_reactions.reset();
         }
+        try_compile_reactions(*old_seg.rxn);
     }
 
     // Remove dead segments from lp (those not in handled and not already erased).

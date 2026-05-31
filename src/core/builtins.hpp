@@ -206,26 +206,27 @@ namespace idyl::core {
             }, 0, 3
         },
         {
-            // integer random 
+            // integer random — rndi(lo, hi) returns integer in [lo, hi] inclusive
+            // rndi(lo, hi, step) returns a value from {lo, lo+step, lo+2*step, ...} ≤ hi
             "rndi", [](span<const value> args) -> value {
                 if (args.size_ == 0) {
-                    return value::number(rand() % 100); // default range [0, 100)
-                } else if (args.size_ == 2) {
-                    int64_t lo = static_cast<int64_t>(args[0].as_number());
-                    int64_t hi = static_cast<int64_t>(args[1].as_number());
-                    if (hi <= lo) return value::number(static_cast<double>(lo));
-                    return value::number(lo + rand() % (hi - lo)); // range [lo, hi)
-                } else if (args.size_ == 3) {
-                    int64_t lo = static_cast<int64_t>(args[0].as_number());
-                    int64_t hi = static_cast<int64_t>(args[1].as_number());
-                    int64_t step = static_cast<int64_t>(args[2].as_number());
-                    if (hi <= lo || step <= 0) return value::number(static_cast<double>(lo));
-                    int64_t range = hi - lo;
-                    int64_t steps = range / step;
-                    return value::number(lo + (rand() % steps) * step); // range [lo, hi) with step
+                    return value::number(rand() % 101); // [0, 100] inclusive
+                } else if (args.size_ >= 2) {
+                    int64_t lo   = static_cast<int64_t>(std::round(args[0].as_number()));
+                    int64_t hi   = static_cast<int64_t>(std::round(args[1].as_number()));
+                    if (hi < lo) return value::number(static_cast<double>(lo));
+                    if (args.size_ == 2) {
+                        // [lo, hi] inclusive
+                        return value::number(static_cast<double>(lo + rand() % (hi - lo + 1)));
+                    }
+                    // 3-arg: step — pick from {lo, lo+step, lo+2*step, ...} ≤ hi
+                    int64_t step = static_cast<int64_t>(std::round(args[2].as_number()));
+                    if (step <= 0) return value::number(static_cast<double>(lo));
+                    int64_t steps = (hi - lo) / step + 1; // number of candidates incl. hi
+                    return value::number(static_cast<double>(lo + (rand() % steps) * step));
                 }
-                return value::number(rand() % 100);
-            }, 0, 2
+                return value::number(rand() % 101);
+            }, 0, 3
         },
         {
             "seed", [](span<const value> args) -> value {

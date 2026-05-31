@@ -148,7 +148,7 @@ counter(dt=10ms) = cnt |> {
 }
 
 // Resettable counter — counts up on `incr`, resets to 0 on `reset`.
-rcounter(incr!, reset!, dt=10ms) = count |> {
+rcounter(incr!, reset!) = count |> {
     init: {count = 0}
     count = (reset) ? count + 1; 0
 }
@@ -163,6 +163,11 @@ gate(input, hold=100ms, dt=10ms) = out |> {
     out = trigger(remaining > 0)
 }
 
+// Random temporal number 
+rndt(min, max, dt=10ms) = out |> {
+    init: { out = 0 }
+    out = rnd(min, max)
+}
 
 // ────────────────────────────────────────────────────────────────────────────────
 // §3  Control signals — envelopes & curves
