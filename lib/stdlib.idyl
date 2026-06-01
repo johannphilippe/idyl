@@ -164,7 +164,7 @@ gate(input, hold=100ms, dt=10ms) = out |> {
 }
 
 // Random temporal number 
-rndt(min, max, dt=10ms) = out |> {
+rndt(min, max,  dt=10ms) = out |> {
     init: { out = 0 }
     out = rnd(min, max)
 }

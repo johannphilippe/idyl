@@ -14,9 +14,38 @@ This must be done in a smart way :
 
 ## Known bugs (unsolved)
 
+- [ascii_tool] : few stuff 
+    * remove the printings 
+    * Could have some specific comment triggers 
+    * mirror mode is not good ! 
+    * CLI option (optional, and driven by comments parsing like "vid something.mp4") to read video files (glitchy way, ASCII art degrading, and with glitchy loops etc) in the background  (not the text). This can use any linux (preferably cross platform) API to do so. 
+    * CLI option to display the full code (artistically too, subject to glitches or so) in the background.
+- [issue_and_question] if metro, the new durations are updated (speed), if sync it keeps at same speed
+	tempo(60)
+	speed = whisper.duration[0]
+	m = metro(speed)
+
+	w = whisper[m]
+	on(m): {
+		print("speed", speed, age)
+		speed = w.duration
+	}	
+
+    However, I think we should provide a primitive that takes a flow as input and can return durations after they are elapsed 
+    And another one doing the same but returning trigger 
+    This pritives should be able to synchronize to clocks 
+    
+
+    Also, random temporal is not working with sync, but works with metro 
+
+	speed = beat(rndt(1, 12, dt=3b))
+	m = sync(speed)
+
+
+- [issue] reset_mat process makes all process stop. It does not though if it just prints (instead of sending midi notes) 
 
 - [potential_issue] : rcount does not reset when stopping / restarting a process (index is kept) 
-- [issue] in geneeral : issue with integer indexing for flows 
+- [issue] in geneeral : issue with integer (or trigger ?) indexing for flows 
 
 - [question] let's say I add a simple instruction (not temporal) to a process then hot reload : should it be triggered ? 
 

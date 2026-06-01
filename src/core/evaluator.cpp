@@ -246,9 +246,12 @@ void evaluator::try_compile_reactions(reaction_set& rxn) {
     if (rxn.compiled_reactions) {
         int n = static_cast<int>(rxn.compiled_reactions->num_flow_cursors_);
         rxn.flow_cursors_.assign(n, 0);
+        // Store node-pointer → cursor-slot mapping for hot-reload sync-back.
+        const auto& keys = c.cursor_site_keys();
+        rxn.cursor_site_keys_.assign(keys.begin(),
+                                     keys.begin() + std::min((int)keys.size(), n));
         // Sync initial cursor positions from AST-walker cursors established during
         // setup execution, so the VM path continues from where the setup left off.
-        const auto& keys = c.cursor_site_keys();
         for (int i = 0; i < n && i < static_cast<int>(keys.size()); ++i) {
             auto it = flow_site_cursors_.find(keys[i]);
             if (it == flow_site_cursors_.end() || !it->second) continue;
@@ -260,6 +263,8 @@ void evaluator::try_compile_reactions(reaction_set& rxn) {
                 rxn.flow_cursors_[i] = it->second->begin()->second;
             }
         }
+    } else {
+        rxn.cursor_site_keys_.clear();
     }
     // shared_reactions are deferred/dedup'd by AST ptr — not compiled for now
 }
@@ -4435,6 +4440,87 @@ void evaluator::diff_and_apply(live_process& lp,
 
     }
 
+    // ── Flow cursor migration helper (Bug 3) ──────────────────────────────
+    // Flow cursors are keyed by raw AST pointer (flow_access node address).
+    // Reactions are always replaced with freshly-parsed AST on hot-reload, so
+    // new nodes have different pointers and their cursors start at 0.
+    // This helper transfers cursor state from old reaction AST nodes to new
+    // ones by structural position: if old[i] and new[i] are both flow_access
+    // nodes at the same depth, old[i]'s cursor moves to new[i].
+    // If the reaction count or flow_access count changes (structural edit), we
+    // let the cursor reset — the user changed the data-flow, so a fresh start
+    // is correct.
+    auto collect_flow_access_in_stmt =
+        [](const auto& self,
+           const parser::stmt_ptr& s,
+           std::vector<const parser::node*>& out) -> void {
+        if (!s) return;
+        switch (s->type_) {
+        case parser::node_t::assignment:
+            collect_flow_access_nodes(
+                static_cast<const parser::assignment&>(*s).value_, out);
+            break;
+        case parser::node_t::expression_stmt:
+            collect_flow_access_nodes(
+                static_cast<const parser::expression_stmt&>(*s).expression_, out);
+            break;
+        case parser::node_t::on_block: {
+            auto& ob = static_cast<const parser::on_block&>(*s);
+            collect_flow_access_nodes(ob.trigger_expr_, out);
+            for (const auto& h : ob.handler_) self(self, h, out);
+            break;
+        }
+        case parser::node_t::function_definition: {
+            auto& fd = static_cast<const parser::function_definition&>(*s);
+            if (!fd.lambda_block_) collect_flow_access_nodes(fd.body_, out);
+            break;
+        }
+        default: break;
+        }
+    };
+
+    // ── Sync VM cursors → flow_site_cursors_ before migration ────────────────
+    // When reactions compile successfully, the VM path tracks cursors in
+    // rxn->flow_cursors_[] and never writes back to flow_site_cursors_.
+    // As a result, flow_site_cursors_[ptr] is stuck at the value it had at
+    // initial setup (when reactions ran via the AST eval path for the first
+    // time).  Without this sync step, hot-reload migration reads the stale
+    // setup value (e.g. 1) instead of the live running cursor.
+    for (const auto& old_seg : lp.segments) {
+        if (old_seg.bound_var.empty() || !old_seg.rxn->compiled_reactions) continue;
+        const auto& keys = old_seg.rxn->cursor_site_keys_;
+        const auto& cursors = old_seg.rxn->flow_cursors_;
+        for (size_t i = 0; i < keys.size() && i < cursors.size(); ++i) {
+            auto it = flow_site_cursors_.find(keys[i]);
+            if (it != flow_site_cursors_.end() && it->second) {
+                (*it->second)[""] = cursors[i];
+            } else {
+                auto m = std::make_shared<std::unordered_map<std::string, int>>();
+                (*m)[""] = cursors[i];
+                flow_site_cursors_[keys[i]] = std::move(m);
+            }
+        }
+    }
+
+    // ── Save pre-replacement flow-access node lists ───────────────────────────
+    // old_seg.rxn->reactions is post-redistribution from the previous load:
+    // pass 3 may have attracted extra reactions (e.g. `print(fl.first)` pulled
+    // into segment `c` because it depends on `fl` computed by `c`'s reaction
+    // `fl = superchord[c]`).  ns.reactions is pre-redistribution — only what is
+    // written directly after the binding in the source.  Migrating cursors between
+    // these mismatched sets fails the size check and resets trigger-indexed flow
+    // cursors to 0.  Fix: save the full old set (reactions + shared_reactions)
+    // now; migrate after pass-3 redistribution when both sides are equivalent.
+    std::unordered_map<std::string, std::vector<const parser::node*>> old_seg_fa_nodes;
+    for (const auto& old_seg : lp.segments) {
+        if (old_seg.bound_var.empty()) continue;
+        auto& nodes = old_seg_fa_nodes[old_seg.bound_var];
+        for (const auto& s : old_seg.rxn->reactions)
+            collect_flow_access_in_stmt(collect_flow_access_in_stmt, s, nodes);
+        for (const auto& s : old_seg.rxn->shared_reactions)
+            collect_flow_access_in_stmt(collect_flow_access_in_stmt, s, nodes);
+    }
+
     // ── Pass 1: update or remove existing named segments ───────────────────
     for (auto& old_seg : lp.segments) {
         if (old_seg.bound_var.empty()) continue;  // handled in pass 0.5
@@ -4646,19 +4732,17 @@ void evaluator::diff_and_apply(live_process& lp,
         // no unsubscribe, no re-subscribe, no scheduling gap.
         // Lock to prevent a data race with the scheduler thread, which reads
         // these fields on every tick.
+
         {
             std::lock_guard<std::mutex> lk(old_seg.rxn->mutex);
             old_seg.rxn->binding_stmt = ns.binding_stmt;
             old_seg.rxn->reactions    = std::move(ns.reactions);
             // Reset fired flags on catches so re-used catch names fire again.
             old_seg.rxn->catches.clear();
-            // Recompile reactions to bytecode so the VM path picks up any
-            // added or removed reaction statements. Without this the old
-            // compiled_reactions bytecode would run instead, making new
-            // reactions (e.g. newly uncommented lines) invisible.
+            // Compiled reactions are reset here; recompilation happens after
+            // pass-3 redistribution (below) so cursor migration runs first.
             old_seg.rxn->compiled_reactions.reset();
         }
-        try_compile_reactions(*old_seg.rxn);
     }
 
     // Remove dead segments from lp (those not in handled and not already erased).
@@ -4835,7 +4919,32 @@ void evaluator::diff_and_apply(live_process& lp,
     // ── Pass 3: redistribute reactions and update metadata ─────────────────
     redistribute_reactions(lp.segments);
 
-    // Recompile reaction bytecode after redistribution
+    // ── Migrate flow cursors post-redistribution ──────────────────────────
+    // Now that redistribution has run, each segment's reactions + shared_reactions
+    // are structurally equivalent to what was saved in old_seg_fa_nodes (the full
+    // post-redistribution set from the previous load).  Positional matching is
+    // correct here, fixing the trigger-indexed flow cursor reset (Bug: fl=flow[trig]).
+    for (const auto& seg : lp.segments) {
+        if (seg.bound_var.empty()) continue;
+        auto oit = old_seg_fa_nodes.find(seg.bound_var);
+        if (oit == old_seg_fa_nodes.end()) continue;  // new segment — no cursor to preserve
+
+        std::vector<const parser::node*> new_nodes;
+        for (const auto& s : seg.rxn->reactions)
+            collect_flow_access_in_stmt(collect_flow_access_in_stmt, s, new_nodes);
+        for (const auto& s : seg.rxn->shared_reactions)
+            collect_flow_access_in_stmt(collect_flow_access_in_stmt, s, new_nodes);
+
+        const auto& old_nodes = oit->second;
+        if (old_nodes.size() != new_nodes.size()) continue;  // structural change — reset is correct
+        for (size_t i = 0; i < old_nodes.size(); ++i) {
+            auto it = flow_site_cursors_.find(old_nodes[i]);
+            if (it != flow_site_cursors_.end())
+                flow_site_cursors_[new_nodes[i]] = it->second;
+        }
+    }
+
+    // Recompile reaction bytecode after redistribution and cursor migration
     for (auto& seg : lp.segments) {
         if (seg.rxn) {
             std::lock_guard<std::mutex> lk(seg.rxn->mutex);

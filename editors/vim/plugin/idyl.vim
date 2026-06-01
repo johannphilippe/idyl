@@ -10,8 +10,9 @@
 if exists('g:loaded_idyl_plugin') | finish | endif
 let g:loaded_idyl_plugin = 1
 
-if !exists('g:idyl_osc_host') | let g:idyl_osc_host = '127.0.0.1' | endif
-if !exists('g:idyl_osc_port') | let g:idyl_osc_port = 9000         | endif
+if !exists('g:idyl_osc_host')   | let g:idyl_osc_host   = '127.0.0.1' | endif
+if !exists('g:idyl_osc_port')   | let g:idyl_osc_port   = 9000         | endif
+if !exists('g:idyl_ascii_port') | let g:idyl_ascii_port = 9001         | endif
 
 let s:plugin_dir   = fnamemodify(resolve(expand('<sfile>:p')), ':h')
 let s:runtime_root = fnamemodify(s:plugin_dir, ':h')
@@ -20,14 +21,10 @@ let s:py_sender    = s:runtime_root . '/python/idyl_send.py'
 highlight default IdylEval ctermbg=58 guibg=#5f5f00
 
 " ── OSC send ─────────────────────────────────────────────────────────────────
-function! s:SendOsc(payload, address) abort
-  if !executable('python3')
-    echohl WarningMsg | echom '[idyl] python3 not found' | echohl None
-    return
-  endif
+function! s:SendOscToPort(payload, address, port) abort
   let l:cmd = 'python3 ' . shellescape(s:py_sender)
             \ . ' ' . shellescape(g:idyl_osc_host)
-            \ . ' ' . shellescape(string(g:idyl_osc_port))
+            \ . ' ' . shellescape(string(a:port))
             \ . ' ' . shellescape(a:address)
   if get(g:, 'idyl_debug', 0)
     echom '[idyl] cmd: ' . l:cmd
@@ -35,12 +32,23 @@ function! s:SendOsc(payload, address) abort
   endif
   call system(l:cmd, a:payload)
   if get(g:, 'idyl_debug', 0)
-    echom '[idyl] shell_error=' . v:shell_error
+    echom '[idyl] port ' . a:port . ' shell_error=' . v:shell_error
   endif
-  if v:shell_error
+  return v:shell_error
+endfunction
+
+function! s:SendOsc(payload, address) abort
+  if !executable('python3')
+    echohl WarningMsg | echom '[idyl] python3 not found' | echohl None
+    return
+  endif
+  if s:SendOscToPort(a:payload, a:address, g:idyl_osc_port)
     echohl WarningMsg
     echom '[idyl] OSC send failed (is idyl running with --listen?)'
     echohl None
+  endif
+  if g:idyl_ascii_port > 0
+    call s:SendOscToPort(a:payload, a:address, g:idyl_ascii_port)
   endif
 endfunction
 

@@ -121,6 +121,8 @@ flow meantone    = [0, -6.84, -13.69, 3.42, -3.42, -10.27, -17.11]
 //   tune(c4, major_pent, 3, equal)  → works automatically for any scale length
 
 tune(root, scale, d, temp) = deg(root, scale, d) + temp[d] / 100
+
+// Tune with frequency conversion
 tunef(root, scale, d, temp) = mtof(tune(root, scale, d, temp))
 
 

@@ -329,11 +329,27 @@ private:
         // for both named (i "name" ...) and numeric (i 888 ...) instruments.
         // csoundScoreEventAsync had inconsistent p-field indexing across Csound
         // versions and produced p1=0 errors; the score-string path is stable.
+        //
+        // Fractional p1 values (e.g. 888.001) are preserved: Csound uses the
+        // full float to identify independent instances.  Truncating to integer
+        // would cause multiple simultaneous cs_note calls with the same base
+        // instrument to retrigger the same note instead of creating new voices.
         std::string score;
-        if (args[1].type_ == core::value_t::string)
+        if (args[1].type_ == core::value_t::string) {
             score = "i \"" + args[1].as_string() + "\" 0 ";
-        else
-            score = "i " + std::to_string(static_cast<long>(args[1].as_number())) + " 0 ";
+        } else {
+            double p1 = args[1].as_number();
+            if (p1 == std::floor(p1)) {
+                score = "i " + std::to_string(static_cast<long long>(p1)) + " 0 ";
+            } else {
+                // Shortest exact decimal representation — no trailing zeros.
+                char buf[32];
+                auto [end, ec] = std::to_chars(buf, buf + sizeof(buf), p1,
+                                               std::chars_format::general);
+                *end = '\0';
+                score = "i " + std::string(buf) + " 0 ";
+            }
+        }
 
         score += std::to_string(dur_s);
         for (size_t i = 3; i < args.size_; ++i) {

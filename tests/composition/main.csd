@@ -28,6 +28,55 @@ endop
 
 #include "synth.orc"
 
+seed 0  
+        
+opcode rint, i, ii
+        imin, imax xin
+        irnd = int(random:i(imin, int(imax) + 0.99))
+        xout irnd
+endop   
+        
+opcode rint, k, kk
+        kmin, kmax xin
+        krnd = int(random:k(kmin, int(kmax) + 0.99))
+        xout krnd
+endop   
+        
+opcode funkymod, k, kkk
+        kamp, kfq, kduty xin
+        
+        ; 1 sine
+        ; 2 tri
+        ; 3 square
+        ; 4 saw up
+        ; 5 saw down
+        ; 6 pwm
+        iwave = rint:i(1, 6)
+    if(iwave == 3) then 
+      iwave = 4
+    elseif(iwave == 6) then 
+      iwave = 5
+    endif
+        
+        klf_amp = (iwave < 6) ? 1 : 0
+        kpwm_amp = 1 - klf_amp
+        
+        klfo = lfo:k(kamp, kfq)
+        if(iwave < 3) then 
+                klfo += kamp
+                klfo /= 2
+        endif
+        
+        klfo *= klf_amp
+        
+        kpwm = vco2(kamp*0.5, kfq, 2, kduty) + (kamp * 0.5)
+        kpwm *= kpwm_amp
+        xout klfo + kpwm
+endop   
+        
+
+
+
 ; ─── Instrument 1 : Deep Bass Kick ────────────────────────────────────────────
 ; p4 = amplitude (e.g. 0.9)
 ; p5 = base (peak) frequency in Hz (e.g. 180)
@@ -144,16 +193,49 @@ instr sine
 
 endin
 
+instr whisperer
+        ifq init p4 
+        iamp init p5 
+        
+        iatq = p3 / 4 
+        idec = p3 / 4
+        irel = p3 / 2
+        
+        kvibfq = rspline:k(p6/2, p6 * 2, 0.1, 0.5)
+        kvibduty = rspline:k(0, 1, 0.1, 1)
+        kvib = funkymod(ifq / 100, kvibfq, kvibduty)
+        
+        aenv = expseg(1, p3/4, 0.5, p3/4*3, 0.001)
+        ao = oscili:a(iamp, ifq + kvib) * aenv
+        
+        kwidth init 0.1
+        kcenter init -0.8
+        aclip = pdclip(ao * 3, kwidth, kcenter)
+        aout = limit(aclip, -1, 1) * 0.3        
+        
+        aenv2 = transegr:a(0, p3/4, -5, 1, p3/2, 5, 0.5, p3/4, -1, 0)
+        ares = pdclip(butbp(vco2(iamp, ifq + kvib, 12) * aenv2, ifq, ifq/10) * 3, 0.05, 0.7) * 0.3
+        
+        aout = buthp( ares + aout, 20)
+        
+        ipan = random:i(0, 1)
+        aL, aR pan2 aout, ipan
+        
+        mix_ch(aL, 1)
+        mix_ch(aR, 2)
+endin   
+        
+
+
 instr 888 ; direct output 
 	print(p4)
 	print(p5)
+  print(p6)
 	ich init p4 
-	ioch init p5 + gioffset 
-	icheck init p5 
-	ain = inch(ich) * 0.4
+	ain = inch(ich) * p6
 	kin = k(ain)
-	outch(ioch, ain)
-	outch(icheck, ain)
+
+  mix_ch(ain, p5)
 endin
 
 instr dusk

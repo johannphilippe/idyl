@@ -1,0 +1,328 @@
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  chaos.idyl — Nonlinear & chaotic temporal functions                        ║
+// ║  Attractors, maps, and generators for idyl                                  ║
+// ║  Inspired by Andrew Fitch's nonlinear circuit research                      ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+
+// Usage:
+//   import("chaos")
+//
+//   // Lorenz attractor — call with different channel for each axis
+//   lx = lorenz(ch_x, speed=0.1)           // x-axis, normalised 0…1
+//   ly = lorenz(ch_y, speed=0.1)           // y-axis, normalised 0…1
+//   lz = lorenz(ch_z, speed=0.1)           // z-axis, normalised 0…1
+//
+//   // Bipolar output (-1…+1)
+//   sig = chua(ch_x, lo=-1, hi=1)
+//
+//   // Irregular triggers from threshold crossings
+//   t = chaos_trig(lorenz(ch_x, speed=0.2))
+//
+//   // Chaotic S&H: capture a new value each time lorenz x crosses 0.5
+//   val = chaos_sah(rnd(0, 7), lorenz(ch_x, speed=0.3))
+//
+//   // Wavefolder (pure — use anywhere)
+//   shaped = fold(pos(sine(2hz)), gain=3)
+//
+// Multi-output note:
+//   Each call to e.g. lorenz(ch_x) and lorenz(ch_y) creates two independent
+//   instances that start from the same initial conditions and run with the same
+//   parameters — so they produce properly correlated x and y axes.
+//
+// speed parameter:
+//   speed=1   → natural attractor rate (~1–5 s cycles at dt=10ms)
+//   speed=0.1 → slow LFO modulation  (~10–50 s sweep)
+
+
+// ── Channel index constants ────────────────────────────────────────────────────
+ch_x = 0
+ch_y = 1
+ch_z = 2
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §1  Nonlinear helpers (pure, stateless — inspired by Fitch nonlinear circuits)
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Wavefolder — reflects signal back on itself at the boundaries.
+// Input and output domain: (0…1).
+// gain=1 → passthrough.  gain=2 → one fold.  gain=4 → two folds.
+fold(x, gain=2) = 1 - 2 * abs(fmod(x * gain, 1) - 0.5)
+
+// Soft saturation — algebraic tanh approximation; maps any real → (−1…+1).
+// drive > 1 adds overdrive; output remains bounded.
+softsat(x, drive=2) = x * drive / (1 + abs(x * drive))
+
+// Chua diode — piecewise-linear nonlinearity at the heart of Chua's circuit.
+// m0: outer-segment slope.  m1: inner-segment slope.
+chua_diode(x, m0=-1.143, m1=-0.714) = m1 * x + 0.5 * (m0 - m1) * (abs(x + 1) - abs(x - 1))
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §2  1D chaotic maps
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Logistic map  —  x[n+1] = r · x[n] · (1 − x[n])
+// r < 3: fixed point; 3–3.57: period-doubling cascade; r > 3.57: chaos.
+// r=4: fully chaotic, spanning the whole (0…1) range.
+logistic(r=3.9, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 0.5
+        out = 0
+    }
+    x   = r * x * (1 - x)
+    out = lo + x * (hi - lo)
+}
+
+// Circle map (Arnold tongue)  —  θ[n+1] = θ[n] + Ω − (K/2π) · sin(2π·θ[n])  mod 1
+// omega=0.618 (near golden ratio): quasi-periodic.  K<1: quasi-periodic.
+// K=1: critical (mode-locking boundary).  K>1: chaotic overlap.
+circle_map(omega=0.618, K=1.5, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        theta = 0
+        out   = 0
+    }
+    theta = fmod(theta + omega - K / tau * sin(theta * tau), 1)
+    out   = lo + theta * (hi - lo)
+}
+
+// Logistic noise — logistic map with a `roughness` dial.
+// roughness=0: hovering at the chaos boundary (smooth irregular).
+// roughness=1: fully chaotic (r=4).
+logistic_noise(roughness=1, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 0.5
+        out = 0
+    }
+    r   = 3.57 + roughness * 0.43
+    x   = r * x * (1 - x)
+    out = lo + x * (hi - lo)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §3  2D chaotic maps
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Hénon map  —  x[n+1] = 1 − a·x²[n] + y[n]  ;  y[n+1] = b·x[n]
+// Classic parameters a=1.4, b=0.3 → strange attractor.
+// channel 0=x  (range ≈ −1.5…+1.5)
+// channel 1=y  (range ≈ −0.45…+0.45)
+henon(channel=0, a=1.4, b=0.3, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 0.1
+        y   = 0.1
+        out = 0
+    }
+    ox  = x
+    x   = 1 - a * ox * ox + y
+    y   = b * ox
+    x01 = min(max((x + 1.5) / 3, 0), 1)
+    y01 = min(max((y + 0.45) / 0.9, 0), 1)
+    raw = (channel) ? x01 ; y01
+    out = lo + raw * (hi - lo)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §4  Lorenz system  (Lorenz 1963)
+// ────────────────────────────────────────────────────────────────────────────────
+//
+//   dx/dt = σ(y − x)
+//   dy/dt = x(ρ − z) − y
+//   dz/dt = xy − βz
+//
+// Classic chaotic parameters: σ=10, ρ=28, β=8/3≈2.667
+// channel: 0=x  1=y  2=z
+// Attractor bounds: x≈[−20,20]  y≈[−27,27]  z≈[1,47]
+
+lorenz(channel=0, sigma=10, rho=28, beta=2.667, speed=1, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 0.1
+        y   = 0
+        z   = 20
+        out = 0
+    }
+    h  = dt / 1000 * speed
+    ox = x
+    oy = y
+    oz = z
+    x  = ox + sigma * (oy - ox) * h
+    y  = oy + (ox * (rho - oz) - oy) * h
+    z  = oz + (ox * oy - beta * oz) * h
+    xn = min(max((x + 20) / 40, 0), 1)
+    yn = min(max((y + 27) / 54, 0), 1)
+    zn = min(max((z - 1) / 46, 0), 1)
+    raw = (channel) ? xn ; yn ; zn
+    out = lo + raw * (hi - lo)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §5  Rössler system  (Rössler 1976)
+// ────────────────────────────────────────────────────────────────────────────────
+//
+//   dx/dt = −y − z
+//   dy/dt = x + a·y
+//   dz/dt = b + z·(x − c)
+//
+// Classic parameters: a=0.2, b=0.2, c=5.7
+// channel: 0=x  1=y  2=z
+// Attractor bounds: x,y≈[−12,12]  z≈[0,25]
+
+rossler(channel=0, a=0.2, b=0.2, c=5.7, speed=1, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 1
+        y   = 0
+        z   = 0
+        out = 0
+    }
+    h  = dt / 1000 * speed
+    ox = x
+    oy = y
+    oz = z
+    x  = ox + (-oy - oz) * h
+    y  = oy + (ox + a * oy) * h
+    z  = oz + (b + oz * (ox - c)) * h
+    xn = min(max((x + 12) / 24, 0), 1)
+    yn = min(max((y + 12) / 24, 0), 1)
+    zn = min(max(z / 25, 0), 1)
+    raw = (channel) ? xn ; yn ; zn
+    out = lo + raw * (hi - lo)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §6  Chua's circuit  (Chua 1983)
+// ────────────────────────────────────────────────────────────────────────────────
+//
+// Simplest electronic circuit exhibiting chaos; produces the "double-scroll"
+// attractor. The Chua diode (see §1) provides the nonlinear element.
+//
+//   dx/dt = α·(y − x − f(x))       f(x) = chua_diode(x, m0, m1)
+//   dy/dt = x − y + z
+//   dz/dt = −β·y
+//
+// Classic parameters: α=15.6, β=28, m0=−1.143, m1=−0.714
+// channel: 0=x  1=y  2=z
+// Attractor bounds: x≈[−3,3]  y≈[−0.4,0.4]  z≈[−4,4]
+
+chua(channel=0, alpha=15.6, beta=28, m0=-1.143, m1=-0.714, speed=1, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 0.5
+        y   = 0
+        z   = 0
+        out = 0
+    }
+    h  = dt / 1000 * speed
+    ox = x
+    oy = y
+    oz = z
+    fx = chua_diode(ox, m0, m1)
+    x  = ox + alpha * (oy - ox - fx) * h
+    y  = oy + (ox - oy + oz) * h
+    z  = oz + (-beta * oy) * h
+    xn = min(max((x + 3) / 6, 0), 1)
+    yn = min(max((y + 0.4) / 0.8, 0), 1)
+    zn = min(max((z + 4) / 8, 0), 1)
+    raw = (channel) ? xn ; yn ; zn
+    out = lo + raw * (hi - lo)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §7  Duffing oscillator
+// ────────────────────────────────────────────────────────────────────────────────
+//
+// Forced nonlinear oscillator with a double-well potential. Chaotic at certain
+// parameter combinations; produces asymmetric, intermittent modulation.
+//
+//   dx/dt = y
+//   dy/dt = −δy + αx − x³ + γcos(ωt)
+//
+// Classic chaotic parameters: δ=0.1, α=1, γ=0.37, ω=1.2
+// channel: 0=x  1=y
+// Attractor bounds: x≈[−1.5,1.5]  y≈[−1.5,1.5]
+
+duffing(channel=0, delta=0.1, alpha=1, gamma=0.37, omega=1.2, speed=1, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 0.5
+        y   = 0
+        t   = 0
+        out = 0
+    }
+    h  = dt / 1000 * speed
+    ox = x
+    oy = y
+    x  = ox + oy * h
+    y  = oy + (-delta * oy + alpha * ox - ox * ox * ox + gamma * cos(omega * t)) * h
+    t  = t + h
+    xn = min(max((x + 1.5) / 3, 0), 1)
+    yn = min(max((y + 1.5) / 3, 0), 1)
+    raw = (channel) ? xn ; yn
+    out = lo + raw * (hi - lo)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §8  Van der Pol oscillator
+// ────────────────────────────────────────────────────────────────────────────────
+//
+// Self-oscillating nonlinear limit-cycle oscillator.
+// mu=1: smooth, almost sinusoidal.  mu>3: stiff relaxation oscillation (saw-like).
+// Not strictly chaotic but nonlinear and self-sustaining — useful as an
+// irregular "breathing" LFO or unpredictable modulation shape.
+//
+//   dx/dt = y
+//   dy/dt = μ·(1 − x²)·y − x
+//
+// channel: 0=x  1=y
+// Empirical bounds: x≈[−2.5,2.5]  y scales with mu.
+
+vanderpol(channel=0, mu=2, speed=1, lo=0, hi=1, dt=10ms) = out |> {
+    init: {
+        x   = 0.5
+        y   = 0
+        out = 0
+    }
+    h   = dt / 1000 * speed
+    ox  = x
+    oy  = y
+    x   = ox + oy * h
+    y   = oy + (mu * (1 - ox * ox) * oy - ox) * h
+    xn  = min(max((x + 2.5) / 5, 0), 1)
+    yn  = min(max((y + mu * 3) / (mu * 6), 0), 1)
+    raw = (channel) ? xn ; yn
+    out = lo + raw * (hi - lo)
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §9  Derived chaotic generators
+// ────────────────────────────────────────────────────────────────────────────────
+
+// Chaos trigger — fires whenever `signal` rises through `threshold`.
+// Feed any normalised chaos output (0…1) as `signal`.
+// Example: chaos_trig(lorenz(ch_x, speed=0.2), threshold=0.6)
+chaos_trig(signal, threshold=0.5, dt=10ms) = trig |> {
+    init: {
+        prev = 0
+        trig = _
+    }
+    cross = (signal > threshold) * (prev <= threshold)
+    trig  = trigger(cross)
+    prev  = signal
+}
+
+// Chaotic sample-and-hold — captures `input` whenever `signal` crosses `threshold`.
+// Produces stepped, quasi-random values locked to the attractor's own rhythm.
+// Example: chaos_sah(rnd(0, 7), lorenz(ch_x, speed=0.3))
+chaos_sah(input, signal, threshold=0.5, dt=10ms) = out |> {
+    init: {
+        prev = 0
+        out  = 0
+    }
+    cross = (signal > threshold) * (prev <= threshold)
+    out   = (cross) ? input ; out
+    prev  = signal
+}

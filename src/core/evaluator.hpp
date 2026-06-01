@@ -183,6 +183,10 @@ namespace idyl::core {
             // to the cursor_id embedded in FLOW_INDEX instruction field a.
             // Persists between ticks so flows cycle through elements correctly.
             std::vector<int> flow_cursors_;
+            // AST node pointers matching flow_cursors_ slot-for-slot.
+            // Used to sync flow_cursors_ back to flow_site_cursors_ before hot-reload
+            // so the migration step reads live values rather than stale setup-time values.
+            std::vector<const parser::node*> cursor_site_keys_;
             // Set by stop_process() so the epoch flush skips stale deferred reactions
             // from the last tick of a stopped process (prevents double-firing on restart).
             std::atomic<bool>              cancelled{false};
