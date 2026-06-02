@@ -282,6 +282,14 @@ namespace idyl::core {
         // Scheduler subscription handle (0 → not subscribed)
         uint64_t subscription_id_ = 0;
 
+        // Temporal instances created inline in this instance's argument
+        // expressions, e.g. the lfo in metro(dt=lfo(0.1hz, dt=50ms)).
+        // Each is scheduled independently (own subscription at its own dt) so it
+        // evolves in wall-clock time; this instance's parameter re-evaluation
+        // reads their current output instead of re-instantiating them.
+        // Owned here so they are torn down when this instance is killed.
+        std::vector<std::shared_ptr<function_instance>> param_subinstances_;
+
         bool active_ = true;
 
         // Thread-safe access to output (scheduler thread writes, main reads)

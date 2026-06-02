@@ -693,6 +693,16 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                             auto& pool_inst = it->second;
                             if (pool_inst.get() == si.get() || !pool_inst->active_) continue;
 
+                            // Inline argument sub-instances (e.g. lfo in
+                            // metro(dt=lfo(...))) have their own subscription and
+                            // advance on their own clock — do not re-tick them here,
+                            // but still expose them so the binding re-eval below
+                            // returns their current output instead of re-creating.
+                            if (pool_inst->subscription_id_ != 0) {
+                                retick_pool_.push_back(pool_inst.get());
+                                continue;
+                            }
+
                             std::shared_ptr<parser::function_definition> pool_def;
                             if (pool_inst->local_def_) {
                                 pool_def = pool_inst->local_def_;
@@ -1839,9 +1849,19 @@ value evaluator::eval_call(const parser::function_call& call) {
     std::vector<parser::expr_ptr> pos_exprs;
     named_exprs_t named_exprs;
     args.reserve(call.arguments_.size());
+    // Capture temporal instances created inline inside argument expressions
+    // (e.g. lfo in metro(dt=lfo(...))).  If this call turns out to be a temporal
+    // instantiation, instantiate_temporal adopts and independently schedules them;
+    // otherwise the capture is discarded and the existing all_ids/pool mechanism
+    // (for bare reaction calls like print(metro(1b))) handles them as before.
+    std::vector<std::shared_ptr<function_instance>> captured_subinstances;
     for (const auto& arg : call.arguments_) {
         if (arg && arg->value_) {
+            uint64_t id_before = next_instance_id_;
+            last_instantiated_ = nullptr;
             value v = eval_expr(arg->value_);
+            if (last_instantiated_ && last_instantiated_->id_ >= id_before)
+                captured_subinstances.push_back(last_instantiated_);
             if (!arg->name_.empty()) {
                 named[arg->name_] = std::move(v);
                 named_exprs[arg->name_] = arg->value_;
@@ -2189,15 +2209,21 @@ value evaluator::eval_call(const parser::function_call& call) {
     }
 
     // ── Check user-defined functions ───────────────────────────────────────
+    // Hand the captured argument sub-instances to instantiate_temporal (via the
+    // member) so a temporal call with an inline temporal arg — e.g.
+    // metro(dt=lfo(...)) — adopts and independently schedules them.  Set right
+    // before dispatch so the value is fresh for this call.
     // Local function (defined in process/init/update scope): AST is carried
     // in the value directly — no lookup in function_defs_.
     if (local_fn_def) {
+        pending_param_subinstances_ = std::move(captured_subinstances);
         return eval_user_function(*local_fn_def, args, named, fn_name, pos_exprs, named_exprs, &call, local_fn_def, closure_inst);
     }
     auto it = function_defs_.find(fn_id);
     if (it != function_defs_.end() && it->second) {
         // Pass fn_name as the qualified_key so temporal instances get the right
         // def_name_ (the key that function_defs_ and fn_library_scope_ use).
+        pending_param_subinstances_ = std::move(captured_subinstances);
         return eval_user_function(*it->second, args, named, fn_name, pos_exprs, named_exprs, &call);
     }
 
@@ -2557,6 +2583,14 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
     // name when loaded from a namespaced library, otherwise def.name_.
     const std::string& canon_key = qualified_key.empty() ? def.name_ : qualified_key;
 
+    // Take ownership of any argument sub-instances captured by eval_call for this
+    // call.  Clear the member immediately so nested instantiations don't inherit
+    // them.  On the retick path below no new instance is created, so discarding
+    // these (which will be empty anyway, since args returned cached output) is fine.
+    std::vector<std::shared_ptr<function_instance>> adopted_subinstances =
+        std::move(pending_param_subinstances_);
+    pending_param_subinstances_.clear();
+
     if (retick_instance_ && retick_instance_->def_name_ == canon_key)
         return retick_instance_->read_output();
     for (auto* p : retick_pool_) {
@@ -2692,6 +2726,25 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
             for (auto& [name, val] : inst->current_)
                 env_.define(name, val);
 
+            // Pre-initialize any update-block LHS variables not yet defined by
+            // the init block.  Without this, counters like `cursor` that are
+            // intentionally absent from init trigger an "undefined identifier"
+            // warning and get a silent 0 anyway.  Defining them explicitly as 0
+            // here makes the seed-pass default clean and warning-free.
+            for (const auto& s : def.lambda_block_->update_statements_) {
+                if (!s) continue;
+                std::string lhs;
+                if (s->type_ == parser::node_t::function_definition) {
+                    auto& fd = static_cast<const parser::function_definition&>(*s);
+                    if (fd.parameters_.empty() && !fd.lambda_block_) lhs = fd.name_;
+                } else if (s->type_ == parser::node_t::assignment) {
+                    auto& a = static_cast<const parser::assignment&>(*s);
+                    if (!a.is_emit_) lhs = a.name_;
+                }
+                if (!lhs.empty() && !env_.lookup(lhs))
+                    env_.define(lhs, value::number(0.0));
+            }
+
             // Collect variable names set by the init block so we can skip
             // their update statements on this first pass.
             std::set<std::string> init_names;
@@ -2774,6 +2827,24 @@ value evaluator::instantiate_temporal(const parser::function_definition& def,
 
     // ── Store the instance ─────────────────────────────────────────────────
     instances_[inst->id_] = inst;
+
+    // ── Adopt & independently schedule argument sub-instances ───────────────
+    // For metro(dt=lfo(0.1hz, dt=50ms)) the lfo was created while evaluating
+    // this call's args.  Own it here and give it its own scheduler subscription
+    // (at its own dt) so it advances in wall-clock time; this instance's
+    // per-tick parameter re-evaluation then reads its current output instead of
+    // re-instantiating it (see tick_instance, where param_subinstances_ are
+    // exposed via retick_pool_).
+    for (auto& sub : adopted_subinstances) {
+        if (!sub || sub.get() == inst.get()) continue;
+        inst->param_subinstances_.push_back(sub);
+        if (sub->dt_ms_ > 0.0)
+            schedule_instance(sub);
+        // Track under the owning process so stop_process tears it down.
+        if (!current_process_name_.empty())
+            active_process_instances_[current_process_name_].push_back(sub->id_);
+    }
+
     last_instantiated_ = inst;
 
     // NOTE: subscription is NOT done here — either the process block handler
@@ -2802,6 +2873,19 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
     {
         auto expr_it = instance_param_exprs_.find(inst.id_);
         if (expr_it != instance_param_exprs_.end() && !expr_it->second.empty()) {
+            // Expose this instance's inline argument sub-instances (e.g. the lfo
+            // in metro(dt=lfo(...))) so the temporal calls in the param exprs
+            // return their current output via the retick guard rather than
+            // creating duplicates.  They tick on their own subscription, so we
+            // only read — never re-tick — them here.  Save/restore retick_pool_
+            // since this runs before the scheduler callback populates it.
+            std::vector<function_instance*> saved_pool;
+            if (!inst.param_subinstances_.empty()) {
+                saved_pool = retick_pool_;
+                for (auto& sub : inst.param_subinstances_)
+                    if (sub) retick_pool_.push_back(sub.get());
+            }
+
             std::vector<std::pair<std::string, value>> param_updates;
             for (const auto& [name, snapshot] : inst.params_) {
                 auto pit = expr_it->second.find(name);
@@ -2819,6 +2903,9 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                     param_updates.push_back({name, eval_expr(pit->second)});
                 }
             }
+
+            if (!inst.param_subinstances_.empty())
+                retick_pool_ = std::move(saved_pool);
             for (auto& [name, val] : param_updates) {
                 if (name == "dt") {
                     double new_dt = val.as_number();
@@ -2876,6 +2963,26 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
         env_.define(name, val);
     }
 
+    // ── Pre-initialize any update-block LHS variables not yet in scope ────────
+    // Handles the first tick when no init block ran (current_ is empty) and
+    // any state counter intentionally absent from the init block.  Prevents
+    // "undefined identifier" warnings; subsequent ticks read from current_.
+    if (def) {
+        for (const auto& s : def->lambda_block_->update_statements_) {
+            if (!s) continue;
+            std::string lhs;
+            if (s->type_ == parser::node_t::function_definition) {
+                auto& fd = static_cast<const parser::function_definition&>(*s);
+                if (fd.parameters_.empty() && !fd.lambda_block_) lhs = fd.name_;
+            } else if (s->type_ == parser::node_t::assignment) {
+                auto& a = static_cast<const parser::assignment&>(*s);
+                if (!a.is_emit_) lhs = a.name_;
+            }
+            if (!lhs.empty() && !env_.lookup(lhs))
+                env_.define(lhs, value::number(0.0));
+        }
+    }
+
     // ── Evaluate update statements (writes go to next_) ────────────────────
     inst.next_.clear();
     inst.emitted_.clear();
@@ -2916,6 +3023,25 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                     }
                     inst.next_[upd.name_] = store;
                     env_.define(upd.name_, store);
+                    // dt assignment inside a |> body: self-adjust scheduling period.
+                    if (upd.name_ == "dt") {
+                        double new_dt = store.as_number();
+                        if (new_dt > 0.0 && new_dt != inst.dt_ms_) {
+                            // Caller provided a dynamic dt= expression — disconnect it so
+                            // param re-eval no longer fights the body each tick (warn once).
+                            auto& pexprs = instance_param_exprs_[inst.id_];
+                            auto pit = pexprs.find("dt");
+                            if (pit != pexprs.end()) {
+                                std::cerr << "[idyl] warning: '" << inst.def_name_
+                                    << "' assigns to dt in its body — "
+                                       "caller's dt= expression disconnected.\n";
+                                pexprs.erase(pit);
+                            }
+                            inst.dt_ms_ = new_dt;
+                            if (scheduler_ && inst.subscription_id_ != 0)
+                                scheduler_->update_dt(inst.subscription_id_, new_dt);
+                        }
+                    }
                 } else if (!upd.parameters_.empty() || upd.lambda_block_) {
                     // Tick-local alias — stored as a closure so escaped values see
                     // current instance state when called.
@@ -2941,7 +3067,17 @@ void evaluator::tick_instance(std::shared_ptr<function_instance> inst_ptr,
                 retick_instance_ = prev_retick;
                 if (assign.name_ == "dt") {
                     double new_dt = v.as_number();
-                    if (new_dt != inst.dt_ms_ && new_dt > 0.0) {
+                    if (new_dt > 0.0 && new_dt != inst.dt_ms_) {
+                        // Caller provided a dynamic dt= expression — disconnect it so
+                        // param re-eval no longer fights the body each tick (warn once).
+                        auto& pexprs = instance_param_exprs_[inst.id_];
+                        auto pit = pexprs.find("dt");
+                        if (pit != pexprs.end()) {
+                            std::cerr << "[idyl] warning: '" << inst.def_name_
+                                << "' assigns to dt in its body — "
+                                   "caller's dt= expression disconnected.\n";
+                            pexprs.erase(pit);
+                        }
                         inst.dt_ms_ = new_dt;
                         if (scheduler_ && inst.subscription_id_ != 0)
                             scheduler_->update_dt(inst.subscription_id_, new_dt);
@@ -3742,6 +3878,15 @@ void evaluator::kill_instance(uint64_t id) {
     if (scheduler_ && it->second->subscription_id_ != 0) {
         scheduler_->unsubscribe(it->second->subscription_id_);
         it->second->subscription_id_ = 0;
+    }
+    // Cascade: independently-scheduled argument sub-instances (e.g. the lfo in
+    // metro(dt=lfo(...))) are owned by this instance — tear them down too.
+    for (auto& sub : it->second->param_subinstances_) {
+        if (sub && sub->subscription_id_ != 0 && scheduler_) {
+            scheduler_->unsubscribe(sub->subscription_id_);
+            sub->subscription_id_ = 0;
+        }
+        if (sub) sub->active_ = false;
     }
 }
 

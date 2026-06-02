@@ -1,0 +1,22 @@
+// Feature 1 + Feature 2 compatibility.
+// Feature 1: seq() self-adjusts its own dt from each element's duration via the
+//   `dt = expr` directive in its |> body, and emits a `tick` trigger per advance.
+// Feature 2: the metro's dt is an inline temporal call (lfo) that is scheduled
+//   independently and sampled each fire.
+// The two mechanisms must coexist without interfering.
+import("stdlib")
+
+flow phrase = {
+    note:     [60, 62, 64, 65]
+    duration: [200ms, 400ms, 100ms, 300ms]
+}
+
+process: {
+    // feature 1: dt = out.duration self-scheduling inside seq, fired via on(s::tick)
+    s = seq(phrase)
+    on(s::tick): { print("seq", s.note, s.duration) }
+
+    // feature 2: inline temporal lfo controlling metro's dt
+    m = metro(dt=as_ms(pos(lfo(1hz, dt=20ms)) * 200 + 100))
+    on(m): { print("metro") }
+}

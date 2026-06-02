@@ -1,0 +1,15 @@
+// Tests dt = expr inside a |> body: self-adjusting period.
+// A function that slows down over time by writing to dt directly.
+// Expected: prints 1, 2, 3, 4 ... with growing gaps (100ms, 150ms, 200ms, ...).
+import("stdlib")
+
+adaptive(dt=100ms) = cnt |> {
+    init: { cnt = 0 }
+    cnt = cnt + 1
+    dt  = 100 + cnt * 50
+}
+
+process: {
+    a = adaptive()
+    print(a)
+}

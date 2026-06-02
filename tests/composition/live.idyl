@@ -7,7 +7,9 @@ cs = cs_open("main.csd")
 matrix = midi_out(2) 
 fh = midi_out(3)
 
-NCH = 2
+import("freejazz")
+
+NCH = 8
 
 
 /*
@@ -23,8 +25,8 @@ NCH = 2
 */
 
 
-deepkick(spike!, amp = mp) = cs_note(cs, "deepkick", 1s, amp, 500, 20, 0.05)
-dirtykick(spike!, amp=mp) = cs_note(cs, "dirtykick", 1s, amp, 300, 20, 8)
+deepkick(spike!, amp = mp) = cs_note(cs, "deepkick", 1s, amp, 500, 20, 0.07)
+dirtykick(spike!, amp=mp) = cs_note(cs, "dirtykick", 1s, amp, 300, 20, 5)
 
 // ── Smooth harmonic synth — long just-intonation chords ──────────────────────
 // lushpad(trig!, freq_hz, dur, amp, ch, brightness)
@@ -47,23 +49,38 @@ purecut(spike!, freq, duration=0.3s, amp=f, ch=1) =
 
 // ── Vaporwave sounds — always stereo (outputs to ch 1+2) ─────────────────────
 // vaporpad — lush chorus pad, very slow attack, deep reverb
-vaporpad(spike!, freq, duration=12s, amp=f) =
+vaporpad(spike!, freq, duration=12s, amp=f, ch=1) =
     cs_note(cs, "vaporpad", duration, amp, freq, 1)
 
 // vapordream — retro-piano attack into dreamy reverb sustain
-vapordream(spike!, freq, duration=10s, amp=f) =
-    cs_note(cs, "vapordream", duration, amp, freq, 1)
+vapordream(spike!, freq, duration=10s, amp=f, ch=1) =
+    cs_note(cs, "vapordream", duration, amp, freq, ch)
 
-whisperer(spike!, freq=200hz, duration=10s, amp=f, modspeed=0.4) =  
-    cs_note(cs, "whisperer", duration, freq, amp, modspeed)
+whisperer(spike!, freq=200hz, duration=10s, amp=f, modspeed=0.4, ch=1) =  
+    cs_note(cs, "whisperer", duration, freq, amp, modspeed, ch)
 
 
 flow whisper = {
-	base: [c4] 
-	deg: 	  [0, 2, -2, 4]
-	duration: [8b, 16b, 8b, 12b ] 
+	base: [i in 1..43: (i > 7 + i > 14 + i > 29) ? f5; c4; g3; a4] 
+	deg: 	  [0, 2, -1, 4, -2, 5, 8, 13]
+	duration: [8b, 16b, 8b, 12b, 4b, 4b, 5b, 10b ] 
 }
 
+
+// Salut 
+
+process whispseq: {
+	fl = seq(whisper, dt=whisper.duration[0]) 
+	print(fl.duration)
+	whisperer(fl::tick, freq=tunef(fl.base, minor,fl.deg, just), duration = fl.duration * 3, amp = mf, modspeed = rnd(0.3, 0.6), ch = 4) 
+
+}
+process whispseq2: {
+	fl = seq(whisper, dt=whisper.duration[0]) 
+	print(fl.duration)
+	whisperer(fl::tick, freq=tunef(fl.base, minor,fl.deg, just), duration = fl.duration * 3, amp = mf, modspeed = rnd(0.3, 0.6), ch = 4) 
+
+}
 
 process whisp: {
 	tempo(60)
@@ -73,13 +90,15 @@ process whisp: {
 	
 
 	w = whisper[m]
+	ch = rndi(1, 7)
 	on(m): {
+		ch = rndi(1, 7)
 		speed = whisper.duration[r+1]
 		print("speed", speed)
 	}	
 	speed = whisper.duration[!]
 	
-	whisperer(m, freq=mtof(tune(w.base, minor, w.deg, just)), duration= w.duration * 2, amp=f, modspeed = rnd(0.3, 0.6)) 
+	whisperer(m, freq=mtof(tune(w.base, minor, w.deg, just)), duration= w.duration * 2, amp=f, modspeed = rnd(0.3, 0.6), ch=ch)
 
 }
 
@@ -102,24 +121,27 @@ nodtrrcounter(incr!, reset!) = count |> {
     count = (reset) ? count + 1; 0
 }
 
-flow sc = [1, 2, 6]
+flow sc = [0, 1, 6, 2]
 flow scc = {
-	first: [1, 2, 6, 8]
-	second: [3, 4, 3, 1, 7]
-	third: [5, 6, 7, 2, 8, 12, 10]
+	first: [0, 1, 6,  2, 8]
+	second: [3, 4, 3, 1, 7, 5, 3, 1]
+	third: [5, 6, 7, 2, 8, 12, 10, 13, 8, 14, 7]
 }
 
 process lush: {
-	tempo(120bpm)
+	tempo(60bpm)
+	
 	c = sync(8b)
+	mode = phrygian
+	
 	print(c)
 	index = rcounter(sync(8b), _)
 	fl =  scc[c] //superchord[index]
 	print(index, fl)
-	lushpad(c, mtof(tune(c3, dorian, fl.third, just)), amp=fff, ch=rndi(1, NCH))
-	lushpad(c, mtof(tune(c3, dorian, fl.first, just)), amp = fff, ch=rndi(1, NCH))
-	lushpad(c, mtof(tune(c5, dorian, fl.second, just)), amp = mf, ch = rndi(1, NCH))
-	lushpad(c, mtof(tune(c6, dorian, fl.third, just)), amp = mf, ch = rndi(1, NCH))
+	lushpad(c, mtof(tune(c3, mode, fl.third, just)), amp=f, ch=rndi(1, NCH), duration = 8b)
+	lushpad(c, mtof(tune(g3, mode, fl.first, just)), amp = f, ch=rndi(1, NCH), duration= 8b)
+	lushpad(c, mtof(tune(f5, mode, fl.second, just)), amp = mf, ch = rndi(1, NCH), duration = 8b)
+	lushpad(c, mtof(tune(c6, mode, fl.third, just)), amp = mf, ch = rndi(1, NCH), duration = 8b)
 }
 
 
@@ -132,26 +154,33 @@ process test: {
 	a = sync(4b)
 	b = sync(2b)
 	c = sync(8b)
-	//purecut(a, mtof(tune(c5, minor, 8, just)), amp=fff, ch=2)
-	//purecut(b, mtof(tune(c7, minor, 2, just)), amp=fff, ch=1)
+	//purecut(a, mtof(tune(c5, minor, 8, just)), amp=fff, ch=rndi(1, 8))
+	//purecut(b, mtof(tune(c7, minor, 2, just)), amp=fff, ch=rndi(1, 8))
 	print("mf: ", mf)
 
 	index = nodtrrcounter(sync(8b), _)
 	fl = superchord[index]
 	ph = phasor(2b)
-	vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.second, just)), amp=fff, duration=.1s)
-	vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.third, just)), amp=fff, duration=.1s)
+	vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.second, just)), amp=fff, duration=.1s, ch=5)
+	vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a3, dorian, fl.third, just)), amp=fff, duration=.1s, ch = 1)
+	vapordream(euclid(3, 8, phase_in=ph), mtof(tune(a5, dorian, fl.first, just)), amp=f, duration=.1s, ch = 2)
+
+
+
 	print(fl.first, fl.second, fl.third) 
+
 	//lushpad(c, mtof(tune(f2, dorian, fl.first, just)), amp = fff, ch=rndi(1, NCH))
 	//lushpad(c, mtof(tune(f5, dorian, fl.second, just)), amp = f, ch = rndi(1, NCH))
 	//lushpad(c, mtof(tune(f6, dorian, fl.third, just)), amp = ppp, ch = rndi(1, NCH))
+
+
 	variation = pos(sine(0.1hz, dt=50ms))
-	grainsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
-	metalsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,2))  
-	purecut(dust(variation, dt=0.01s), rnd(20, 5000), amp=rnd(mf, fff), ch=rndi(1, 2))  
+	grainsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1,NCH))  
+	metalsharp(dust(variation, dt=0.01s), rnd(20, 800), amp=rnd(mf, fff), ch=rndi(1, NCH))  
+	purecut(dust(variation, dt=0.01s), rnd(20, 5000), amp=rnd(mf, fff), ch=rndi(1, NCH))  
 	m = metro(1b) 
-	grainsharp(m, 500, amp=f, ch=rndi(1, 2))
-	grainsharp('(m, 200ms), 500, amp=f, ch=rndi(1, 2))
+	grainsharp(m, 500, amp=mf, ch=1)
+	grainsharp('(m, 200ms), 500, amp=mf, ch=2)
 }
 
 // Bon del de jouer avec la vitesse, durée, et random du multiplicateur
@@ -161,7 +190,7 @@ process test: {
 // Il s'appelle Idyl ! 
 // Baptême du feu direct 
 process deltest: {
-	speed = beat(rndt(1, 12, dt=3b))
+	speed =  0.5b //beat(rndt(0.5, 2, dt=3b))
 	m = sync(speed)
 	fl = superchord[rcounter(m, _) ]
 	v = fl.first * rnd(8, 12)
@@ -169,10 +198,10 @@ process deltest: {
 	duree = rndt(3000, 10000, dt=4b)
 	
 	//deepkick(euclid(3, 8, phase_in=phasor(4b)), amp=fff)
-	metalsharp(m, v, amp=rnd(mf, fff), ch=1, duration=duree)
-	metalsharp('(m, 100ms), '(v, 2), amp=rnd(mf, fff), ch=2, duration=duree)
-	grainsharp(m, '(v, 200ms), amp=rnd(mf, fff), ch=1, duration=duree)
-	grainsharp('(m, 100ms), '(v, 1), amp=rnd(mf, fff), ch=2, duration=duree)
+	metalsharp(m, v, amp=rnd(mf, fff), ch=rnd(1,8), duration=duree)
+	//metalsharp('(m, 100ms), '(v, 2), amp=rnd(mf, fff), ch=rnd(1, 8), duration=duree)
+	//grainsharp(m, '(v, 200ms), amp=rnd(mf, fff), ch=rnd(1,8), duration=duree)
+	//grainsharp('(m, 100ms), '(v, 1), amp=rnd(mf, fff), ch=rnd(1,8), duration=duree)
 	//@(100ms): {stop}
 
 }
@@ -209,6 +238,33 @@ process connect: {
 // Et vous allez entendre un nouveau langage ! 
 // Idyl 
 // C'est un langage réactif : il gère du temps, et des chaînes de réaction temporelles 
+
+process gesture: {
+	duration = rnd(0.5, 4, 0.25) 
+	granularity = beat(rndi(0.125, duration))
+	print(duration, granularity)
+
+	m = sync(granularity) 
+	print("m>>", m)
+	d = dust(0.9, dt=15ms)
+	
+	on(d): {
+		print("scramble")
+		start scramble_mat
+	}
+
+	on(m): {
+		cs_note(cs, 888, granularity, rndi(1, 4), rndi(1, 8), rnd(f, fff))
+		cs_note(cs, 888, granularity, rndi(1, 4), rndi(1, 8), rnd(f, fff))
+		cs_note(cs, 888, granularity, rndi(1, 4), rndi(1, 8), rnd(f, fff))
+		cs_note(cs, 888, granularity, rndi(1, 4), rndi(1, 8), rnd(f, fff))
+	}
+
+	@(beat(duration)): {
+		stop gesture
+	}
+}
+
 process crythm: {
 	tempo(120bpm)
 	long = sync(8b) 
@@ -225,43 +281,39 @@ process crythm: {
 		print("speed: ", cdur)
 		amp1 = rnd(mf, fff)
 		amp2 = rnd(mf, fff)
-		cs_note(cs, 888, cdur , rndi(1, 4), 1, fff) //rnd(mf, fff)) 
-		cs_note(cs, 888, cdur , rndi(1, 4), 2, rnd(mf, fff)) 
+		cs_note(cs, 888, cdur , rndi(1, 4), rndi(1, 8), rnd(p, ff)) 
+		cs_note(cs, 888, cdur , rndi(1, 4), rndi(1, 8), rnd(p, ff)) 
 	}
-	cs_note(cs, 888, cdur, rndi(1, 4), 1, rnd(mf, fff)) 
-	cs_note(cs, 888, cdur, rndi(1, 4), 2, rnd(mf, fff)) 
-	cs_note(cs, 888.1, 0, rndi(1, 4), 1, rnd(mf, fff)) 
-	cs_note(cs, 888.2, 0, rndi(1, 4), 2, rnd(mf, fff)) 
-
+	cs_note(cs, 888, cdur, rndi(1, 4), 1, rnd(mf, mf)) 
+	cs_note(cs, 888, cdur, rndi(1, 4), 2, rnd(mf, mf)) 
+	cs_note(cs, 888.1, 0, rndi(1, 4), 1, rnd(mf, f)) 
+	cs_note(cs, 888.2, 0, rndi(1, 4), 2, rnd(mf, f)) 
 }	
-
-flow chk = [n in 1..5: n]
-process chk_index: {
-	m1 = sync(1s) 
-	m2 = counter(dt=1s) 
-
-	f1 = chk[m1] 
-	f2 = chk[m2]
-
-	print(f1, f2)
-}
 
 process stopmove: {
 	stop crythm 
-	cs_note(cs, 888.1, 0, 3, 1, fff) 
-	cs_note(cs, 888.2, 0, 4, 2, fff) 
-	cs_note(cs, 888.1, -1, 3, 1, fff) 
-	cs_note(cs, 888.2, -1, 4, 2, fff) 
-	
+	cs_note(cs, 888.1, 0, 3, rndi(1,8), fff) 
+	cs_note(cs, 888.2, 0, 4, rndi(1,8), fff) 
+	cs_note(cs, 888.1, -1, 3, rndi(1, 8), fff) 
+	cs_note(cs, 888.2, -1, 4, rndi(1, 8), fff) 
 }
 
-process scramble_mat: {
+process keep_scramble_mat: {
 	on(sync(16b)): { 
 		print("scramble")
 		each x in 6: {
 			each y in 10: {
 				r = (rnd(0, 1) > 0.75) ? midi_note_off(matrix, 2, x, y) ; midi_note_on(matrix, 2, x, y) 
 			}
+		}
+	}
+}
+
+process scramble_mat: {
+	print("scramble")
+	each x in 6: {
+		each y in 10: {
+			r = (rnd(0, 1) > 0.75) ? midi_note_off(matrix, 2, x, y) ; midi_note_on(matrix, 2, x, y) 
 		}
 	}
 }

@@ -1,7 +1,27 @@
 <!DOCTYPE patchbay>
 <patchbay name="patch" version="0.9.13">
  <output-sockets>
-  <socket type="jack-audio" name="ES\-8\ Pro 1" client="ES\-8\ Pro" exclusive="off">
+  <socket type="jack-audio" exclusive="off" name="SOVA REAL OUT " client="cpal_client_out\-193">
+   <plug>out_0</plug>
+   <plug>out_1</plug>
+   <plug>out_2</plug>
+   <plug>out_3</plug>
+   <plug>out_4</plug>
+   <plug>out_5</plug>
+   <plug>out_6</plug>
+   <plug>out_7</plug>
+  </socket>
+  <socket type="jack-audio" exclusive="off" name="SOVA outs " client="cpal_client_out">
+   <plug>out_0</plug>
+   <plug>out_1</plug>
+   <plug>out_2</plug>
+   <plug>out_3</plug>
+   <plug>out_4</plug>
+   <plug>out_5</plug>
+   <plug>out_6</plug>
+   <plug>out_7</plug>
+  </socket>
+  <socket type="jack-audio" exclusive="off" name="ES\-8\ Pro 1" client="ES\-8\ Pro">
    <plug>capture_AUX0</plug>
    <plug>capture_AUX1</plug>
    <plug>capture_AUX2</plug>
@@ -13,7 +33,7 @@
    <plug>capture_AUX8</plug>
    <plug>capture_AUX9</plug>
   </socket>
-  <socket type="jack-audio" name="csound 1" client="csound6" exclusive="off">
+  <socket type="jack-audio" exclusive="off" name="csound 1" client="csound6">
    <plug>output1</plug>
    <plug>output2</plug>
    <plug>output3</plug>
@@ -31,7 +51,7 @@
    <plug>output15</plug>
    <plug>output16</plug>
   </socket>
-  <socket type="jack-audio" name="csound 2" client="csound6" exclusive="off">
+  <socket type="jack-audio" exclusive="off" name="csound 2" client="csound6">
    <plug>output17</plug>
    <plug>output18</plug>
    <plug>output19</plug>
@@ -43,7 +63,17 @@
   </socket>
  </output-sockets>
  <input-sockets>
-  <socket type="jack-audio" name="csound 1" client="csound6" exclusive="off">
+  <socket type="jack-audio" exclusive="off" name="Audient\ EVO16\ Multichannel 1" client="Audient\ EVO16\ Multichannel">
+   <plug>playback_AUX8</plug>
+   <plug>playback_AUX9</plug>
+   <plug>playback_AUX10</plug>
+   <plug>playback_AUX11</plug>
+   <plug>playback_AUX12</plug>
+   <plug>playback_AUX13</plug>
+   <plug>playback_AUX14</plug>
+   <plug>playback_AUX15</plug>
+  </socket>
+  <socket type="jack-audio" exclusive="off" name="csound 1" client="csound6">
    <plug>input1</plug>
    <plug>input2</plug>
    <plug>input3</plug>
@@ -55,7 +85,7 @@
    <plug>input9</plug>
    <plug>input10</plug>
   </socket>
-  <socket type="jack-audio" name="ES\-8\ Pro 1" client="ES\-8\ Pro" exclusive="off">
+  <socket type="jack-audio" exclusive="off" name="ES\-8\ Pro 1" client="ES\-8\ Pro">
    <plug>playback_AUX0</plug>
    <plug>playback_AUX1</plug>
    <plug>playback_AUX2</plug>
@@ -73,7 +103,7 @@
    <plug>playback_AUX14</plug>
    <plug>playback_AUX15</plug>
   </socket>
-  <socket type="jack-audio" name="Scarlett\ 18i20\ USB\ Multichannel 1" client="Scarlett\ 18i20\ USB\ Multichannel" exclusive="off">
+  <socket type="jack-audio" exclusive="off" name="Scarlett\ 18i20\ USB\ Multichannel 1" client="Scarlett\ 18i20\ USB\ Multichannel">
    <plug>playback_AUX0</plug>
    <plug>playback_AUX1</plug>
    <plug>playback_AUX2</plug>
@@ -86,9 +116,11 @@
  </input-sockets>
  <slots/>
  <cables>
-  <cable type="jack-audio" output="csound 1" input="ES\-8\ Pro 1"/>
-  <cable type="jack-audio" output="csound 2" input="Scarlett\ 18i20\ USB\ Multichannel 1"/>
-  <cable type="jack-audio" output="ES\-8\ Pro 1" input="csound 1"/>
+  <cable type="jack-audio" input="Audient\ EVO16\ Multichannel 1" output="SOVA outs "/>
+  <cable type="jack-audio" input="csound 1" output="ES\-8\ Pro 1"/>
+  <cable type="jack-audio" input="ES\-8\ Pro 1" output="csound 1"/>
+  <cable type="jack-audio" input="Audient\ EVO16\ Multichannel 1" output="csound 2"/>
+  <cable type="jack-audio" input="Audient\ EVO16\ Multichannel 1" output="SOVA REAL OUT "/>
  </cables>
 </patchbay>
 

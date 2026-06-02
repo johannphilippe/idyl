@@ -45,7 +45,7 @@ This must be done in a smart way :
 - [issue] reset_mat process makes all process stop. It does not though if it just prints (instead of sending midi notes) 
 
 - [potential_issue] : rcount does not reset when stopping / restarting a process (index is kept) 
-- [issue] in geneeral : issue with integer (or trigger ?) indexing for flows 
+- [fixed] in geneeral : issue with  trigger indexing for flows 
 
 - [question] let's say I add a simple instruction (not temporal) to a process then hot reload : should it be triggered ? 
 

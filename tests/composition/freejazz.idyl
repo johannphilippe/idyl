@@ -13,9 +13,9 @@
 //   deg  = phrase_walk(trig, lo=0, hi=13, flip_prob=0.22, leap_prob=0.12)
 //   oct  = octave_voice(trig, min_oct=-1, max_oct=1)
 //   amp  = jazz_amp(lo_amp=mp, hi_amp=fff, phrase_ms=7000)
-//   dur  = jazz_dur(trig, short_ms=60, long_ms=400)
+//   duration  = jazz_dur(trig, short_ms=60, long_ms=400)
 //   freq = mtof(tune(a3 + oct, dorian, deg, just))
-//   grainsharp(trig, freq, amp=amp, duration=dur, ch=1)
+//   grainsharp(trig, freq, amp=amp, duration=duration, ch=1)
 //
 // TERNARY REMINDER (idyl): (cond) ? option0; option1
 //   cond = 0 → option0 (the "false/do-nothing" branch)
@@ -24,6 +24,16 @@
 
 import("stdlib")
 import("music")
+module("csound")
+
+// wrappers to Csound orc 
+screamlead(spike!, duration=0.5s, amp=mp, freq=400, ch=1) = cs_note(cs, "screamlead", duration, amp, freq, ch)
+flangecry(spike!, duration=0.5s, amp=mp, freq=400, ch=1) = cs_note(cs, "flangecry", duration, amp, freq, ch)
+glitchvox(spike!, duration=0.5s, amp=mp, freq=400, ch=1) = cs_note(cs, "glitchvox", duration, amp, freq, ch)
+acidsnarl(spike!, duration=0.5s, amp=mp, freq=400, ch=1) = cs_note(cs, "acidsnarl", duration, amp, freq, ch)
+fmcry(spike!, duration=0.5s, amp=mp, freq=400, ch=1) = cs_note(cs, "fmcry", duration, amp, freq, ch)
+gritgrowl(spike!, duration=0.5s, amp=mp, freq=400, ch=1) = cs_note(cs, "gritgrowl", duration, amp, freq, ch)
+shardbell(spike!, duration=0.5s, amp=mp, freq=400, ch=1) = cs_note(cs, "shardbell", duration, amp, freq, ch)
 
 
 // ── §1  RHYTHM GENERATORS ─────────────────────────────────────────────────
@@ -48,7 +58,7 @@ breathing_rhythm(base_rate=8, breath_freq=0.12hz, swell=2.5, dt=10ms) = trig |> 
 // burst_ms : how long each dense burst lasts.
 // rest_ms  : silent gap between bursts.
 sheets_rhythm(density=24, burst_ms=600, rest_ms=300, dt=10ms) = trig |> {
-    init: { phase = 0; trig = _ }
+    init: { phase = 0 trig = _ }
     phase = fmod(phase + dt, burst_ms + rest_ms)
     trig  = trigger(rnd() < (phase < burst_ms) * density * dt / 1000)
 }
@@ -65,7 +75,7 @@ sparse_rhythm(rate=2, dt=10ms) = trig |> {
 // returns to silence.  The arc is a half-sine (0 → 1 → 0 over phrase_ms).
 // peak_rate : triggers / sec at the climax.
 jazz_density(peak_rate=18, phrase_ms=6000, dt=10ms) = trig |> {
-    init: { phase = 0; trig = _ }
+    init: { phase = 0 trig = _ }
     phase   = fmod(phase + dt, phrase_ms)
     arc     = sin(phase / phrase_ms * pi)
     density = peak_rate * (0.04 + arc * 0.96)
@@ -167,10 +177,10 @@ jazz_amp(lo_amp=mp, hi_amp=fff, phrase_ms=6000, dt=10ms) = amp |> {
 // Mostly short / staccato; long_prob fraction of notes are held long.
 // short_ms: typical short-note duration range (half to 2.5×).
 // long_ms : typical long-note duration range (0.4× to 1×).
-jazz_dur(trig!, short_ms=60, long_ms=400, long_prob=0.15) = dur |> {
-    init: { dur = 80 }
+jazz_dur(trig!, short_ms=60, long_ms=400, long_prob=0.15) = duration |> {
+    init: { duration = 80 }
     is_long = trigger(rnd() < long_prob)
-    dur     = (is_long) ? rnd(short_ms * 0.5, short_ms * 2.5); rnd(long_ms * 0.4, long_ms)
+    duration     = (is_long) ? rnd(short_ms * 0.5, short_ms * 2.5); rnd(long_ms * 0.4, long_ms)
 }
 
 // outside_offset — chromatic displacement for "outside" approach tones.
@@ -201,9 +211,9 @@ scale_mood(trig!, change_prob=0.04) = mood |> {
 // ─────────────────────────────────────────────────────────────────────────
 // These print generated values so they run without Csound.
 // Swap the print(...) line for your instrument call, e.g.:
-//   grainsharp(trig, freq, amp=amp, duration=dur, ch=1)
-//   vapordream(trig, freq, amp=amp, duration=dur)
-//   purecut(trig,    freq, amp=amp, duration=dur, ch=rndi(1,2))
+//   grainsharp(trig, freq, amp=amp, duration=duration, ch=1)
+//   vapordream(trig, freq, amp=amp, duration=duration)
+//   purecut(trig,    freq, amp=amp, duration=duration, ch=rndi(1,2))
 // ─────────────────────────────────────────────────────────────────────────
 
 
@@ -215,11 +225,13 @@ process fj_walk: {
     deg  = phrase_walk(trig, lo=0, hi=13, step=3, flip_prob=0.22, leap_prob=0.12)
     oct  = octave_voice(trig, min_oct=-1, max_oct=1, drift_prob=0.07)
     amp  = jazz_amp(lo_amp=mp, hi_amp=fff, phrase_ms=7000)
-    dur  = jazz_dur(trig, short_ms=60, long_ms=400)
+    duration  = jazz_dur(trig, short_ms=60, long_ms=400)
     root = a3 + oct
     freq = mtof(tune(root, dorian, deg, just))
     // ── connect instrument here ──
-    print("walk | deg:", deg, "note:", freq, "dur:", dur, "amp:", amp)
+    print("walk | deg:", deg, "note:", freq, "duration:", duration, "amp:", amp)
+
+   gritgrowl(trig, duration, amp, tunef(root, minor, deg, just), ch=rndi(1,8))
 }
 
 // Sheets solo — dense burst packets + ascending/descending runs.
@@ -229,7 +241,7 @@ process fj_sheets: {
     ph    = phasor(4b)
 
     // Slow lyrical voice — whole tone, sheets bursts
-    slow_trig = sheets_rhythm(density=14, burst_ms=800, rest_ms=500)
+    slow_trig = sheets_rhythm(density=40, burst_ms=1500, rest_ms=200)
     slow_deg  = phrase_walk(slow_trig, lo=0, hi=11, step=2, flip_prob=0.18, leap_prob=0.2)
     slow_oct  = octave_voice(slow_trig, min_oct=0, max_oct=1, drift_prob=0.05)
     slow_amp  = jazz_amp(lo_amp=mp, hi_amp=ff, phrase_ms=9000)
@@ -247,8 +259,10 @@ process fj_sheets: {
     amp = jazz_amp(lo_amp=mf, hi_amp=fff, phrase_ms=8000)
 
     // ── connect instruments here ──
-    print("slow | freq:", slow_freq, "dur:", slow_dur)
-    print("fast | freq:", fast_freq, "dur:", fast_dur, "amp:", amp)
+    print("slow | freq:", slow_freq, "duration:", slow_dur)
+    //print("fast | freq:", fast_freq, "duration:", fast_dur, "amp:", amp)
+    glitchvox(slow_trig, duration=slow_dur, amp=slow_amp, freq=slow_freq, ch=rndi(1,8))
+    //glitchvox(fast_trig, duration=fast_dur, amp=amp, freq=fast_freq, ch=rndi(1,8))
 }
 
 // Free solo — phrase-arc density, mood-shifting scales, chromatic outside notes.
@@ -262,7 +276,7 @@ process fj_free: {
     mood  = scale_mood(trig, change_prob=0.05)
     chrom = outside_offset(trig, tension=0.2)
     amp   = jazz_amp(lo_amp=p, hi_amp=fff, phrase_ms=9000)
-    dur   = jazz_dur(trig, short_ms=50, long_ms=500, long_prob=0.18)
+    duration   = jazz_dur(trig, short_ms=50, long_ms=500, long_prob=0.18)
 
     root  = fs3 + oct
     // Select scale by mood index: 0=dorian  1=whole_tone  2=dim_half  3=bebop
@@ -270,5 +284,7 @@ process fj_free: {
     freq = mtof(scale_note + chrom)
 
     // ── connect instrument here ──
-    print("free | mood:", mood, "freq:", freq, "dur:", dur, "amp:", amp)
+    print("free | mood:", mood, "freq:", freq, "duration:", duration, "amp:", amp)
+    //glitchvox(trig, duration, amp, tunef(root, minor, deg, just), ch=rndi(1,8))
+    fmcry(trig, duration, amp, tunef(root, minor, deg, just), ch=rndi(1,8))
 }

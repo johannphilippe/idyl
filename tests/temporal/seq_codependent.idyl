@@ -1,0 +1,19 @@
+// Tests the co-dependent metro(speed) pattern from the TODO.
+// Each step uses its own duration to schedule the next step — no lag.
+// Expected: prints note + duration pairs matching phrase order with correct timing.
+import("stdlib")
+
+flow phrase = {
+    note:     [60, 62, 64, 65]
+    duration: [200ms, 400ms, 100ms, 300ms]
+}
+
+process: {
+    speed = phrase.duration[0]
+    m     = metro(dt=speed)
+    w     = phrase[m]
+    on(m): {
+        speed = w.duration
+        print(w.note, w.duration)
+    }
+}

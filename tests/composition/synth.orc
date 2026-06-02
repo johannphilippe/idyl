@@ -37,6 +37,7 @@
 instr lushpad
     iamp    init p4
     ifreq   init p5
+    ich init p6 
     ibright init (p7 == 0 ? 0.5 : p7)
 
     ; Slow attack, full sustain
@@ -50,7 +51,7 @@ instr lushpad
 
     ; === OSCILLATORS ===
     ; Sub sine — the foundation, intentionally the loudest layer
-    asub  oscili 1.0, ifreq * 0.5, -1
+    asub  oscili 0.5, ifreq * 0.5, -1
 
     ; Core pair: very tight detuning — focused, not washy
     asaw1 vco2 0.80, ifreq * 0.9994
@@ -81,8 +82,11 @@ instr lushpad
     kcutmod lfo icutbase * 0.12, 0.11, 0
     kcut = kcut + kcutmod
 
+    ; Add some flanging 
+    aflange = flanger(amix, rspline:a(0.002, 0.003, 0.1, 0.5) , 0.75)
+
     ; Moderate resonance: adds a tonal bump at cutoff — character, not squeal
-    afilt moogvcf2 amix, kcut, 0.38
+    afilt moogvcf2 aflange, kcut, 0.38
 
     ; === AMPLITUDE BREATHING ===
     ; Independent slow sine at 0.07 Hz — ±5% — the pad feels alive, not frozen
@@ -90,8 +94,15 @@ instr lushpad
     kenv_mod = 1 + kbreath
 
     aout = afilt * aenv * kenv_mod * iamp * 1.2
-    mix_ch aout, 1
-    mix_ch aout, 2
+    //mix_ch aout, 1
+    //mix_ch aout, 2
+
+    mix_ch(aout, ich)
+    if(ich == $NCH) then 
+      mix_ch(aout, ich - 1) 
+    else
+      mix_ch(aout, ich + 1)
+    endif
 endin
 
 
@@ -286,6 +297,7 @@ endin
 instr vapordream
     iamp  init p4
     ifreq init p5
+    ich init p6
 
     ; Piano-style envelope: moderate attack, then it "softens"
     ; attack portion (0–0.06s): rise
@@ -319,6 +331,11 @@ instr vapordream
     ; More dry signal than vaporpad — you hear the attack clearly
     aoutL = (achL * 0.40 + arvL * 0.60) * aenv * iamp
     aoutR = (achR * 0.40 + arvR * 0.60) * aenv * iamp
-    mix_ch aoutL, 1
-    mix_ch aoutR, 2
+    mix_ch aoutL, ich
+    if(ich == $NCH) then 
+      mix_ch aoutR, ich - 1 
+    else
+      mix_ch aoutR, ich + 1
+    endif
+
 endin

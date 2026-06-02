@@ -14,22 +14,24 @@ nchnls_i= 	10
 0dbfs	=	1
 
 
+#define NCH #8#
+
 gioffset = 16
 
 gkgain init 0.5
-gamaster[] init 2 
+gamaster[] init 8 
 
 opcode mix_ch, 0, ai
 	asig, ich xin 
-
 	gamaster[ich-1] = gamaster[ich-1] + asig
 endop
 
 
 #include "synth.orc"
+#include "freejazz.orc"
 
-seed 0  
-        
+seed 0
+
 opcode rint, i, ii
         imin, imax xin
         irnd = int(random:i(imin, int(imax) + 0.99))
@@ -171,14 +173,33 @@ instr dirtykick
 endin
 
 instr master 
-	asigL = gamaster[0] * gkgain 
-	asigR = gamaster[1] * gkgain
+	asig1 = gamaster[0] * gkgain 
+	asig2 = gamaster[1] * gkgain
+	asig3 = gamaster[2] * gkgain
+	asig4 = gamaster[3] * gkgain
+	asig5 = gamaster[4] * gkgain
+	asig6 = gamaster[5] * gkgain
+	asig7 = gamaster[6] * gkgain
+	asig8 = gamaster[7] * gkgain
 
 	gamaster[0] = 0
 	gamaster[1] = 0
+  gamaster[2] = 0 
+  gamaster[3] = 0
+  gamaster[4] = 0
+  gamaster[5] = 0
+  gamaster[6] = 0
+  gamaster[7] = 0
 
-	outch(1+gioffset, asigL)
-	outch(2+gioffset, asigR)
+
+	outch(1+gioffset, asig1)
+	outch(2+gioffset, asig2)
+  outch(3+gioffset, asig3)
+  outch(4+gioffset, asig4)
+  outch(5+gioffset, asig5)
+  outch(6+gioffset, asig6)
+  outch(7+gioffset, asig7)
+  outch(8+gioffset, asig8)
 endin
 
 
@@ -196,6 +217,7 @@ endin
 instr whisperer
         ifq init p4 
         iamp init p5 
+        ich init p7
         
         iatq = p3 / 4 
         idec = p3 / 4
@@ -221,8 +243,12 @@ instr whisperer
         ipan = random:i(0, 1)
         aL, aR pan2 aout, ipan
         
-        mix_ch(aL, 1)
-        mix_ch(aR, 2)
+        mix_ch(aL, ich)
+        if(ich == $NCH) then 
+          mix_ch(aR, ich - 1) 
+        else
+          mix_ch(aR, ich + 1) 
+        endif
 endin   
         
 

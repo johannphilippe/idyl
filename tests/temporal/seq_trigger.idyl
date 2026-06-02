@@ -1,0 +1,14 @@
+// Tests seq()'s emitted `tick` trigger (option b).
+// on(s::tick) fires once per advance; s.note / s.duration read the current element.
+// Expected: TICK lines with note+duration cycling 60/200, 62/400, 64/100, 65/300.
+import("stdlib")
+
+flow phrase = {
+    note:     [60, 62, 64, 65]
+    duration: [200ms, 400ms, 100ms, 300ms]
+}
+
+process: {
+    s = seq(phrase)
+    on(s::tick): { print("TICK", s.note, s.duration) }
+}

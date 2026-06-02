@@ -1,0 +1,11 @@
+// Tests seq() fallback when the flow has no duration field.
+// Expected: seq advances through the flow at the caller-provided dt=150ms.
+// Prints 60, 62, 64, 65, 60, ... at a steady rate.
+import("stdlib")
+
+flow notes = [60, 62, 64, 65]
+
+process: {
+    s = seq(notes, dt=150ms)
+    print(s)
+}

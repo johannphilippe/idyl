@@ -1,0 +1,14 @@
+// Tests seq() basic operation: self-scheduling via duration field.
+// Expected: prints different notes at different intervals (200ms, 400ms, 100ms, 300ms).
+// The sequence should cycle: 60, 62, 64, 65, 60, ...
+import("stdlib")
+
+flow phrase = {
+    note:     [60, 62, 64, 65]
+    duration: [200ms, 400ms, 100ms, 300ms]
+}
+
+process: {
+    s = seq(phrase)
+    print(s.note, s.duration)
+}

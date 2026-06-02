@@ -1,0 +1,10 @@
+// Feature 2: inline temporal call in dt= position.
+// The lfo is created ONCE, scheduled independently at 20ms, and metro samples
+// its current output each fire — so the metro period sweeps 100..500ms.
+// Regression guard: must not leak a new lfo instance per tick (was the bug).
+import("stdlib")
+
+process: {
+    m = metro(dt=as_ms(pos(lfo(0.5hz, dt=20ms)) * 400 + 100))
+    on(m): { print("tick") }
+}

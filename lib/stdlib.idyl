@@ -326,3 +326,40 @@ accum(trig_in, step=1, wrap_at=128, dt=10ms) = out |> {
     out = val
 }
 
+
+// ────────────────────────────────────────────────────────────────────────────────
+// §6  Rhythmic sequencer
+// ────────────────────────────────────────────────────────────────────────────────
+
+// seq — advances through a flow using each element's `duration` field as the
+// inter-step interval (self-scheduling via the `dt = expr` directive).
+//
+// The output is the CURRENT ELEMENT (a flow slice): read its fields directly with
+// `s.<member>` (e.g. s.note, s.duration).  Each advance also emits a `tick`
+// trigger — use `on(s::tick)` (or pass `s::tick` to an instrument) to fire once
+// per step.  The sequence wraps automatically (flow indexing wraps by design).
+//
+// If the flow has a `duration` member it sets each step's interval; otherwise the
+// caller's dt is kept.  A caller's dt= is disconnected once the body assigns dt
+// (a warning is printed if an explicit dt= was given alongside a duration member).
+//
+// Example:
+//   flow phrase = { deg: [0,2,-2,4]  duration: [8b,16b,8b,12b] }
+//
+//   process p: {
+//       tempo(60)
+//       s = seq(phrase)
+//       on(s::tick): {
+//           lushpad(!, mtof(deg(c4, minor, s.deg, just)), duration=s.duration)
+//       }
+//   }
+seq(in_flow, dt=1s) = out |> {
+    init: { out = in_flow[0] }
+    out       = in_flow[cursor]
+    // idyl ternary: truthy condition selects the SECOND operand.
+    // duration > 0 → use out.duration; otherwise fall back to the caller's dt.
+    dt        = (out.duration > 0) ? dt ; out.duration
+    emit tick = !
+    cursor    = cursor + 1
+}
+

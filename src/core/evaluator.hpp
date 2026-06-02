@@ -350,6 +350,12 @@ namespace idyl::core {
         // temporal elements.  Cleared before each element's eval_expr call.
         std::shared_ptr<function_instance> last_instantiated_;
 
+        // Temporal sub-instances captured while evaluating a call's argument
+        // expressions (e.g. lfo in metro(dt=lfo(...))).  eval_call fills this;
+        // instantiate_temporal consumes it, adopting the sub-instances onto the
+        // parent and scheduling them independently.  Cleared after consumption.
+        std::vector<std::shared_ptr<function_instance>> pending_param_subinstances_;
+
         // ── Epoch-based trigger reset ──────────────────────────────────────────
         // Trigger temporals (e.g. metro) should read as `!` only during the
         // scheduler tick in which they fired, and `_` at all other times.
