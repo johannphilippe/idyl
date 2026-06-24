@@ -132,9 +132,9 @@ ltodb(x) = 20 * log10(x)
 dbtol(x) = pow(10 , x / 20)
 
 // Linear value constants 
-ppp = dbtol(-50)   // pianississimo
-pp = dbtol(-40)    // pianissimo
-p = dbtol(-30)     // piano
+ppp = dbtol(-45)   // pianississimo
+pp = dbtol(-35)    // pianissimo
+p = dbtol(-25)     // piano
 mp = dbtol(-20)    // mezzo-piano
 mf = dbtol(-13)      // mezzo-forte
 f = dbtol(-8)      // forte

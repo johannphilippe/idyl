@@ -71,7 +71,9 @@ The `::` operator is also used for module namespace access (`osc::send`), but th
 
 ## Catch blocks
 
-A **catch block** reacts to an emitted value becoming truthy. It is a standalone statement inside a process block that names the instance and signal using `::` — consistent with how `::` reads emitted values elsewhere.
+A **catch block** is a **one-shot** reaction: it fires its handler exactly once — the first time an emitted signal becomes truthy — and then deactivates. It is a standalone statement inside a process block that names the instance and signal using `::`, consistent with how `::` reads emitted values elsewhere.
+
+Reach for `catch` when you want to react to a **single milestone**: a threshold reached, a phase completed, or — most importantly — an instance ending (`::end`, see below). For a reaction that should run *every* time a signal is live, use an [`on` block](ch09_process_blocks.md#on-blocks--trigger-reactions) instead (`on(instance::signal): { … }`); `catch` is deliberately not that tool. See [`catch` vs `on`](#catch-vs-on--which-to-use) below.
 
 **Syntax**:
 
@@ -104,10 +106,11 @@ On each tick, `remaining` is printed. When `finished` emits a trigger (`!`), the
 
 ### Catch semantics
 
-- The catch block fires **once** — the first time the named signal becomes truthy.
-- After firing, the catch is deactivated (it does not re-fire on subsequent truthy ticks).
+- The catch block fires **once** — the first tick the named signal is **truthy** — then deactivates permanently. It is a one-shot *latch*, **not** a per-change or per-tick reaction.
+- "Truthy" means: a trigger `!`, or any non-zero / non-rest value. A trigger that stays `!` for several ticks, or a number that keeps changing, still fires the catch only on the **first** truthy tick.
+- ⚠️ Because the test is truthiness, an emitted **number** that is meaningfully `0` is treated as falsy. `catch f::val` fires on the first *non-zero* value, not on the first change. If you need to react to every value or every change, that is an `on` block, not `catch`.
 - The handler executes in the same scope as the surrounding process block.
-- Multiple catch blocks can watch different signals from the same instance.
+- Multiple catch blocks can watch different signals from the same instance, and each fires independently (once each).
 
 ### Multiple catches
 
@@ -190,6 +193,30 @@ Both catches fire independently: `a` at 5, `b` at 10. After `a` stops, the `prin
 - Fires in the same scheduler callback, after the final output is committed.
 - The handler sees the frozen value through the bound variable name.
 - Fires even when `stop` executes on the very first tick (no init block, bare `stop`).
+
+---
+
+## `catch` vs `on` — which to use
+
+`catch`, the [`on` block](ch09_process_blocks.md#on-blocks--trigger-reactions), and the `::` accessor overlap, but each has a distinct job. Pick by **how often** you need to react:
+
+| You want to… | Use | Fires |
+|---|---|---|
+| Read an emitted value | `instance::signal` | — (it's just a value) |
+| React **every** time a signal is live | `on(instance::signal): { … }` | every tick the signal is a live trigger `!` |
+| React **once** at the first milestone | `catch instance::signal: { … }` | once, on the first truthy tick |
+| React when an instance **ends** | `catch instance::end: { … }` | once, the tick it `stop`s |
+
+Rules of thumb:
+
+- **Recurring reaction → `on`.** `on(x::sig)` runs its body on every tick `sig` is a live trigger. This is the right tool for "do this each time it happens."
+- **Single milestone → `catch`.** `catch x::sig` latches on the first truthy value and never fires again. Reproducing this with `on` would require a manual "already fired" flag.
+- **Instance termination → `catch` only.** `::end` is *not* an emitted value and cannot be read or watched any other way: `x::end` is not even a valid expression (`end` is a keyword), and a stopped instance no longer ticks, so an `on` block would have no tick to run on. `catch x::end` is the **only** way to react to an instance ending.
+
+Two finer points:
+
+- `on` requires the guard to be **trigger-typed** (`!` / `_`); it ignores plain non-zero numbers. `catch` reacts to *any* truthy value (see [Catch semantics](#catch-semantics)). So `on(x::count)` where `count` is a number does nothing, while `catch x::count` fires on the first non-zero count.
+- If an emitted signal is **momentary** (a single-tick `!`), `on(x::sig)` and `catch x::sig` both fire just once for that event — but `catch` still states the one-shot intent more clearly and stays correct if the signal later becomes sticky.
 
 ---
 

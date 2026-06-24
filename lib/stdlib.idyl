@@ -354,7 +354,7 @@ accum(trig_in, step=1, wrap_at=128, dt=10ms) = out |> {
 //       }
 //   }
 seq(in_flow, dt=1s) = out |> {
-    init: { out = in_flow[0] }
+    init: { out = in_flow[0] dt = ( out.duration > 0) ? dt ; out.duration }
     out       = in_flow[cursor]
     // idyl ternary: truthy condition selects the SECOND operand.
     // duration > 0 → use out.duration; otherwise fall back to the caller's dt.

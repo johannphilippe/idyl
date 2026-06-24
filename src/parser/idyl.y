@@ -2,7 +2,11 @@
 %require "3.8"
 %language "c++"
 
-%expect 18
+// 18 pre-existing shift/reduce conflicts, plus 3 from the one-liner block body
+// (oneliner_stmt: `IDENTIFIER ASSIGN …` vs a bare `postfix_no_brace`, resolved
+// by the usual shift).  No reduce/reduce conflicts: oneliner_stmt can never
+// begin with `{`, so a `{` after a block `:` is unambiguously the braced body.
+%expect 21
 
 %locations
 %define parse.error verbose
@@ -82,7 +86,9 @@
 %type <idyl::parser::param_ptr> parameter
 %type <idyl::parser::expr_ptr> expression
 %type <idyl::parser::expr_ptr> primary_expression
+%type <idyl::parser::expr_ptr> primary_no_brace
 %type <idyl::parser::expr_ptr> postfix_expression
+%type <idyl::parser::expr_ptr> postfix_no_brace
 %type <idyl::parser::expr_ptr> unary_expression
 %type <idyl::parser::expr_ptr> multiplicative_expression
 %type <idyl::parser::expr_ptr> additive_expression
@@ -109,6 +115,9 @@
 %type <idyl::parser::expr_ptr> generator_expression
 %type <std::vector<idyl::parser::stmt_ptr>> process_body_statements
 %type <idyl::parser::stmt_ptr> process_body_statement
+%type <idyl::parser::stmt_ptr> inline_statement
+%type <idyl::parser::stmt_ptr> oneliner_stmt
+%type <std::vector<idyl::parser::stmt_ptr>> block_handler
 %type <std::vector<idyl::parser::stmt_ptr>> block_body
 %type <idyl::parser::stmt_ptr> block_body_statement
 %type <std::shared_ptr<idyl::parser::catch_block>> catch_block
@@ -515,14 +524,19 @@ process_body_statements
         $$ = $1;
         if ($2) $$.push_back($2);
     }
-    | process_body_statement
+    | %empty
     {
+        // Empty list — allows empty block bodies, e.g. `on(sync(1b)): { }`
+        // and `process p: { }`.
         $$ = {};
-        if ($1) $$.push_back($1);
     }
     ;
 
-process_body_statement
+// A statement that does NOT introduce its own braced block.  Used both as a
+// process-body element and as the one-liner body of on / at / catch / each.
+// Excluding the block statements here keeps the one-liner form free of
+// dangling-block ambiguities.
+inline_statement
     : postfix_expression ASSIGN expression %prec ASSIGN
     {
         // Interpret postfix_expression ASSIGN expression as a local function definition.
@@ -608,22 +622,6 @@ process_body_statement
     {
         $$ = $1;
     }
-    | catch_block
-    {
-        $$ = $1;
-    }
-    | at_block
-    {
-        $$ = $1;
-    }
-    | on_block
-    {
-        $$ = $1;
-    }
-    | each_block
-    {
-        $$ = $1;
-    }
     | expression
     {
         auto es = std::make_shared<idyl::parser::expression_stmt>();
@@ -634,12 +632,81 @@ process_body_statement
     }
     ;
 
+// A full process-body statement: an inline statement or a braced block.
+process_body_statement
+    : inline_statement { $$ = $1; }
+    | catch_block      { $$ = $1; }
+    | at_block         { $$ = $1; }
+    | on_block         { $$ = $1; }
+    | each_block       { $$ = $1; }
+    ;
+
+// ── block_handler: the body shared by on / at / catch / each ────────────────
+// Two forms:
+//   { stmt stmt … }   braced block (zero or more statements)
+//   stmt              one-liner: a single statement with no braces
+// The braced form and a one-liner whose single statement is itself a block
+// expression `{ … }` both match `{ … }`; %dprec makes the GLR parser prefer
+// the braced (block-body) interpretation in that overlap.
+block_handler
+    : LBRACE process_body_statements RBRACE
+    {
+        $$ = $2;
+    }
+    | oneliner_stmt
+    {
+        $$ = {};
+        if ($1) $$.push_back($1);
+    }
+    ;
+
+// oneliner_stmt: the single-statement (brace-free) body of on / at / catch /
+// each, e.g. `on(m): print("tick")` or `catch s::end: stop`.  Its leftmost
+// token is never `{` (bare expressions go through postfix_no_brace), so a `{`
+// after a block `:` is unambiguously the braced body — no grammar conflict.
+// Local function definitions and bare operator expressions are intentionally
+// not offered here; use the braced form `{ … }` for those.
+oneliner_stmt
+    : IDENTIFIER ASSIGN expression
+    {
+        auto assign = std::make_shared<idyl::parser::assignment>();
+        assign->name_ = $1;
+        assign->value_ = $3;
+        assign->is_emit_ = false;
+        assign->line_ = @1.begin.line;
+        assign->column_ = @1.begin.column;
+        $$ = assign;
+    }
+    | EMIT IDENTIFIER ASSIGN expression
+    {
+        auto assign = std::make_shared<idyl::parser::assignment>();
+        assign->name_ = $2;
+        assign->value_ = $4;
+        assign->is_emit_ = true;
+        assign->line_ = @1.begin.line;
+        assign->column_ = @1.begin.column;
+        $$ = assign;
+    }
+    | stop_statement   { $$ = $1; }
+    | start_statement  { $$ = $1; }
+    | pause_statement  { $$ = $1; }
+    | resume_statement { $$ = $1; }
+    | postfix_no_brace
+    {
+        auto es = std::make_shared<idyl::parser::expression_stmt>();
+        es->expression_ = $1;
+        es->line_ = @1.begin.line;
+        es->column_ = @1.begin.column;
+        $$ = es;
+    }
+    ;
+
 at_block
-    : AT_OP LPAREN expression RPAREN COLON LBRACE process_body_statements RBRACE
+    : AT_OP LPAREN expression RPAREN COLON block_handler
     {
         auto at_stmt = std::make_shared<idyl::parser::at_block>();
         at_stmt->time_expr_ = $3;
-        at_stmt->handler_ = $7;
+        at_stmt->handler_ = $6;
         at_stmt->line_ = @1.begin.line;
         at_stmt->column_ = @1.begin.column;
         $$ = at_stmt;
@@ -647,11 +714,11 @@ at_block
     ;
 
 on_block
-    : ON expression COLON LBRACE process_body_statements RBRACE
+    : ON expression COLON block_handler
     {
         auto on_stmt = std::make_shared<idyl::parser::on_block>();
         on_stmt->trigger_expr_ = $2;
-        on_stmt->handler_ = $5;
+        on_stmt->handler_ = $4;
         on_stmt->line_ = @1.begin.line;
         on_stmt->column_ = @1.begin.column;
         $$ = on_stmt;
@@ -667,7 +734,7 @@ each_dt_opt
 
 // ── each_body ────────────────────────────────────────────────────────────────
 each_body
-    : LBRACE process_body_statements RBRACE  { $$ = $2; }
+    : block_handler  { $$ = $1; }
     ;
 
 // ── each_block ──────────────────────────────────────────────────────────────
@@ -778,22 +845,22 @@ resume_statement
     ;
 
 catch_block
-    : CATCH postfix_expression NAMESPACE_DOT IDENTIFIER COLON LBRACE process_body_statements RBRACE
+    : CATCH postfix_expression NAMESPACE_DOT IDENTIFIER COLON block_handler
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
         catch_b->instance_expr_ = $2;
         catch_b->signal_name_   = $4;
-        catch_b->handler_       = $7;
+        catch_b->handler_       = $6;
         catch_b->line_          = @1.begin.line;
         catch_b->column_        = @1.begin.column;
         $$ = catch_b;
     }
-    | CATCH postfix_expression NAMESPACE_DOT END COLON LBRACE process_body_statements RBRACE
+    | CATCH postfix_expression NAMESPACE_DOT END COLON block_handler
     {
         auto catch_b = std::make_shared<idyl::parser::catch_block>();
         catch_b->instance_expr_ = $2;
         catch_b->signal_name_   = "end";
-        catch_b->handler_       = $7;
+        catch_b->handler_       = $6;
         catch_b->line_          = @1.begin.line;
         catch_b->column_        = @1.begin.column;
         $$ = catch_b;
@@ -933,6 +1000,11 @@ lambda_statement
     }
     ;
 
+// block_body is non-empty.  The empty block expression `{}` is a separate
+// `LBRACE RBRACE` rule in primary_expression.  Keeping block_body non-nullable
+// removes the reduce/reduce conflict between an empty block_body and an empty
+// process_body_statements that arises when a `{` follows a block `:` (a braced
+// block body vs a `{}` block-expression one-liner).
 block_body
     : block_body SEMICOLON block_body_statement
     {
@@ -944,7 +1016,6 @@ block_body
         $$ = {};
         if ($1) $$.push_back($1);
     }
-    | /* empty */ { $$ = {}; }
     ;
 
 block_body_statement
@@ -1525,7 +1596,112 @@ postfix_expression
     }
     ;
 
-primary_expression
+// postfix_no_brace mirrors postfix_expression but roots at primary_no_brace, so
+// it can never begin with `{`.  Used for the one-liner block body (bare call /
+// access statement and assignment target) — see inline_statement.
+postfix_no_brace
+    : primary_no_brace { $$ = $1; }
+    | postfix_no_brace LPAREN argument_list RPAREN
+    {
+        auto call = std::make_shared<idyl::parser::function_call>();
+        call->function_ = $1;
+        call->arguments_ = $3;
+        call->line_ = @2.begin.line;
+        call->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::function_call_expr>();
+        expr->call_ = call;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    | postfix_no_brace LPAREN RPAREN
+    {
+        auto call = std::make_shared<idyl::parser::function_call>();
+        call->function_ = $1;
+        call->arguments_ = {};
+        call->line_ = @2.begin.line;
+        call->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::function_call_expr>();
+        expr->call_ = call;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    | postfix_no_brace DOT IDENTIFIER
+    {
+        auto access = std::make_shared<idyl::parser::flow_access>();
+        access->flow_ = $1;
+        access->member_ = $3;
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::flow_access_expr>();
+        expr->access_ = access;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    | postfix_no_brace NAMESPACE_DOT IDENTIFIER
+    {
+        auto access = std::make_shared<idyl::parser::module_access>();
+        access->module_ = $1;
+        access->function_ = $3;
+        access->arguments_ = {};
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::module_access_expr>();
+        expr->access_ = access;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    | postfix_no_brace NAMESPACE_DOT IDENTIFIER LPAREN argument_list RPAREN
+    {
+        auto access = std::make_shared<idyl::parser::module_access>();
+        access->module_ = $1;
+        access->function_ = $3;
+        access->arguments_ = $5;
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::module_access_expr>();
+        expr->access_ = access;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    | postfix_no_brace NAMESPACE_DOT IDENTIFIER LPAREN RPAREN
+    {
+        auto access = std::make_shared<idyl::parser::module_access>();
+        access->module_ = $1;
+        access->function_ = $3;
+        access->arguments_ = {};
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::module_access_expr>();
+        expr->access_ = access;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    | postfix_no_brace LBRACKET expression RBRACKET
+    {
+        auto access = std::make_shared<idyl::parser::flow_access>();
+        access->flow_ = $1;
+        access->index_ = $3;
+        access->line_ = @2.begin.line;
+        access->column_ = @2.begin.column;
+        auto expr = std::make_shared<idyl::parser::flow_access_expr>();
+        expr->access_ = access;
+        expr->line_ = @2.begin.line;
+        expr->column_ = @2.begin.column;
+        $$ = expr;
+    }
+    ;
+
+// primary_no_brace: every primary except the two that begin with `{`
+// (the block expression `{ … }` and the empty block `{}`).  Used as the
+// leftmost element of a one-liner block body so that a `{` after a block `:`
+// is unambiguously the braced body, never a block-expression statement.
+primary_no_brace
     : IDENTIFIER
     {
         auto id = std::make_shared<idyl::parser::identifier>();
@@ -1673,10 +1849,23 @@ primary_expression
         stop_expr->column_ = @1.begin.column;
         $$ = stop_expr;
     }
+    ;
+
+// Full primary: a non-brace primary, or one of the two brace-leading forms.
+primary_expression
+    : primary_no_brace { $$ = $1; }
     | LBRACE block_body RBRACE
     {
         auto block = std::make_shared<idyl::parser::block_expr>();
         block->statements_ = $2;
+        block->line_ = @1.begin.line;
+        block->column_ = @1.begin.column;
+        $$ = block;
+    }
+    | LBRACE RBRACE
+    {
+        // Empty block expression `{}` (e.g. `empty_block = {}`).
+        auto block = std::make_shared<idyl::parser::block_expr>();
         block->line_ = @1.begin.line;
         block->column_ = @1.begin.column;
         $$ = block;

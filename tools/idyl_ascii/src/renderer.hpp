@@ -142,6 +142,19 @@ struct renderer {
 
     term_size term() const noexcept { return term_; }
 
+    // ── background video layer ────────────────────────────────────────────────
+    // A faint ASCII frame (from video_player) drawn *under* the text on every
+    // render.  Text always overwrites the background, so it stays readable.
+    void set_background(std::vector<char> ch, std::vector<int> fg, int bcols, int brows) {
+        bg_ch_   = std::move(ch);
+        bg_fg_   = std::move(fg);
+        bg_cols_ = bcols;
+        bg_rows_ = brows;
+        bg_on_   = true;
+    }
+    void clear_background() noexcept { bg_on_ = false; bg_ch_.clear(); bg_fg_.clear(); }
+    [[nodiscard]] bool background_on() const noexcept { return bg_on_; }
+
     // ── main render entry point ──────────────────────────────────────────────
     // visible_chars: chars of tok.text to draw (-1 = all, for typewriter mode)
     // bias_col/row:  offset in terminal cells from centred position
@@ -153,6 +166,7 @@ struct renderer {
     {
         refresh_size();
         cur_.clear();
+        composite_background();
 
         const auto& text = tok.text;
         if (text.empty()) { flush(); return; }
@@ -199,7 +213,7 @@ struct renderer {
                      disp_mode::centered, glitch_mode::clean, dummy, -1, 0, 0);
     }
 
-    void blank() { cur_.clear(); flush(); }
+    void blank() { cur_.clear(); composite_background(); flush(); }
 
     // ── readable phrase (for comments) ───────────────────────────────────────
     // Draws word-wrapped, literal (non-bitmap) text centred on screen in the
@@ -210,6 +224,7 @@ struct renderer {
                        int visible_chars = -1) {
         refresh_size();
         cur_.clear();
+        composite_background();
 
         std::string_view vis = (visible_chars >= 0 &&
                                 visible_chars < static_cast<int>(text.size()))
@@ -265,6 +280,28 @@ struct renderer {
     }
 
 private:
+    // ── background layer state ─────────────────────────────────────────────────
+    std::vector<char> bg_ch_;
+    std::vector<int>  bg_fg_;
+    int  bg_cols_ = 0, bg_rows_ = 0;
+    bool bg_on_   = false;
+
+    // Paint the faint video frame into the freshly-cleared buffer. Only cells
+    // within both the bg frame and the current terminal are touched, and only
+    // where the bg pixel is non-blank — text drawn afterwards overwrites it.
+    void composite_background() {
+        if (!bg_on_ || bg_cols_ <= 0 || bg_rows_ <= 0) return;
+        const int rmax = std::min(bg_rows_, cur_.rows_);
+        const int cmax = std::min(bg_cols_, cur_.cols_);
+        for (int r = 0; r < rmax; ++r)
+            for (int c = 0; c < cmax; ++c) {
+                const size_t bi = static_cast<size_t>(r) * bg_cols_ + c;
+                const char bc = bg_ch_[bi];
+                if (bc == ' ') continue;
+                cur_.set(r, c, bc, bg_fg_[bi], false);
+            }
+    }
+
     // ── size helpers ─────────────────────────────────────────────────────────
     void refresh_size() {
         term_ = get_term_size();

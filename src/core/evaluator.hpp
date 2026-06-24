@@ -154,6 +154,22 @@ namespace idyl::core {
         // deactivates this instance to stop the process.
         function_instance* proc_stop_ctx_ = nullptr;
 
+        // ── Time-delayed trigger support (' operator with a time count) ─────────
+        // The statement currently being executed as a reaction/binding, and the
+        // owning process scope index, so a time-delayed trigger ('(m, 2b)) can
+        // schedule a one-shot that re-runs that statement `delay` ms later with
+        // the delay node "primed" to read as the live trigger.
+        struct reaction_set;   // defined below
+        parser::stmt_ptr current_reaction_stmt_;
+        size_t           current_proc_scope_idx_ = 0;
+        // The reaction set being executed this tick — lets a delayed-trigger
+        // binding (m2 = '(m, 2b)) re-run the sibling reactions that read m2 when
+        // the delayed trigger actually arrives.
+        std::weak_ptr<reaction_set> current_rxn_;
+        // Delay nodes that should evaluate as their live inner value right now
+        // (set while a scheduled delayed-trigger re-run is in progress).
+        std::unordered_set<const parser::node*> primed_delay_nodes_;
+
         // ── Hot-reload support structures ──────────────────────────────────────
         //
         // catch_info: monitors an emitted variable and fires a handler once.

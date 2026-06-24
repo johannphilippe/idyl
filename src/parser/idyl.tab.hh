@@ -36,10 +36,10 @@
 // especially those whose name start with YY_ or yy_.  They are
 // private implementation details that can be changed or removed.
 
-#ifndef YY_YY_SRC_PARSER_IDYL_TAB_HH_INCLUDED
-# define YY_YY_SRC_PARSER_IDYL_TAB_HH_INCLUDED
+#ifndef YY_YY_HOME_JOHANN_DOCUMENTS_GIT_IDYL_SRC_PARSER_IDYL_TAB_HH_INCLUDED
+# define YY_YY_HOME_JOHANN_DOCUMENTS_GIT_IDYL_SRC_PARSER_IDYL_TAB_HH_INCLUDED
 // "%code requires" blocks.
-#line 15 "src/parser/idyl.y"
+#line 19 "/home/johann/Documents/git/idyl/src/parser/idyl.y"
 
     #include <string>
     #include <vector>
@@ -50,7 +50,7 @@
         class lexer;
     }
 
-#line 54 "src/parser/idyl.tab.hh"
+#line 54 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
 
 #include <algorithm>
 #include <cstddef> // ptrdiff_t
@@ -108,7 +108,7 @@
 #endif
 
 namespace yy {
-#line 112 "src/parser/idyl.tab.hh"
+#line 112 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
 
 
 
@@ -316,6 +316,8 @@ namespace yy {
       // multiplicative_expression
       // unary_expression
       // postfix_expression
+      // postfix_no_brace
+      // primary_no_brace
       // primary_expression
       char dummy1[sizeof (idyl::parser::expr_ptr)];
 
@@ -327,7 +329,9 @@ namespace yy {
 
       // top_level_statement
       // function_or_flow_definition
+      // inline_statement
       // process_body_statement
+      // oneliner_stmt
       // lambda_statement
       // block_body_statement
       char dummy4[sizeof (idyl::parser::stmt_ptr)];
@@ -390,6 +394,7 @@ namespace yy {
 
       // top_level_statements
       // process_body_statements
+      // block_handler
       // each_body
       // lambda_statements
       // block_body
@@ -592,44 +597,49 @@ namespace yy {
         S_generator_expression = 72,             // generator_expression
         S_process_block = 73,                    // process_block
         S_process_body_statements = 74,          // process_body_statements
-        S_process_body_statement = 75,           // process_body_statement
-        S_at_block = 76,                         // at_block
-        S_on_block = 77,                         // on_block
-        S_each_dt_opt = 78,                      // each_dt_opt
-        S_each_body = 79,                        // each_body
-        S_each_block = 80,                       // each_block
-        S_stop_statement = 81,                   // stop_statement
-        S_start_statement = 82,                  // start_statement
-        S_pause_statement = 83,                  // pause_statement
-        S_resume_statement = 84,                 // resume_statement
-        S_catch_block = 85,                      // catch_block
-        S_lambda_block = 86,                     // lambda_block
-        S_init_block = 87,                       // init_block
-        S_lambda_statements = 88,                // lambda_statements
-        S_lambda_statement = 89,                 // lambda_statement
-        S_block_body = 90,                       // block_body
-        S_block_body_statement = 91,             // block_body_statement
-        S_parameter_list = 92,                   // parameter_list
-        S_parameter = 93,                        // parameter
-        S_expression = 94,                       // expression
-        S_assignment_expression = 95,            // assignment_expression
-        S_ternary_expression = 96,               // ternary_expression
-        S_ternary_options = 97,                  // ternary_options
-        S_logical_or_expression = 98,            // logical_or_expression
-        S_logical_and_expression = 99,           // logical_and_expression
-        S_bitwise_or_expression = 100,           // bitwise_or_expression
-        S_bitwise_xor_expression = 101,          // bitwise_xor_expression
-        S_bitwise_and_expression = 102,          // bitwise_and_expression
-        S_equality_expression = 103,             // equality_expression
-        S_relational_expression = 104,           // relational_expression
-        S_shift_expression = 105,                // shift_expression
-        S_additive_expression = 106,             // additive_expression
-        S_multiplicative_expression = 107,       // multiplicative_expression
-        S_unary_expression = 108,                // unary_expression
-        S_postfix_expression = 109,              // postfix_expression
-        S_primary_expression = 110,              // primary_expression
-        S_argument_list = 111,                   // argument_list
-        S_argument = 112                         // argument
+        S_inline_statement = 75,                 // inline_statement
+        S_process_body_statement = 76,           // process_body_statement
+        S_block_handler = 77,                    // block_handler
+        S_oneliner_stmt = 78,                    // oneliner_stmt
+        S_at_block = 79,                         // at_block
+        S_on_block = 80,                         // on_block
+        S_each_dt_opt = 81,                      // each_dt_opt
+        S_each_body = 82,                        // each_body
+        S_each_block = 83,                       // each_block
+        S_stop_statement = 84,                   // stop_statement
+        S_start_statement = 85,                  // start_statement
+        S_pause_statement = 86,                  // pause_statement
+        S_resume_statement = 87,                 // resume_statement
+        S_catch_block = 88,                      // catch_block
+        S_lambda_block = 89,                     // lambda_block
+        S_init_block = 90,                       // init_block
+        S_lambda_statements = 91,                // lambda_statements
+        S_lambda_statement = 92,                 // lambda_statement
+        S_block_body = 93,                       // block_body
+        S_block_body_statement = 94,             // block_body_statement
+        S_parameter_list = 95,                   // parameter_list
+        S_parameter = 96,                        // parameter
+        S_expression = 97,                       // expression
+        S_assignment_expression = 98,            // assignment_expression
+        S_ternary_expression = 99,               // ternary_expression
+        S_ternary_options = 100,                 // ternary_options
+        S_logical_or_expression = 101,           // logical_or_expression
+        S_logical_and_expression = 102,          // logical_and_expression
+        S_bitwise_or_expression = 103,           // bitwise_or_expression
+        S_bitwise_xor_expression = 104,          // bitwise_xor_expression
+        S_bitwise_and_expression = 105,          // bitwise_and_expression
+        S_equality_expression = 106,             // equality_expression
+        S_relational_expression = 107,           // relational_expression
+        S_shift_expression = 108,                // shift_expression
+        S_additive_expression = 109,             // additive_expression
+        S_multiplicative_expression = 110,       // multiplicative_expression
+        S_unary_expression = 111,                // unary_expression
+        S_postfix_expression = 112,              // postfix_expression
+        S_postfix_no_brace = 113,                // postfix_no_brace
+        S_primary_no_brace = 114,                // primary_no_brace
+        S_primary_expression = 115,              // primary_expression
+        S_argument_list = 116,                   // argument_list
+        S_argument = 117                         // argument
       };
     };
 
@@ -684,6 +694,8 @@ namespace yy {
       case symbol_kind::S_multiplicative_expression: // multiplicative_expression
       case symbol_kind::S_unary_expression: // unary_expression
       case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_postfix_no_brace: // postfix_no_brace
+      case symbol_kind::S_primary_no_brace: // primary_no_brace
       case symbol_kind::S_primary_expression: // primary_expression
         value.move< idyl::parser::expr_ptr > (std::move (that.value));
         break;
@@ -698,7 +710,9 @@ namespace yy {
 
       case symbol_kind::S_top_level_statement: // top_level_statement
       case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_inline_statement: // inline_statement
       case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_oneliner_stmt: // oneliner_stmt
       case symbol_kind::S_lambda_statement: // lambda_statement
       case symbol_kind::S_block_body_statement: // block_body_statement
         value.move< idyl::parser::stmt_ptr > (std::move (that.value));
@@ -779,6 +793,7 @@ namespace yy {
 
       case symbol_kind::S_top_level_statements: // top_level_statements
       case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_block_handler: // block_handler
       case symbol_kind::S_each_body: // each_body
       case symbol_kind::S_lambda_statements: // lambda_statements
       case symbol_kind::S_block_body: // block_body
@@ -1183,6 +1198,8 @@ namespace yy {
       case symbol_kind::S_multiplicative_expression: // multiplicative_expression
       case symbol_kind::S_unary_expression: // unary_expression
       case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_postfix_no_brace: // postfix_no_brace
+      case symbol_kind::S_primary_no_brace: // primary_no_brace
       case symbol_kind::S_primary_expression: // primary_expression
         value.copy< idyl::parser::expr_ptr > (that.value);
         break;
@@ -1197,7 +1214,9 @@ namespace yy {
 
       case symbol_kind::S_top_level_statement: // top_level_statement
       case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_inline_statement: // inline_statement
       case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_oneliner_stmt: // oneliner_stmt
       case symbol_kind::S_lambda_statement: // lambda_statement
       case symbol_kind::S_block_body_statement: // block_body_statement
         value.copy< idyl::parser::stmt_ptr > (that.value);
@@ -1278,6 +1297,7 @@ namespace yy {
 
       case symbol_kind::S_top_level_statements: // top_level_statements
       case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_block_handler: // block_handler
       case symbol_kind::S_each_body: // each_body
       case symbol_kind::S_lambda_statements: // lambda_statements
       case symbol_kind::S_block_body: // block_body
@@ -1324,6 +1344,8 @@ namespace yy {
       case symbol_kind::S_multiplicative_expression: // multiplicative_expression
       case symbol_kind::S_unary_expression: // unary_expression
       case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_postfix_no_brace: // postfix_no_brace
+      case symbol_kind::S_primary_no_brace: // primary_no_brace
       case symbol_kind::S_primary_expression: // primary_expression
         value.move< idyl::parser::expr_ptr > (std::move (that.value));
         break;
@@ -1338,7 +1360,9 @@ namespace yy {
 
       case symbol_kind::S_top_level_statement: // top_level_statement
       case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_inline_statement: // inline_statement
       case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_oneliner_stmt: // oneliner_stmt
       case symbol_kind::S_lambda_statement: // lambda_statement
       case symbol_kind::S_block_body_statement: // block_body_statement
         value.move< idyl::parser::stmt_ptr > (std::move (that.value));
@@ -1419,6 +1443,7 @@ namespace yy {
 
       case symbol_kind::S_top_level_statements: // top_level_statements
       case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_block_handler: // block_handler
       case symbol_kind::S_each_body: // each_body
       case symbol_kind::S_lambda_statements: // lambda_statements
       case symbol_kind::S_block_body: // block_body
@@ -1476,6 +1501,8 @@ switch (yykind)
       case symbol_kind::S_multiplicative_expression: // multiplicative_expression
       case symbol_kind::S_unary_expression: // unary_expression
       case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_postfix_no_brace: // postfix_no_brace
+      case symbol_kind::S_primary_no_brace: // primary_no_brace
       case symbol_kind::S_primary_expression: // primary_expression
         value.template destroy< idyl::parser::expr_ptr > ();
         break;
@@ -1490,7 +1517,9 @@ switch (yykind)
 
       case symbol_kind::S_top_level_statement: // top_level_statement
       case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_inline_statement: // inline_statement
       case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_oneliner_stmt: // oneliner_stmt
       case symbol_kind::S_lambda_statement: // lambda_statement
       case symbol_kind::S_block_body_statement: // block_body_statement
         value.template destroy< idyl::parser::stmt_ptr > ();
@@ -1571,6 +1600,7 @@ switch (yykind)
 
       case symbol_kind::S_top_level_statements: // top_level_statements
       case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_block_handler: // block_handler
       case symbol_kind::S_each_body: // each_body
       case symbol_kind::S_lambda_statements: // lambda_statements
       case symbol_kind::S_block_body: // block_body
@@ -2818,6 +2848,8 @@ switch (yykind)
       case symbol_kind::S_multiplicative_expression: // multiplicative_expression
       case symbol_kind::S_unary_expression: // unary_expression
       case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_postfix_no_brace: // postfix_no_brace
+      case symbol_kind::S_primary_no_brace: // primary_no_brace
       case symbol_kind::S_primary_expression: // primary_expression
         value.copy< idyl::parser::expr_ptr > (YY_MOVE (that.value));
         break;
@@ -2832,7 +2864,9 @@ switch (yykind)
 
       case symbol_kind::S_top_level_statement: // top_level_statement
       case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_inline_statement: // inline_statement
       case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_oneliner_stmt: // oneliner_stmt
       case symbol_kind::S_lambda_statement: // lambda_statement
       case symbol_kind::S_block_body_statement: // block_body_statement
         value.copy< idyl::parser::stmt_ptr > (YY_MOVE (that.value));
@@ -2913,6 +2947,7 @@ switch (yykind)
 
       case symbol_kind::S_top_level_statements: // top_level_statements
       case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_block_handler: // block_handler
       case symbol_kind::S_each_body: // each_body
       case symbol_kind::S_lambda_statements: // lambda_statements
       case symbol_kind::S_block_body: // block_body
@@ -2969,6 +3004,8 @@ switch (yykind)
       case symbol_kind::S_multiplicative_expression: // multiplicative_expression
       case symbol_kind::S_unary_expression: // unary_expression
       case symbol_kind::S_postfix_expression: // postfix_expression
+      case symbol_kind::S_postfix_no_brace: // postfix_no_brace
+      case symbol_kind::S_primary_no_brace: // primary_no_brace
       case symbol_kind::S_primary_expression: // primary_expression
         value.move< idyl::parser::expr_ptr > (YY_MOVE (s.value));
         break;
@@ -2983,7 +3020,9 @@ switch (yykind)
 
       case symbol_kind::S_top_level_statement: // top_level_statement
       case symbol_kind::S_function_or_flow_definition: // function_or_flow_definition
+      case symbol_kind::S_inline_statement: // inline_statement
       case symbol_kind::S_process_body_statement: // process_body_statement
+      case symbol_kind::S_oneliner_stmt: // oneliner_stmt
       case symbol_kind::S_lambda_statement: // lambda_statement
       case symbol_kind::S_block_body_statement: // block_body_statement
         value.move< idyl::parser::stmt_ptr > (YY_MOVE (s.value));
@@ -3064,6 +3103,7 @@ switch (yykind)
 
       case symbol_kind::S_top_level_statements: // top_level_statements
       case symbol_kind::S_process_body_statements: // process_body_statements
+      case symbol_kind::S_block_handler: // block_handler
       case symbol_kind::S_each_body: // each_body
       case symbol_kind::S_lambda_statements: // lambda_statements
       case symbol_kind::S_block_body: // block_body
@@ -3154,9 +3194,9 @@ switch (yykind)
 
 
 } // yy
-#line 3158 "src/parser/idyl.tab.hh"
+#line 3198 "/home/johann/Documents/git/idyl/src/parser/idyl.tab.hh"
 
 
 
 
-#endif // !YY_YY_SRC_PARSER_IDYL_TAB_HH_INCLUDED
+#endif // !YY_YY_HOME_JOHANN_DOCUMENTS_GIT_IDYL_SRC_PARSER_IDYL_TAB_HH_INCLUDED

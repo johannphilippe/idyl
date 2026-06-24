@@ -399,11 +399,13 @@ An `on` block is a **reaction** — it is placed in the scheduler segment that d
 
 ### Difference from `catch`
 
-| | `on expr: { }` | `expr catch event: { }` |
+| | `on expr: { }` | `catch instance::event: { }` |
 |---|---|---|
-| Fires when | expression is a live trigger | instance emits a named event |
-| Guard | value type (trigger/rest) | event name from `emit` |
+| Fires when | expression is a live trigger | emitted signal is truthy (or `::end` on stop) |
+| Guard | value type (trigger/rest) | event name from `emit`, or built-in `end` |
 | Repeats | every trigger tick | **once** — deactivated after first fire |
+
+Rule of thumb: `on` for recurring reactions, `catch` for a one-shot milestone or reacting to an instance ending. See [`catch` vs `on`](ch07_emit_catch.md#catch-vs-on--which-to-use) for the full guide.
 
 ---
 

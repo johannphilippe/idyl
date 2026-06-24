@@ -1,0 +1,14 @@
+import("stdlib")
+
+process primitive_anonymous: {
+    on(sync(2b)): {
+        print("Sync, anonymous hot reload test")
+    }
+}
+
+process library_anonymous: {
+    on(metro(2b)): {
+        print("Metro, anonymous hot reload test")
+    }
+
+}

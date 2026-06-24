@@ -12,6 +12,14 @@ This must be done in a smart way :
 - Serial read/write module 
 - MIDI module 
 
+## Language design 
+
+- Utility of catch expression (regarding the fact that we have "on" and "::" accessor)
+- Possibility of flow arythmetics `myflow * 2`: 
+    - could create a new flow where all values are multiplied by 2 (how to handle trigger ! ? )
+    - Could mean something else : defined by traits for example 
+
+
 ## Known bugs (unsolved)
 
 - [ascii_tool] : few stuff 

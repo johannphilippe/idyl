@@ -663,6 +663,9 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
                             env_.scope_pin_   = proc_scope_idx;
                             env_.scope_start_ = env_.scopes_.size();
                         }
+                        // Context for time-delayed triggers ('(trig, time)).
+                        current_proc_scope_idx_ = proc_scope_idx;
+                        current_rxn_ = rxn;
 
                         // (epoch-transition flush removed — see epoch_flush below)
 
@@ -721,16 +724,24 @@ void evaluator::exec_stmt(const parser::stmt_ptr& stmt) {
 
                         current_process_name_ = proc_name;
                         retick_instance_ = si.get();
+                        current_reaction_stmt_ = binding_snap;   // for '(trig,time)
                         if (binding_snap) exec_stmt(binding_snap);
                         retick_instance_ = nullptr;
                         retick_pool_.clear();
 
                         // Run segment-local reactions — compiled path if available.
+                        // (Reactions containing the ' delay operator never compile,
+                        // so they always take the AST path where current_reaction_stmt_
+                        // is tracked for time-delayed-trigger scheduling.)
                         if (compiled_rxn && !reactions_snap.empty()) {
                             vm_.run_reactions(compiled_rxn, rxn->flow_cursors_);
                         } else {
-                            for (const auto& r : reactions_snap) exec_stmt(r);
+                            for (const auto& r : reactions_snap) {
+                                current_reaction_stmt_ = r;
+                                exec_stmt(r);
+                            }
                         }
+                        current_reaction_stmt_ = nullptr;
                         current_process_name_ = "";
 
                         // Queue shared reactions for the end of this epoch.
@@ -1593,14 +1604,93 @@ value evaluator::eval_memory_op(const parser::memory_op_expr* moe) {
     // because clone() copies the shared_ptr<memory_op> (same underlying pointer).
     const parser::node* key = moe->op_.get();
 
-    // Determine buffer size (1-sample by default)
-    size_t size = 1;
+    size_t size      = 1;       // delay buffer length, in ticks
+    bool   have_v    = false;
+    value  v;
+
     if (moe->op_->delay_count_) {
         value count_val = eval_expr(moe->op_->delay_count_);
+
+        // ── Time count ─────────────────────────────────────────────────────
         if (count_val.type_ == value_t::time) {
-            // Time-based delay: convert ms to ticks using the current tick period.
-            // proc_stop_ctx_ is the driving instance during reaction execution;
-            // currently_ticking_inst_ covers eval inside tick_instance itself.
+            const double delay_ms = count_val.number_;
+
+            // During a scheduled delayed-trigger re-run, this node delivers the
+            // deferred trigger itself (the source has already reset to rest by
+            // now), and does not reschedule.
+            if (primed_delay_nodes_.count(key))
+                return value::trigger(true);
+
+            v = eval_expr(moe->op_->expr_);
+            have_v = true;
+
+            // ── Time-delayed TRIGGER → schedule a one-shot re-run ───────────
+            // A trigger delayed by a time can be FINER than the driving tick, so
+            // a tick buffer can't represent it (it would round to a whole tick —
+            // e.g. '(sync(10b), 2b) collapsed to a 10b delay). Instead, when the
+            // source trigger is live, schedule the enclosing reaction to re-run
+            // `delay_ms` later with this node "primed" so it fires then. Use it
+            // inline at the point of consumption:  on('(m,2b)): {…}  or
+            // instr('(m,2b), …).
+            if (v.type_ == value_t::trigger) {
+                if (v.trigger_ && scheduler_ && current_reaction_stmt_ && delay_ms > 0.0) {
+                    auto         stmt = current_reaction_stmt_;
+                    auto         proc = current_process_name_;
+                    const size_t pidx = current_proc_scope_idx_;
+                    auto         wrxn = current_rxn_;
+                    // If the delay is a named binding (m2 = '(m, 2b)), capture the
+                    // bound var so we can also re-run the sibling reactions that
+                    // read it when the delayed trigger arrives.
+                    std::string bound_var;
+                    if (stmt->type_ == parser::node_t::assignment)
+                        bound_var = static_cast<const parser::assignment&>(*stmt).name_;
+                    scheduler_->subscribe(delay_ms,
+                        [this, key, stmt, proc, pidx, wrxn, bound_var](double, double) -> bool {
+                            std::lock_guard<std::recursive_mutex> lock(eval_mutex_);
+                            const size_t old_pin = env_.scope_pin_, old_start = env_.scope_start_;
+                            if (pidx > 0 && pidx < env_.scopes_.size()) {
+                                env_.scope_pin_   = pidx;
+                                env_.scope_start_ = env_.scopes_.size();
+                            }
+                            auto sp = current_process_name_;
+                            auto ss = current_reaction_stmt_;
+                            current_process_name_  = proc;
+                            current_reaction_stmt_ = stmt;
+                            primed_delay_nodes_.insert(key);
+                            try { exec_stmt(stmt); } catch (...) {}
+
+                            // Binding form: the trigger now lives in `bound_var`;
+                            // re-run the sibling reactions that consume it so the
+                            // delayed trigger propagates (m2 = '(m,2b); on(m2): …).
+                            if (!bound_var.empty()) {
+                                if (auto rx = wrxn.lock()) {
+                                    std::vector<parser::stmt_ptr> rs;
+                                    { std::lock_guard<std::mutex> lk(rx->mutex); rs = rx->reactions; }
+                                    for (const auto& r : rs) {
+                                        if (!r || r == stmt) continue;
+                                        std::unordered_set<std::string> ids;
+                                        collect_stmt_ids(r, ids);
+                                        if (!ids.count(bound_var)) continue;
+                                        current_reaction_stmt_ = r;
+                                        try { exec_stmt(r); } catch (...) {}
+                                    }
+                                }
+                                if (value* b = env_.lookup(bound_var)) *b = value::rest();
+                            }
+
+                            primed_delay_nodes_.erase(key);
+                            current_reaction_stmt_ = ss;
+                            current_process_name_  = sp;
+                            env_.scope_pin_   = old_pin;
+                            env_.scope_start_ = old_start;
+                            return false;   // one-shot
+                        }, proc);
+                }
+                return value::rest();   // trigger is deferred to +delay_ms
+            }
+
+            // ── Continuous (non-trigger) time delay → tick buffer ───────────
+            // Convert ms to ticks using the current tick period.
             double dt_ms = 0.0;
             if (proc_stop_ctx_ && proc_stop_ctx_->dt_ms_ > 0.0)
                 dt_ms = proc_stop_ctx_->dt_ms_;
@@ -1608,25 +1698,24 @@ value evaluator::eval_memory_op(const parser::memory_op_expr* moe) {
                 dt_ms = currently_ticking_inst_->dt_ms_;
             if (dt_ms > 0.0)
                 size = std::max(size_t(1),
-                    static_cast<size_t>(std::round(count_val.number_ / dt_ms)));
+                    static_cast<size_t>(std::round(delay_ms / dt_ms)));
             else {
-                // No driving instance in scope (e.g. the epoch-flush one-shot that
-                // fires shared reactions): the tick period is unknown here.  If a
-                // buffer already exists, keep its size — defaulting to 1 would reset
-                // and thrash the buffer on every flush, disabling the delay (Bug 4).
+                // Tick period unknown here (e.g. epoch-flush one-shot): keep the
+                // existing buffer size rather than thrashing it back to 1.
                 auto eit = delay_memories_.find(key);
                 if (eit != delay_memories_.end())
                     size = eit->second.buffer.size();
             }
         } else {
+            // ── Numeric count → that many ticks ─────────────────────────────
             size = std::max(size_t(1), static_cast<size_t>(std::round(count_val.as_number())));
         }
     }
 
+    if (!have_v) v = eval_expr(moe->op_->expr_);
+
     // Initialize buffer if missing or size changed
     auto it = delay_memories_.find(key);
-
-    value v = eval_expr(moe->op_->expr_); // current value for initialization if needed     
     if (it == delay_memories_.end() || it->second.buffer.size() != size) {
         memory_buffer buf(size);
         for (auto& slot : buf.buffer) slot = v; // initialize with current value
@@ -1635,16 +1724,9 @@ value evaluator::eval_memory_op(const parser::memory_op_expr* moe) {
     }
 
     memory_buffer& mem = it->second;
-
-    // Read the oldest (most delayed) value — this is what we return
-    value out = mem.buffer[mem.write_index];
-
-    // Overwrite that slot with the current value
-    mem.buffer[mem.write_index] = v;
-
-    // Advance write index (circular)
+    value out = mem.buffer[mem.write_index];   // oldest (most delayed) value
+    mem.buffer[mem.write_index] = v;           // overwrite with current
     mem.write_index = (mem.write_index + 1) % size;
-
     return out;
 }
 
@@ -3922,9 +4004,24 @@ void evaluator::diff_and_apply(live_process& lp,
     // Helper: walk an expression's AST to extract the outermost function name
     // without evaluating anything.  Used below to detect segment function changes
     // without running speculative exec (which races with the scheduler thread).
+    // Strip any nested parenthesized_expr wrappers (e.g. the parens in
+    // `on(metro(2b))`) so callers can inspect the underlying expression's type.
+    auto unwrap_paren = [](const parser::expr_ptr& e) -> const parser::expr_ptr& {
+        const parser::expr_ptr* cur = &e;
+        while (*cur && (*cur)->type_ == parser::node_t::parenthesized_expr) {
+            auto& pe = static_cast<const parser::parenthesized_expr&>(**cur);
+            cur = &pe.expr_;
+        }
+        return *cur;
+    };
+
     auto extract_fn_name = [](auto& self, const parser::expr_ptr& expr) -> std::string {
         if (!expr) return "";
         switch (expr->type_) {
+            case parser::node_t::parenthesized_expr: {
+                auto& pe = static_cast<const parser::parenthesized_expr&>(*expr);
+                return self(self, pe.expr_);
+            }
             case parser::node_t::function_call_expr: {
                 auto& fce = static_cast<const parser::function_call_expr&>(*expr);
                 if (!fce.call_ || !fce.call_->function_) return "";
@@ -4032,8 +4129,11 @@ void evaluator::diff_and_apply(live_process& lp,
                 bool is_unnamed_driver = false;
                 if (s->type_ == parser::node_t::on_block) {
                     auto& ob = static_cast<const parser::on_block&>(*s);
-                    if (ob.trigger_expr_ &&
-                        ob.trigger_expr_->type_ == parser::node_t::function_call_expr)
+                    // `on(metro(2b))` wraps the trigger in a parenthesized_expr;
+                    // unwrap so the inner function call is detected as the driver.
+                    const parser::expr_ptr& trig = unwrap_paren(ob.trigger_expr_);
+                    if (trig &&
+                        trig->type_ == parser::node_t::function_call_expr)
                         is_unnamed_driver = true;
                 } else if (stmt_is_unnamed_driver(s)) {
                     // expression_stmt wrapping a temporal inner call (e.g.
@@ -4338,10 +4438,11 @@ void evaluator::diff_and_apply(live_process& lp,
             if (new_stmt->type_ != parser::node_t::expression_stmt) {
                 if (new_stmt->type_ == parser::node_t::on_block) {
                     const auto& ob = static_cast<const parser::on_block&>(*new_stmt);
-                    if (ob.trigger_expr_ &&
-                            ob.trigger_expr_->type_ == parser::node_t::function_call_expr) {
+                    const parser::expr_ptr& trig = unwrap_paren(ob.trigger_expr_);
+                    if (trig &&
+                            trig->type_ == parser::node_t::function_call_expr) {
                         const auto& fce =
-                            static_cast<const parser::function_call_expr&>(*ob.trigger_expr_);
+                            static_cast<const parser::function_call_expr&>(*trig);
                         if (fce.call_ && scheduler_) {
                             // Extract dt= named arg or first positional from trigger call.
                             double new_dt = 0.0;

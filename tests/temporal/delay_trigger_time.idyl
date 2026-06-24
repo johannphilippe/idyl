@@ -1,0 +1,22 @@
+// Time-delayed triggers: '(trigger, time) must delay by the real time offset,
+// even when that offset is FINER than the driving tick (sub-tick delay).
+// Here sync(10b) fires every 10 beats; '(m, 2b) must fire 2 beats after each m,
+// not collapse to a whole-tick (10b) delay (the old tick-buffer bug).
+//
+// Expected per cycle (tempo 600bpm → 1b=100ms, 10b=1000ms, 2b=200ms):
+//   M  at t           M2 at t+200ms       (both binding and inline forms)
+import("stdlib")
+
+process binding_form: {
+    tempo(600bpm)
+    m  = sync(10b)
+    m2 = '(m, 2b)            // delayed-trigger binding
+    on(m):  { print("M") }
+    on(m2): { print("M2 (binding)") }
+}
+
+process inline_form: {
+    tempo(600bpm)
+    m = sync(10b)
+    on('(m, 3b)): { print("M3 (inline)") }   // delay used at point of consumption
+}

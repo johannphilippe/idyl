@@ -33,6 +33,7 @@
 
 #include "renderer.hpp"
 #include "token_stream.hpp"
+#include "video.hpp"
 
 // ── Idyl headers ──────────────────────────────────────────────────────────────
 // These come from the parent idyl repo's include/ directory.
@@ -45,8 +46,10 @@ using idyl::osc_message;
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <mutex>
 #include <optional>
@@ -62,7 +65,55 @@ struct shared_state {
     std::vector<token>   tokens;       // current token list
     bool                 clear_req = false;
     std::optional<float> tempo_bpm;    // if set, overrides autonomous tempo
+    // ── background-video directives (driven by `// vid NAME` comments) ──
+    std::string          video_load;       // name to load when video_load_req set
+    bool                 video_load_req = false;
+    bool                 video_off_req  = false;
 };
+
+// Scan comment tokens for a background-video directive, and ERASE any directive
+// comment from `toks` so it is never shown in the comment display mode — a
+// directive is a command, not prose.
+// Recognises:  `vid NAME`  → load NAME (returns 1, sets name)
+//              `novid` / `vid off` / `vid stop` → stop (returns 2)
+// The last directive in the snippet wins.  Returns 0 if none found.
+static int scan_video_directive(std::vector<token>& toks, std::string& name) {
+    int result = 0;
+    auto is_directive = [&](const token& t) -> bool {
+        if (t.kind != token_kind::comment) return false;
+        const std::string& s = t.text;   // whitespace-normalised
+        if (s == "novid" || s == "vid off" || s == "vid stop") { result = 2; return true; }
+        if (s.rfind("vid ", 0) == 0) {
+            std::string rest = s.substr(4);
+            size_t sp = rest.find(' ');
+            std::string w = (sp == std::string::npos) ? rest : rest.substr(0, sp);
+            if (!w.empty()) { name = w; result = 1; return true; }
+        }
+        return false;
+    };
+    toks.erase(std::remove_if(toks.begin(), toks.end(), is_directive), toks.end());
+    return result;
+}
+
+// Resolve a video name against `dir`: try it verbatim, then dir/name, then
+// dir/name+<ext> for common video extensions if `name` has none.
+[[nodiscard]] static std::string resolve_video_path(const std::string& dir,
+                                                    const std::string& name) {
+    namespace fs = std::filesystem;
+    auto is_file = [](const fs::path& p) {
+        std::error_code ec; return fs::is_regular_file(p, ec);
+    };
+    if (is_file(name)) return name;
+    fs::path base = dir.empty() ? fs::path(".") : fs::path(dir);
+    if (is_file(base / name)) return (base / name).string();
+    if (fs::path(name).extension().empty()) {
+        for (const char* ext : { ".mp4", ".mov", ".mkv", ".webm", ".avi", ".gif", ".m4v" }) {
+            fs::path p = base / (name + ext);
+            if (is_file(p)) return p.string();
+        }
+    }
+    return {};
+}
 
 // ── graceful shutdown ─────────────────────────────────────────────────────────
 static std::atomic<bool> g_running{ true };
@@ -117,6 +168,17 @@ static void osc_thread(shared_state& state, uint16_t port) {
             if (auto s = msg.try_get<std::string>(0)) {
                 state.tokens = interesting_tokens(*s);
                 state.clear_req = false;
+                // background-video directive embedded in a comment
+                std::string vname;
+                int vd = scan_video_directive(state.tokens, vname);
+                if (vd == 1) {
+                    state.video_load = vname;
+                    state.video_load_req = true;
+                    state.video_off_req  = false;
+                } else if (vd == 2) {
+                    state.video_off_req  = true;
+                    state.video_load_req = false;
+                }
                 if (g_debug)
                     std::cerr << "[idyl_ascii] tokens=" << state.tokens.size() << "\n";
             }
@@ -193,9 +255,48 @@ static const std::initializer_list<double> scene_weights = {
 static void run_animation(shared_state& state,
                           int min_ms, int max_ms,
                           render_scale scale,
-                          int forced_scene = -1) {
+                          int forced_scene,
+                          const std::string& video_dir,
+                          const std::string& initial_video,
+                          double video_fps) {
     renderer rend(scale);
     std::mt19937 rng(std::random_device{}());
+
+    // ── background video ───────────────────────────────────────────────────
+    video_player      vp;
+    std::string       cur_video;          // path currently playing ("" = none)
+    std::vector<char> vch; std::vector<int> vfg;
+    term_size         last_term = rend.term();
+
+    auto refresh_bg = [&]() {
+        if (vp.active() && vp.sample(vch, vfg))
+            rend.set_background(vch, vfg, vp.cols(), vp.rows());
+    };
+    auto start_video = [&](const std::string& name) {
+        std::string path = resolve_video_path(video_dir, name);
+        if (path.empty()) {
+            std::cerr << "[idyl_ascii] video '" << name << "' not found (dir: "
+                      << (video_dir.empty() ? "." : video_dir) << ")\n";
+            return;
+        }
+        auto t = rend.term();
+        if (vp.start(path, t.cols, t.rows, video_fps)) {
+            cur_video = path;
+            std::cerr << "[idyl_ascii] video |> " << path << "\n";
+        } else {
+            std::cerr << "[idyl_ascii] video failed (is ffmpeg installed?): " << path << "\n";
+            cur_video.clear();
+        }
+    };
+    auto stop_video = [&]() {
+        if (vp.active() || !cur_video.empty())
+            std::cerr << "[idyl_ascii] video stop\n";
+        vp.stop();
+        rend.clear_background();
+        cur_video.clear();
+    };
+
+    if (!initial_video.empty()) start_video(initial_video);
 
     const bool scene_locked = (forced_scene >= 0);
 
@@ -275,19 +376,41 @@ static void run_animation(shared_state& state,
                              const scene_def& sc, int visible,
                              int bc, int br, int total_ms) {
         if (total_ms <= 0) return;
-        if (!is_dynamic_glitch(sc.glitch)) {
+        // Re-render across the dwell when the grain is dynamic OR a background
+        // video is playing — so both rain independently of the token rhythm.
+        const bool looped = is_dynamic_glitch(sc.glitch) || vp.active();
+        if (!looped) {
             rend.render_token(tok, fc, alpha, sc.disp, sc.glitch, rng, visible, bc, br);
             std::this_thread::sleep_for(ms(total_ms));
             return;
         }
-        constexpr int glitch_frame_ms = 65;   // ~15 fps grain
+        // ── grain/video decoupling (EXPERIMENTAL — may revert) ──────────────
+        // The glitch grain re-randomises on its own ~15 fps clock via a held
+        // seed; the loop itself renders at the faster of grain/video so the
+        // video composites at its own fps WITHOUT dragging the grain rate along.
+        // (Old behaviour: loop ran at 1000/video_fps and re-randomised the grain
+        //  every frame, so grain speed == --video-fps while a clip played.)
+        constexpr int grain_ms = 65;                       // ~15 fps grain
+        const int video_ms = vp.active()
+            ? std::max(20, static_cast<int>(1000.0 / video_fps))
+            : grain_ms;
+        const int frame_ms = std::min(grain_ms, video_ms);
+        const bool dyn = is_dynamic_glitch(sc.glitch);
+        std::uint32_t glitch_seed = static_cast<std::uint32_t>(rng());
+        auto last_grain = clock::now();
         auto end = clock::now() + ms(total_ms);
         while (g_running) {
-            rend.render_token(tok, fc, alpha, sc.disp, sc.glitch, rng, visible, bc, br);
             auto now2 = clock::now();
+            if (dyn && now2 - last_grain >= ms(grain_ms)) {
+                glitch_seed = static_cast<std::uint32_t>(rng());  // advance grain
+                last_grain  = now2;
+            }
+            refresh_bg();
+            std::mt19937 grain_rng(glitch_seed);   // same seed → grain pattern holds
+            rend.render_token(tok, fc, alpha, sc.disp, sc.glitch, grain_rng, visible, bc, br);
             if (now2 >= end) break;
             auto remain = std::chrono::duration_cast<ms>(end - now2);
-            std::this_thread::sleep_for(std::min(ms(glitch_frame_ms), remain));
+            std::this_thread::sleep_for(std::min(ms(frame_ms), remain));
         }
     };
 
@@ -357,11 +480,13 @@ static void run_animation(shared_state& state,
                 int len = static_cast<int>(phrase.size());
                 for (int v = 1; v <= len && g_running; ++v) {
                     if (incoming_changed()) return;
+                    refresh_bg();
                     rend.render_phrase(phrase, 1.0f, v);
                     std::this_thread::sleep_for(ms(18));
                 }
                 // Generous reading time: ~320 ms per word + base.
                 if (interruptible_sleep(500 + static_cast<int>(shown) * 320)) return;
+                refresh_bg();
                 rend.render_phrase(phrase, 0.3f);   // fade
                 if (interruptible_sleep(150)) return;
             }
@@ -369,9 +494,11 @@ static void run_animation(shared_state& state,
             std::uniform_int_distribution<int> hold(480, 760);
             for (size_t k = 0; k < words.size() && g_running; ++k) {
                 token wt{ words[k], token_kind::comment };
+                refresh_bg();
                 rend.render_token(wt, '#', 1.0f,
                                   disp_mode::centered, glitch_mode::clean, rng);
                 if (interruptible_sleep(hold(rng))) return;
+                refresh_bg();
                 rend.render_token(wt, '.', 0.3f,
                                   disp_mode::centered, glitch_mode::clean, rng);
                 if (interruptible_sleep(130)) return;
@@ -391,6 +518,29 @@ static void run_animation(shared_state& state,
         if (!scene_locked && spontaneous_scene(rng)) switch_scene(false);
         if (spontaneous_tempo(rng))                  switch_tempo(false);
 
+        // ── background-video: directives + terminal-resize restart ─────────
+        {
+            bool        off = false;
+            std::string load;
+            {
+                std::lock_guard<std::mutex> lk(state.mtx);
+                if (state.video_off_req)  { state.video_off_req  = false; off  = true; }
+                if (state.video_load_req) { state.video_load_req = false; load = state.video_load; }
+            }
+            if (off)          stop_video();
+            if (!load.empty()) start_video(load);
+        }
+        if (vp.active()) {
+            auto t = rend.term();
+            if ((t.cols != last_term.cols || t.rows != last_term.rows) && !cur_video.empty()) {
+                std::string p = cur_video;     // re-decode at the new resolution
+                vp.stop();
+                vp.start(p, t.cols, t.rows, video_fps);
+                cur_video = p;
+            }
+        }
+        last_term = rend.term();
+
         // ── snapshot shared state ─────────────────────────────────────────
         std::vector<token>   snap_tokens;
         bool                 snap_clear = false;
@@ -409,8 +559,17 @@ static void run_animation(shared_state& state,
         }
 
         if (snap_clear || local_tokens.empty()) {
-            if (!showing_blank) { rend.blank(); showing_blank = true; }
-            std::this_thread::sleep_for(ms(80));
+            // With a video playing, keep refreshing so the background animates
+            // even when there is no code on screen.
+            if (vp.active()) {
+                refresh_bg();
+                rend.blank();
+                showing_blank = true;
+                std::this_thread::sleep_for(ms(std::max(40, static_cast<int>(1000.0 / video_fps))));
+            } else {
+                if (!showing_blank) { rend.blank(); showing_blank = true; }
+                std::this_thread::sleep_for(ms(80));
+            }
             continue;
         }
         showing_blank = false;
@@ -454,6 +613,7 @@ static void run_animation(shared_state& state,
             int n = static_cast<int>(tok.text.size());
             std::uniform_int_distribution<int> char_delay(45, 95);
             for (int k = 1; k <= n && g_running; ++k) {
+                refresh_bg();
                 rend.render_token(tok, fc, 1.0f, sc.disp, sc.glitch, rng, k, 0, 0);
                 std::this_thread::sleep_for(ms(char_delay(rng)));
             }
@@ -492,8 +652,56 @@ static const char* parse_str_arg(int argc, char** argv, const char* flag, const 
     return def;
 }
 
+// ── usage ───────────────────────────────────────────────────────────────────
+static void print_usage(const char* prog) {
+    std::cout <<
+"idyl_ascii — OSC-driven live-coding ASCII art visualiser\n"
+"\n"
+"Usage: " << prog << " [options]\n"
+"\n"
+"Listens on OSC/UDP for Idyl source snippets and renders their tokens as large\n"
+"ASCII-art glyphs with an autonomous visual rhythm. Comments are shown as a calm,\n"
+"readable \"human voice\", and an optional video can haunt the background.\n"
+"\n"
+"Options:\n"
+"  --port N           UDP port to listen on                       (default: 9001)\n"
+"  --min-ms N         minimum token dwell time in ms              (default: 350)\n"
+"  --max-ms N         maximum token dwell time in ms              (default: 1600)\n"
+"  --hscale N         horizontal pixel magnification               (default: 2)\n"
+"  --vscale N         vertical pixel magnification                 (default: 1)\n"
+"  --scene NAME       lock to one scene; disables auto-switching\n"
+"  --list-scenes      print the available scene names and exit\n"
+"  --video-dir DIR    directory to resolve `vid` video names from  (default: .)\n"
+"  --video NAME       start a background video immediately (resolved via --video-dir)\n"
+"  --video-fps N      background video frame rate                  (default: 12)\n"
+"  --debug            log received OSC packets to stderr\n"
+"  -h, --help         show this help and exit\n"
+"\n"
+"OSC protocol (UDP):\n"
+"  /idyl/eval s <src>        push new source; starts animating  (alias: /idyl/code)\n"
+"  /idyl/process/stop        blank the screen                   (alias: /idyl/clear)\n"
+"  /idyl/tempo f <bpm>       lock token dwell to one beat; 0 = unlock\n"
+"\n"
+"Background video (needs ffmpeg):\n"
+"  Embed a directive in a comment of the source you send:\n"
+"    // vid NAME     play NAME from --video-dir behind the text (glitchy, faint)\n"
+"    // novid        stop the background video    (also: // vid off)\n"
+"  NAME resolves verbatim, then DIR/NAME, then DIR/NAME.<ext> for\n"
+"  .mp4 .mov .mkv .webm .avi .gif .m4v when the extension is omitted.\n"
+"\n"
+"Examples:\n"
+"  " << prog << " --port 9001 --hscale 3\n"
+"  " << prog << " --scene corrupt --min-ms 200 --max-ms 900\n"
+"  " << prog << " --video-dir ~/clips --video memories --video-fps 15\n";
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 int main(int argc, char** argv) {
+    if (has_flag(argc, argv, "--help") || has_flag(argc, argv, "-h")) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
     std::signal(SIGINT,  on_signal);
     std::signal(SIGTERM, on_signal);
 
@@ -502,6 +710,9 @@ int main(int argc, char** argv) {
     int         max_ms = parse_int_arg(argc, argv, "--max-ms", 1600);
     int         col_sc = parse_int_arg(argc, argv, "--hscale", 2);
     int         row_sc = parse_int_arg(argc, argv, "--vscale", 1);
+    int         vid_fps= parse_int_arg(argc, argv, "--video-fps", 12);
+    const char* vid_dir= parse_str_arg(argc, argv, "--video-dir", ".");
+    const char* vid_in = parse_str_arg(argc, argv, "--video", nullptr);
     g_debug            = has_flag(argc, argv, "--debug");
 
     // --list-scenes: print available scene names and exit.
@@ -541,9 +752,14 @@ int main(int argc, char** argv) {
     std::cerr << "[idyl_ascii] send: /idyl/eval s \"process p: { m = metro(1b) }\"\n";
     std::cerr << "[idyl_ascii] send: /idyl/process/stop  (clears screen)\n";
     std::cerr << "[idyl_ascii] send: /idyl/tempo f 120.0\n";
+    std::cerr << "[idyl_ascii] video: comment `// vid NAME` plays NAME from "
+              << vid_dir << " behind the text (`// novid` stops); needs ffmpeg\n";
     if (g_debug) std::cerr << "[idyl_ascii] debug logging ON\n";
 
-    run_animation(state, min_ms, max_ms, scale, forced_scene);
+    run_animation(state, min_ms, max_ms, scale, forced_scene,
+                  vid_dir ? vid_dir : ".",
+                  vid_in  ? vid_in  : "",
+                  static_cast<double>(vid_fps));
 
     osc_th.join();
     return 0;

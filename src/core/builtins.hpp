@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <sstream>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -348,8 +349,48 @@ namespace idyl::core {
                 return value::nil();
             }, 1, -1
         },
+        {
+            // sprintf(format, ...) — like printf but RETURNS the formatted string
+            // (no newline appended, nothing printed). Same specifiers as printf:
+            // %d/%i (integer), %f (number), %s (string), %% (literal percent).
+            "sprintf", [](span<const value> args) -> value {
+                if (args.size_ == 0) return value::string("");
+                std::string format = args[0].type_ == value_t::string && args[0].payload_ ? args[0].str() : "";
+                std::ostringstream oss;
+                size_t arg_index = 1;
+                for (size_t i = 0; i < format.size(); ++i) {
+                    if (format[i] == '%' && i + 1 < format.size()) {
+                        char spec = format[++i];
+                        if (spec != '%' && arg_index >= args.size_) {
+                            std::cerr << "Not enough arguments for sprintf format string\n";
+                            break;
+                        }
+                        switch (spec) {
+                            case 'd':
+                            case 'i':
+                                oss << static_cast<int64_t>(args[arg_index++].as_number());
+                                break;
+                            case 'f':
+                                oss << args[arg_index++].as_number();
+                                break;
+                            case 's':
+                                oss << args[arg_index++].as_string();
+                                break;
+                            case '%':
+                                oss << '%';
+                                break;
+                            default:
+                                std::cerr << "Unknown sprintf format specifier: %" << spec << "\n";
+                        }
+                    } else {
+                        oss << format[i];
+                    }
+                }
+                return value::string(oss.str());
+            }, 1, -1
+        },
         /*
-            Open file, defaults to write mode 
+            Open file, defaults to write mode
             args: 
             - Path (string)
             - Mode (string, optional): "read"/"r", "write"/"w, "append"/"a". Default is "write".

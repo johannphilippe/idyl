@@ -143,7 +143,11 @@ lorenz(channel=0, sigma=10, rho=28, beta=2.667, speed=1, lo=0, hi=1, dt=10ms) = 
         z   = 20
         out = 0
     }
-    h  = dt / 1000 * speed
+    // Forward-Euler step. Capped so larger speed/dt can't push the explicit
+    // integrator past its stability limit (≈0.02 here) and blow up into a
+    // saturated square wave. For faster motion at the same dt the cap holds the
+    // rate; to truly speed up, raise the tick rate (smaller dt) instead.
+    h  = min(dt / 1000 * speed, 0.015)
     ox = x
     oy = y
     oz = z
@@ -177,7 +181,8 @@ rossler(channel=0, a=0.2, b=0.2, c=5.7, speed=1, lo=0, hi=1, dt=10ms) = out |> {
         z   = 0
         out = 0
     }
-    h  = dt / 1000 * speed
+    // Euler step capped for stability (Rössler is gentler — allows a larger cap).
+    h  = min(dt / 1000 * speed, 0.05)
     ox = x
     oy = y
     oz = z
@@ -214,7 +219,8 @@ chua(channel=0, alpha=15.6, beta=28, m0=-1.143, m1=-0.714, speed=1, lo=0, hi=1, 
         z   = 0
         out = 0
     }
-    h  = dt / 1000 * speed
+    // Euler step capped for stability (Chua is stiff: α=15.6 → tight limit).
+    h  = min(dt / 1000 * speed, 0.012)
     ox = x
     oy = y
     oz = z
@@ -251,7 +257,8 @@ duffing(channel=0, delta=0.1, alpha=1, gamma=0.37, omega=1.2, speed=1, lo=0, hi=
         t   = 0
         out = 0
     }
-    h  = dt / 1000 * speed
+    // Euler step capped for stability.
+    h  = min(dt / 1000 * speed, 0.03)
     ox = x
     oy = y
     x  = ox + oy * h
@@ -285,7 +292,8 @@ vanderpol(channel=0, mu=2, speed=1, lo=0, hi=1, dt=10ms) = out |> {
         y   = 0
         out = 0
     }
-    h   = dt / 1000 * speed
+    // Euler step capped for stability (stiffness grows with mu).
+    h   = min(dt / 1000 * speed, 0.03)
     ox  = x
     oy  = y
     x   = ox + oy * h

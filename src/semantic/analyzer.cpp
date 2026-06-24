@@ -391,7 +391,18 @@ namespace idyl::semantic {
                             } else if(stmt->type_ == parser::node_t::assignment) {
                                 auto assign = std::static_pointer_cast<parser::assignment>(stmt);
                                 symbol_t sym_type = assign->is_emit_ ? symbol_t::emit_variable : symbol_t::local_variable;
-                                scope_stack_.define(assign->name_, symbol_info{sym_type, assign->name_, assign->line_, assign->column_});
+                                symbol_info vinfo{sym_type, assign->name_, assign->line_, assign->column_};
+                                // Define in init_block scope…
+                                scope_stack_.define(assign->name_, vinfo);
+                                // …and promote to the enclosing lambda_body scope so the
+                                // update section can READ init-only variables (e.g. a value
+                                // computed once in init and used each tick). Without this the
+                                // init_block scope is popped before the update block resolves,
+                                // and read-only init vars would be reported "not found".
+                                if (scope_stack_.scopes_.size() >= 2) {
+                                    scope_stack_.scopes_[scope_stack_.scopes_.size() - 2]
+                                        .symbols_[assign->name_] = vinfo;
+                                }
                             }
                         }
                     }
